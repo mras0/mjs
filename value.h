@@ -8,54 +8,25 @@
 #include <stdint.h>
 #include <memory>
 #include <unordered_map>
+#include <functional>
+#include <vector>
+
+#include "string.h"
+
+// TODO: Garbage collect / cycle breaking...
 
 namespace mjs {
 
 enum class value_type {
-    undefined, null, boolean, number, string, object
+    undefined, null, boolean, number, string, object,
+    // internal
+    reference, native_function
 };
 const char* string_value(value_type t);
 template<typename CharT, typename CharTraitsT>
 std::basic_ostream<CharT, CharTraitsT>& operator<<(std::basic_ostream<CharT, CharTraitsT>& os, value_type t) {
     return os << string_value(t);
 }
-
-class string {
-public:
-    explicit string(const char* str);
-    explicit string(const std::wstring_view& s) : s_(s) {}
-    explicit string(std::wstring&& s) : s_(std::move(s)) {}
-    string(const string& s) : s_(s.s_) {}
-    string(string&& s) : s_(std::move(s.s_)) {}
-
-    string& operator+=(const string& rhs) {
-        s_ += rhs.s_;
-        return *this;
-    }
-
-    std::wstring_view view() const { return s_; }
-    const std::wstring& str() const { return s_; }
-private:
-    std::wstring s_;
-};
-std::ostream& operator<<(std::ostream& os, const string& s);
-std::wostream& operator<<(std::wostream& os, const string& s);
-inline bool operator==(const string& l, const string& r) { return l.view() == r.view(); }
-inline string operator+(const string& l, const string& r) { auto res = l; return res += r; } 
-
-double to_number(const string& s);
-
-} // namespace mjs
-namespace std {
-template<> struct hash<::mjs::string> {
-    size_t operator()(const ::mjs::string& s) const {
-        return hash<std::wstring>()(s.str());
-    }
-};
-} // namespace std
-namespace mjs {
-
-// TODO: Garbage collect / cycle breaking...
 
 enum class property_attribute {
     none = 0,
@@ -74,7 +45,26 @@ inline property_attribute operator&(property_attribute l, property_attribute r) 
 }
 
 class object;
+class value;
 using object_ptr = std::shared_ptr<object>;
+using native_function_type = std::function<value (const std::vector<value>&)>;
+
+// §8.7
+class reference {
+public:
+    explicit reference(const object_ptr& base, const string& property_name) : base_(base), property_name_(property_name) {}
+
+    const object_ptr& base() const { return base_; }
+    const string& property_name() const { return property_name_; }
+
+    const value& get_value() const;
+    void put_value(const value& val);
+
+private:
+    object_ptr base_;
+    string property_name_;
+};
+
 
 class value {
 public:
@@ -83,6 +73,8 @@ public:
     explicit value(double n) : type_(value_type::number), n_(n) {}
     explicit value(const string& s) : type_(value_type::string), s_(s) {}
     explicit value(const object_ptr& o) : type_(value_type::object), o_(o) {}
+    explicit value(const reference& r) : type_(value_type::reference), r_(r) {}
+    explicit value(const native_function_type& f) : type_(value_type::native_function), f_(f) {}
     value(const value& rhs);
     value(value&& rhs);
     ~value() { destroy(); }
@@ -92,8 +84,11 @@ public:
 
     value_type type() const { return type_; }
     bool boolean_value() const { assert(type_ == value_type::boolean); return b_; }
-    double number_value() const {assert(type_ == value_type::number); return n_; }
-    const string& string_value() const {assert(type_ == value_type::string); return s_; }
+    double number_value() const { assert(type_ == value_type::number); return n_; }
+    const string& string_value() const { assert(type_ == value_type::string); return s_; }
+    const object_ptr& object_value() const { assert(type_ == value_type::object); return o_; }
+    const reference& reference_value() const { assert(type_ == value_type::reference); return r_; }
+    const native_function_type& native_function_value() const { assert(type_ == value_type::native_function); return f_; }
 
     static const value undefined;
     static const value null;
@@ -108,6 +103,8 @@ private:
         double n_;
         string s_;
         object_ptr o_;
+        reference r_;
+        native_function_type f_;
     };
 };
 std::ostream& operator<<(std::ostream& os, const value& v);
@@ -116,12 +113,12 @@ bool operator==(const value& l, const value& r);
 
 class object {
 public:
-    static auto make(const object_ptr& prototype) {
+    static auto make(const string& class_name, const object_ptr& prototype = nullptr) {
         struct make_shared_helper : object {
-            make_shared_helper(const object_ptr& prototype) : object(prototype) {}
+            make_shared_helper(const string& class_name, const object_ptr& prototype) : object(class_name, prototype) {}
         };
 
-        return std::make_shared<make_shared_helper>(prototype);
+        return std::make_shared<make_shared_helper>(class_name, prototype);
     }
 
     // §8.6.2, Page 22: Internal Properties and Methods
@@ -141,8 +138,10 @@ public:
     // the  [[Class]]  property  of  a  host  object  may  be  any  value,  even  a  value  used  by  a  built-in  object  for  its  [[Class]]
     // property. Note that this specification does not provide any means for a program to access the value of a [[Class]]
     // property; it is used internally to distinguish different kinds of built-in objects
+    const string& class_name() const { return class_; }
 
     // [[Value]] ()
+
     // [[Get]] (PropertyName)
     const value& get(const string& name) {
         if (auto it = properties_.find(name); it != properties_.end()) {
@@ -194,8 +193,18 @@ public:
     }
 
     // [[DefaultValue]] (Hint)
+    value default_value(value_type hint) const {
+        throw std::runtime_error(std::string("Not implemented. default_value hint=") + string_value(hint));
+    }
+
     // [[Construct]] (Arguments...)
+    void construct_function(const native_function_type& f) { construct_ = f; }
+    const native_function_type& construct_function() const { return construct_; }
+
     // [[Call]] (Arguments...)
+    void call_function(const native_function_type& f) { call_ = f; }
+    const native_function_type& call_function() const { return call_; }
+
 private:
     struct property {
         value val;
@@ -204,9 +213,12 @@ private:
         bool has_attribute(property_attribute a) const { return (attr & a) == a; }
     };
 
-    explicit object(const object_ptr& prototype) : prototype_(prototype){}
+    explicit object(const string& class_name, const object_ptr& prototype) : class_(class_name), prototype_(prototype){}
 
+    string class_;
     object_ptr prototype_;
+    native_function_type construct_;
+    native_function_type call_;
     std::unordered_map<string, property> properties_;
 };
 

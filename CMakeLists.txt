@@ -22,7 +22,7 @@ if (WIN32)
     add_definitions("-DWIN32 -D_WIN32 -DUNICODE -D_UNICODE")
 endif()
 
-add_library(mjs_lib STATIC value.cpp value.h)
+add_library(mjs_lib STATIC string.cpp string.h value.cpp value.h lexer.cpp lexer.h)
 
 add_executable(${PROJECT_NAME} mjs.cpp)
 target_link_libraries(${PROJECT_NAME} mjs_lib)

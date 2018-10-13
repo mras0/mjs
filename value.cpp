@@ -24,30 +24,22 @@ const char* string_value(value_type t) {
     case value_type::number:    return "number";
     case value_type::string:    return "string";
     case value_type::object:    return "object";
+    case value_type::reference: return "reference";
+    case value_type::native_function: return "native_function";
     }
     NOT_IMPLEMENTED();
 }
 
 //
-// string
+// reference
 //
-string::string(const char* str) : s_(str, str+std::strlen(str)) {
+
+const value& reference::get_value() const {
+    return base_->get(property_name_);
 }
 
-std::ostream& operator<<(std::ostream& os, const string& s) {
-    auto v = s.view();
-    return os << std::string(v.begin(), v.end());
-}
-
-std::wostream& operator<<(std::wostream& os, const string& s) {
-    return os << s.view();
-}
-
-double to_number(const string& s) {
-    // TODO: Implement real algorithm from §9.3.1 ToNumber Applied to the String Type
-    std::wistringstream wis{s.str()};
-    double d;
-    return wis >> d ? d : NAN;
+void reference::put_value(const value& val) {
+    base_->put(property_name_, val);
 }
 
 //
@@ -66,7 +58,9 @@ value& value::operator=(const value& rhs) {
         case value_type::boolean:   b_ = rhs.b_; break;
         case value_type::number:    n_ = rhs.n_; break;
         case value_type::string:    new (&s_) string{rhs.s_}; break;
-        case value_type::object:    new (&o_) object_ptr{rhs.o_};
+        case value_type::object:    new (&o_) object_ptr{rhs.o_}; break;
+        case value_type::reference: new (&r_) reference{rhs.r_}; break;
+        case value_type::native_function: new (&f_) native_function_type{rhs.f_}; break;
         default: NOT_IMPLEMENTED();
         }
         type_ = rhs.type_;
@@ -82,6 +76,8 @@ value& value::operator=(value&& rhs) {
     case value_type::number:    n_ = rhs.n_; break;
     case value_type::string:    new (&s_) string{std::move(rhs.s_)}; break;
     case value_type::object:    new (&o_) object_ptr{std::move(rhs.o_)}; break;
+    case value_type::reference: new (&r_) reference{std::move(rhs.r_)}; break;
+    case value_type::native_function: new (&f_) native_function_type{std::move(rhs.f_)}; break;
     default: NOT_IMPLEMENTED();
     }
     type_ = rhs.type_;
@@ -97,6 +93,8 @@ void value::destroy() {
     case value_type::number: break;
     case value_type::string: s_.~string(); break;
     case value_type::object: o_.~shared_ptr(); break;
+    case value_type::reference: r_.~reference(); break;
+    case value_type::native_function: f_.~function(); break;
     default: NOT_IMPLEMENTED();
     }
     type_ = value_type::undefined;
@@ -118,13 +116,15 @@ bool operator==(const value& l, const value& r) {
     switch (l.type()) {
     case value_type::undefined: return true;
     case value_type::null:      return true;
-    case value_type::boolean:   return l.boolean_value() == r.boolean_value();        
+    case value_type::boolean:   return l.boolean_value() == r.boolean_value();
     case value_type::number: {
         const double lv = l.number_value(), rv = r.number_value();
         return std::memcmp(&lv, &rv, sizeof(lv)) == 0;
     }
     case value_type::string:    return l.string_value().view() == r.string_value().view();
-    case value_type::object: break;
+    case value_type::object:    return l.object_value() == r.object_value();
+    case value_type::reference: break;
+    case value_type::native_function: break;
     }
     NOT_IMPLEMENTED();
 }
@@ -134,11 +134,10 @@ bool operator==(const value& l, const value& r) {
 //
 
 value to_primitive(const value& v, value_type hint) {
-    (void)hint;
     if (v.type() != value_type::object) {
         return v;
     }
-    NOT_IMPLEMENTED();
+    return v.object_value()->default_value(hint);
 }
 
 bool to_boolean(const value& v) {
@@ -149,6 +148,8 @@ bool to_boolean(const value& v) {
     case value_type::number:    return v.number_value() != 0 && !std::isnan(v.number_value());
     case value_type::string:    return !v.string_value().view().empty();
     case value_type::object:    return true;
+    case value_type::reference: break;
+    case value_type::native_function: break;
     }
     NOT_IMPLEMENTED();
 }
@@ -161,6 +162,8 @@ double to_number(const value& v) {
     case value_type::number:    return v.number_value();
     case value_type::string:    return to_number(v.string_value());
     case value_type::object:    return to_number(to_primitive(v, value_type::number));
+    case value_type::reference: break;
+    case value_type::native_function: break;
     }
     NOT_IMPLEMENTED();
 }
@@ -241,7 +244,9 @@ string to_string(const value& v) {
     case value_type::boolean:   return string{v.boolean_value() ? "true" : "false"};
     case value_type::number:    return to_string(v.number_value());
     case value_type::string:    return v.string_value();
-    case value_type::object:    break;
+    case value_type::object:    return to_string(to_primitive(v, value_type::string));
+    case value_type::reference: break;
+    case value_type::native_function: break;
     }
     NOT_IMPLEMENTED();
 }

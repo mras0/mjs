@@ -54,8 +54,8 @@ TEST_CASE("value - string") {
     REQUIRE(s == string{"test xx"});
 }
 
-TEST_CASE("value - object") {
-    auto o = object::make(nullptr);
+TEST_CASE("object") {
+    auto o = object::make(string{"Object"});
     const auto n = string{"test"};
     const auto n2 = string{"foo"};
     REQUIRE(!o->has_property(n));
@@ -83,13 +83,13 @@ TEST_CASE("value - object") {
 }
 
 TEST_CASE("Type Converions") {
-    // TODO: Object
     // TODO: to_primitive hint
     REQUIRE(to_primitive(value::undefined) == value::undefined);
     REQUIRE(to_primitive(value::null) == value::null);
     REQUIRE(to_primitive(value{true}) == value{true});
     REQUIRE(to_primitive(value{42.0}) == value{42.0});
     REQUIRE(to_primitive(value{string{"test"}}) == value{string{"test"}});
+    // TODO: Object
 
     REQUIRE(!to_boolean(value::undefined));
     REQUIRE(!to_boolean(value::null));
@@ -100,6 +100,7 @@ TEST_CASE("Type Converions") {
     REQUIRE(to_boolean(value{42.0}));
     REQUIRE(!to_boolean(value{string{""}}));
     REQUIRE(to_boolean(value{string{"test"}}));
+    REQUIRE(to_boolean(value{object::make(string{"Object"})}));
 
     REQUIRE(value{to_number(value::undefined)} == value{NAN});
     REQUIRE(to_number(value::null) == 0);
@@ -109,7 +110,8 @@ TEST_CASE("Type Converions") {
     REQUIRE(to_number(value{string{"42.25"}}) == 42.25);
     REQUIRE(to_number(value{string{"1e80"}}) == 1e80);
     REQUIRE(to_number(value{string{"-60"}}) == -60);
-    
+    // TODO: Object
+
 
     REQUIRE(to_integer(value{-42.25}) == -42);
     REQUIRE(to_integer(value{1.0*(1ULL<<32)}) == (1ULL<<32));
@@ -129,4 +131,5 @@ TEST_CASE("Type Converions") {
     REQUIRE(to_string(value{42.25}) == string{"42.25"});
     REQUIRE(to_string(value{string{""}}) == string{""});
     REQUIRE(to_string(value{string{"test"}}) == string{"test"});
+    // TODO: Object
 }
