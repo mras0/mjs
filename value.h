@@ -111,6 +111,14 @@ std::ostream& operator<<(std::ostream& os, const value& v);
 std::wostream& operator<<(std::wostream& os, const value& v);
 bool operator==(const value& l, const value& r);
 
+inline value get_value(const value& v) {
+    return v.type() == value_type::reference ? v.reference_value().get_value() : v;
+}
+
+inline value get_value(value&& v) {
+    return v.type() == value_type::reference ? v.reference_value().get_value() : std::move(v);
+}
+
 class object {
 public:
     static auto make(const string& class_name, const object_ptr& prototype = nullptr) {

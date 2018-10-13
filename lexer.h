@@ -68,6 +68,12 @@ enum class token_type {
 std::ostream& operator<<(std::ostream& os, token_type t);
 std::wostream& operator<<(std::wostream& os, token_type t);
 
+constexpr bool is_literal(token_type tt) {
+    return tt == token_type::null_literal || tt == token_type::boolean_literal || tt == token_type::numeric_literal || tt == token_type::string_literal;
+}
+
+const char* op_text(token_type tt);
+
 class token {
 public:
     explicit token(token_type type) : type_(type) {

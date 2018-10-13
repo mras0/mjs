@@ -72,6 +72,18 @@ std::ostream& operator<<(std::ostream& os, token_type t) {
     return os << "token_type{" << (int)t << "}";
 }
 
+const char* op_text(token_type tt) {
+    switch (tt) {
+    case token_type::plus: return "+";
+    case token_type::minus: return "-";
+    case token_type::multiply: return "*";
+    case token_type::divide: return "/";
+
+    default:
+        throw std::runtime_error("Invalid token type: " + std::to_string((int)tt));
+    }
+}
+
 std::wostream& operator<<(std::wostream& os, token_type t) {
     std::ostringstream oss;
     oss << t;
@@ -94,26 +106,6 @@ constexpr bool is_digit(int ch) {
     return ch >= '0' && ch <= '9';
 }
 
-constexpr int assignment_precedence = 15;
-constexpr int comma_precedence      = 16;
-
-constexpr int operator_precedence(token_type tt) {
-    switch (tt) {
-    case token_type::multiply:
-    case token_type::divide:
-        return 5;
-    case token_type::plus:
-    case token_type::minus:
-        return 6;
-    default:
-        return comma_precedence + 1;
-    }
-}
-
-constexpr bool is_right_to_left(token_type tt) {
-    return operator_precedence(tt) >= assignment_precedence; // HACK
-}
-
 std::pair<token_type, int> get_punctuation(std::wstring_view v) {
     assert(!v.empty());
     switch (v[0]) {
@@ -133,10 +125,6 @@ std::pair<token_type, int> get_punctuation(std::wstring_view v) {
     std::ostringstream oss;
     oss << "Unhandled character in " << __FUNCTION__ << ": " << v[0] << " 0x" << std::hex << (int)v[0] << "\n";
     throw std::runtime_error(oss.str());
-}
-
-constexpr bool is_literal(token_type tt) {
-    return tt == token_type::null_literal || tt == token_type::boolean_literal || tt == token_type::numeric_literal || tt == token_type::string_literal;
 }
 
 lexer::lexer(const std::wstring_view& text) : text_(text), current_token_{eof_token} {
