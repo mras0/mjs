@@ -65,10 +65,9 @@ value& value::operator=(const value& rhs) {
         case value_type::null:      break;
         case value_type::boolean:   b_ = rhs.b_; break;
         case value_type::number:    n_ = rhs.n_; break;
-        case value_type::string:    s_ = new string{*rhs.s_}; break;
-        //case value_type::object:    break;
-        default:
-            NOT_IMPLEMENTED();
+        case value_type::string:    new (&s_) string{rhs.s_}; break;
+        case value_type::object:    new (&o_) object_ptr{rhs.o_};
+        default: NOT_IMPLEMENTED();
         }
         type_ = rhs.type_;
     }
@@ -81,10 +80,9 @@ value& value::operator=(value&& rhs) {
     case value_type::null:      break;
     case value_type::boolean:   b_ = rhs.b_; break;
     case value_type::number:    n_ = rhs.n_; break;
-    case value_type::string:    s_ = rhs.s_; break;
-        //case value_type::object:    break;
-    default:
-        NOT_IMPLEMENTED();
+    case value_type::string:    new (&s_) string{std::move(rhs.s_)}; break;
+    case value_type::object:    new (&o_) object_ptr{std::move(rhs.o_)}; break;
+    default: NOT_IMPLEMENTED();
     }
     type_ = rhs.type_;
     rhs.type_ = value_type::undefined;
@@ -97,9 +95,9 @@ void value::destroy() {
     case value_type::null: break;
     case value_type::boolean: break;
     case value_type::number: break;
-    case value_type::string: delete s_; break;
-    default:
-        NOT_IMPLEMENTED();
+    case value_type::string: s_.~string(); break;
+    case value_type::object: o_.~shared_ptr(); break;
+    default: NOT_IMPLEMENTED();
     }
     type_ = value_type::undefined;
 }

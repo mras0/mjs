@@ -55,7 +55,31 @@ TEST_CASE("value - string") {
 }
 
 TEST_CASE("value - object") {
-    // TODO
+    auto o = object::make(nullptr);
+    const auto n = string{"test"};
+    const auto n2 = string{"foo"};
+    REQUIRE(!o->has_property(n));
+    REQUIRE(!o->has_property(n2));
+    REQUIRE(o->can_put(n));
+    o->put(n, value{42.0});
+    REQUIRE(o->has_property(n));
+    REQUIRE(o->can_put(n));
+    o->put(n2, value{n2}, property_attribute::dont_delete | property_attribute::read_only);
+    REQUIRE(o->has_property(n2));
+    REQUIRE(!o->can_put(n2));
+    REQUIRE(o->get(n) == value{42.0});
+    REQUIRE(o->get(n2) == value{n2});
+    REQUIRE(&o->get(n) == &o->get(n)); // Should return same reference
+    o->put(n, value{n});
+    REQUIRE(o->get(n) == value{n});
+    REQUIRE(o->delete_property(n));
+    REQUIRE(!o->has_property(n));
+    REQUIRE(o->can_put(n));
+    REQUIRE(o->has_property(n2));
+    REQUIRE(!o->can_put(n2));
+    REQUIRE(!o->delete_property(n2));
+    REQUIRE(o->has_property(n2));
+    REQUIRE(o->get(n2) == value{n2});
 }
 
 TEST_CASE("Type Converions") {
