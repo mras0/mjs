@@ -47,7 +47,7 @@ inline property_attribute operator&(property_attribute l, property_attribute r) 
 class object;
 class value;
 using object_ptr = std::shared_ptr<object>;
-using native_function_type = std::function<value (const std::vector<value>&)>;
+using native_function_type = std::function<value (const value&, const std::vector<value>&)>;
 
 // §8.7
 class reference {

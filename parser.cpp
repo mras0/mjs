@@ -43,13 +43,13 @@ class parser {
 public:
     explicit parser(const std::wstring_view& str) : lexer_(str) {}
 
-    statement_list parse() {
+    statement_ptr parse() {
         statement_list l;
         skip_whitespace();
         while (lexer_.current_token()) {
             l.push_back(parse_statement_or_function_declaration());
         }
-        return l;
+        return make_statement<block_statement>(std::move(l));
     }
 
 private:
@@ -201,6 +201,19 @@ private:
         return make_statement<block_statement>(std::move(l));
     }
 
+    variable_statement::declaration_list parse_variable_declaration_list() {
+        variable_statement::declaration_list l;
+        do {
+            auto id = expect(token_type::identifier, __FUNCTION__).text();
+            expression_ptr init{};
+            if (accept(token_type::equal)) {
+                init = parse_assignment_expression();
+            }
+            l.push_back(variable_statement::declaration{id, std::move(init)});
+        } while (accept(token_type::comma));
+        return l;
+    }
+
     statement_ptr parse_statement() {
         // Statement :
         //  Block
@@ -214,6 +227,8 @@ private:
         //  ReturnStatement
         if (current_token_type() == token_type::lbrace) {
             return parse_block();
+        } else if (accept(token_type::var_)) {
+            return make_statement<variable_statement>(parse_variable_declaration_list());
         } else if (accept(token_type::return_)) {
             expression_ptr e{};
             if (current_token_type() != token_type::semicolon) {
@@ -253,7 +268,7 @@ private:
     }
 };
 
-statement_list parse(const std::wstring_view& str) {
+statement_ptr parse(const std::wstring_view& str) {
     return parser{str}.parse();
 }
 

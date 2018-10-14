@@ -40,9 +40,16 @@ public:
 
 enum class statement_type {
     block,
-    function_definition,
-    return_,
+    variable,
+    empty,
     expression,
+    if_,
+    iteration,
+    continue_,
+    break_,
+    return_,
+    with,
+    function_definition,
 };
 
 class statement : public syntax_node {
@@ -63,7 +70,7 @@ class identifier_expression : public expression {
 public:
     explicit identifier_expression(const string& id) : id_(id) {}
 
-    expression_type type() const { return expression_type::identifier; }
+    expression_type type() const override { return expression_type::identifier; }
 
     const string& id() const { return id_; }
 
@@ -81,7 +88,7 @@ public:
         assert(is_literal(t.type()));
     }
 
-    expression_type type() const { return expression_type::literal; }
+    expression_type type() const override { return expression_type::literal; }
 
     const token& t() const { return t_; }
 
@@ -97,7 +104,7 @@ class call_expression : public expression {
 public:
     explicit call_expression(expression_ptr&& member, expression_list&& arguments) : member_(std::move(member)), arguments_(std::move(arguments)) {}
 
-    expression_type type() const { return expression_type::call; }
+    expression_type type() const override { return expression_type::call; }
 
     const expression& member() const { return *member_; }
     const expression_list& arguments() const { return arguments_; }
@@ -122,7 +129,7 @@ class binary_expression : public expression {
 public:
     explicit binary_expression(token_type op, expression_ptr&& lhs, expression_ptr&& rhs) : op_(op), lhs_(std::move(lhs)), rhs_(std::move(rhs)) {}
 
-    expression_type type() const { return expression_type::binary; }
+    expression_type type() const override { return expression_type::binary; }
 
     token_type op() const { return op_; }
     const expression& lhs() const { return *lhs_; }
@@ -158,7 +165,7 @@ class block_statement : public statement {
 public:
     explicit block_statement(statement_list&& l) : l_(std::move(l)) {}
 
-    statement_type type() const { return statement_type::block; }
+    statement_type type() const override { return statement_type::block; }
 
     const statement_list& l() const { return l_; }
 private:
@@ -174,38 +181,77 @@ private:
     }
 };
 
-class function_definition : public statement {
+class variable_statement : public statement {
 public:
-    explicit function_definition(const string& id, std::vector<string>&& params, statement_ptr&& block) : id_(id), params_(std::move(params)), block_(std::move(block)) {
-        assert(block_->type() == statement_type::block);
-    }
+    class declaration {
+    public:
+        explicit declaration(const string& id, expression_ptr&& init) : id_(id), init_(std::move(init)) {}
 
-    statement_type type() const { return statement_type::function_definition; }
-    
-    const string& id() const { return id_; }
-    const std::vector<string>& params() const { return params_; }
-    const block_statement& block() const { return static_cast<const block_statement&>(*block_); }
+        const string& id() const { return id_;}
+
+        const expression_ptr& init() const { return init_; }
+
+        friend std::wostream& operator<<(std::wostream& os, const declaration& d) {
+            os << '{' << d.id_;
+            if (d.init_) {
+                os << ", " << *d.init_;
+            }
+            return os << '}';
+        }
+
+    private:
+        string id_;
+        expression_ptr init_;
+    };
+    using declaration_list = std::vector<declaration>;
+
+    statement_type type() const override { return statement_type::variable; }
+
+    explicit variable_statement(declaration_list&& l) : l_(std::move(l)) {}
+
+    const declaration_list& l() const { return l_; }
 
 private:
-    string id_;
-    std::vector<string> params_;
-    statement_ptr block_;
-    
+    declaration_list l_;
+
     void print(std::wostream& os) const override {
-        os << "function_definition{" << id_ << ", [";
-        for (size_t i = 0; i < params_.size(); ++i) {
+        os << "variable_statement{[";
+        for (size_t i = 0; i < l_.size(); ++i) {
             if (i) os << ", ";
-            os << params_[i];
+            os << l_[i];
         }
-        os << "], " << *block_ << "}";
+        os << "]}";
     }
 };
+
+//empty,
+
+class expression_statement : public statement {
+public:
+    explicit expression_statement(expression_ptr&& e) : e_(std::move(e)) {}
+
+    statement_type type() const override { return statement_type::expression; }
+
+    const expression& e() const { return *e_; }
+
+private:
+    expression_ptr e_;
+
+    void print(std::wostream& os) const override {
+        os << "expression_statement{" << *e_ << "}";
+    }
+};
+
+//if_,
+//iteration,
+//continue_,
+//break_,
 
 class return_statement : public statement {
 public:
     explicit return_statement(expression_ptr&& e) : e_(std::move(e)) {}
 
-    statement_type type() const { return statement_type::return_; }
+    statement_type type() const override { return statement_type::return_; }
 
     const expression_ptr& e() const { return e_; }
 
@@ -219,30 +265,49 @@ private:
     }
 };
 
+//with,
 
-class expression_statement : public statement {
+class function_definition : public statement {
 public:
-    explicit expression_statement(expression_ptr&& e) : e_(std::move(e)) {}
+    explicit function_definition(const string& id, std::vector<string>&& params, statement_ptr&& block) : id_(id), params_(std::move(params)), block_(std::move(block)) {
+        assert(block_->type() == statement_type::block);
+    }
 
-    statement_type type() const { return statement_type::expression; }
+    statement_type type() const override { return statement_type::function_definition; }
 
-    const expression& e() const { return *e_; }
+    const string& id() const { return id_; }
+    const std::vector<string>& params() const { return params_; }
+    const block_statement& block() const { return static_cast<const block_statement&>(*block_); }
 
 private:
-    expression_ptr e_;
+    string id_;
+    std::vector<string> params_;
+    statement_ptr block_;
 
     void print(std::wostream& os) const override {
-        os << "expression_statement{" << *e_ << "}";
+        os << "function_definition{" << id_ << ", [";
+        for (size_t i = 0; i < params_.size(); ++i) {
+            if (i) os << ", ";
+            os << params_[i];
+        }
+        os << "], " << *block_ << "}";
     }
 };
 
 template<typename Visitor>
 auto accept(const statement& s, Visitor& v) {
     switch (s.type()) {
-    case statement_type::block: return v(static_cast<const block_statement&>(s));
-    case statement_type::function_definition: return v(static_cast<const function_definition&>(s));
-    case statement_type::return_: return v(static_cast<const return_statement&>(s));
-    case statement_type::expression: return v(static_cast<const expression_statement&>(s));
+    case statement_type::block:                 return v(static_cast<const block_statement&>(s));
+    case statement_type::variable:              return v(static_cast<const variable_statement&>(s));
+    //case statement_type::empty:
+    case statement_type::expression:            return v(static_cast<const expression_statement&>(s));
+    //case statement_type::if_:
+    //case statement_type::iteration:
+    //case statement_type::continue_:
+    //case statement_type::break_:
+    case statement_type::return_:               return v(static_cast<const return_statement&>(s));
+    //case statement_type::with:
+    case statement_type::function_definition:   return v(static_cast<const function_definition&>(s));
     }
     assert(!"Not implemented");
     return v(s);
@@ -252,7 +317,7 @@ auto accept(const statement& s, Visitor& v) {
 // Parser
 //
 
-statement_list parse(const std::wstring_view& str);
+statement_ptr parse(const std::wstring_view& str);
 
 } // namespace mjs
 

@@ -65,13 +65,20 @@ public:
         os_ << '}';
     }
 
-    void operator()(const mjs::function_definition& s) {
-        os_ << "function " << s.id() << "(";
-        for (size_t i = 0; i < s.params().size(); ++i) {
-            os_ << (i?", ":"") << s.params()[i];
+    void operator()(const mjs::variable_statement& s) {
+        os_ << "var";
+        for (size_t i = 0; i < s.l().size(); ++i) {
+            const auto& d = s.l()[i];
+            os_ << (i ? ", ": " ") << d.id();
+            if (d.init()) {
+                os_ << " = ";
+                accept(*d.init(), *this);
+            }
         }
-        os_ << ")";
-        (*this)(s.block());
+    }
+
+    void operator()(const mjs::expression_statement& s) {
+        accept(s.e(), *this);
     }
 
     void operator()(const mjs::return_statement& s) {
@@ -82,10 +89,14 @@ public:
         }
     }
 
-    void operator()(const mjs::expression_statement& s) {
-        accept(s.e(), *this);
+    void operator()(const mjs::function_definition& s) {
+        os_ << "function " << s.id() << "(";
+        for (size_t i = 0; i < s.params().size(); ++i) {
+            os_ << (i?", ":"") << s.params()[i];
+        }
+        os_ << ")";
+        (*this)(s.block());
     }
-
     void operator()(const mjs::statement& s) {
         NOT_IMPLEMENTED(s);
     }
@@ -99,6 +110,42 @@ private:
         accept(e, *this);
         if (inner_precedence > outer_precedence) os_ << ')';
     }
+};
+
+class hoisting_visitor {
+public:
+    explicit hoisting_visitor() {}
+
+    const std::vector<mjs::string>& ids() const { return ids_; }
+
+    void operator()(const mjs::block_statement& s) {
+        for (const auto& bs: s.l()) {
+            accept(*bs, *this);
+        }
+    }
+ 
+    void operator()(const mjs::variable_statement& s) {
+        for (const auto& d: s.l()) {
+            ids_.push_back(d.id());
+        }
+    }
+ 
+    //void operator()(const mjs::empty,
+    void operator()(const mjs::expression_statement&){}
+    //void operator()(const mjs::if_,
+    //void operator()(const mjs::iteration,
+    //void operator()(const mjs::continue_,
+    //void operator()(const mjs::break_,
+    void operator()(const mjs::return_statement&){}
+    //void operator()(const mjs::with,
+    //void operator()(const mjs::function_definition,
+
+    void operator()(const mjs::statement& s) {
+        NOT_IMPLEMENTED(s);
+    }
+
+private:
+    std::vector<mjs::string> ids_;
 };
 
 auto make_function_object() {
@@ -198,7 +245,7 @@ public:
 
         // TODO: scope etc.
         // TODO: Handle this as 11.2.3 specifies
-        return c(args);
+        return c(mjs::value{}, args);
     }
 
     mjs::value operator()(const mjs::binary_expression& e) {
@@ -251,22 +298,26 @@ public:
         return completion{completion_type::normal};
     }
 
-    completion operator()(const mjs::function_definition& s) {
-        auto prev_scope = scopes_;
-        auto callee = make_function_object();
-        auto func = [&s, this, prev_scope, callee](const std::vector<mjs::value>& args) {
-            auto_scope as{*this, prev_scope};
-            auto& scope = scopes_->activation;
-            scope->put(mjs::string{"arguments"}, mjs::value{make_arguments_array(args, callee)});
-            for (size_t i = 0; i < std::min(args.size(), s.params().size()); ++i) {
-                scope->put(s.params()[i], args[i]);
+    completion operator()(const mjs::variable_statement& s) {
+        for (const auto& d: s.l()) {
+            assert(scopes_->activation->has_property(d.id()));
+            if (d.init()) {
+                scopes_->activation->put(d.id(), accept(*d.init(), *this));
             }
-            return accept(s.block(), *this).result;
-        };
-        prev_scope->activation->put(s.id(), mjs::value{make_function(func)});
-        return completion{};
+        }
+        return completion{completion_type::normal};
     }
 
+    //completion operator()(const mjs::empty_statement&){}
+
+    completion operator()(const mjs::expression_statement& s) {
+        return completion{completion_type::normal, get_value(accept(s.e(), *this))};
+    }
+
+    //completion operator()(const mjs::if_statement&){}
+    //completion operator()(const mjs::iteration_statement&){}
+    //completion operator()(const mjs::continue_statement&){}
+    //completion operator()(const mjs::break_statement&){}
     completion operator()(const mjs::return_statement& s) {
         mjs::value res{};
         if (s.e()) {
@@ -275,8 +326,31 @@ public:
         return completion{completion_type::return_, res};
     }
 
-    completion operator()(const mjs::expression_statement& s) {
-        return completion{completion_type::normal, accept(s.e(), *this)};
+    //completion operator()(const mjs::with_statement&){}
+
+    completion operator()(const mjs::function_definition& s) {
+        auto prev_scope = scopes_;
+        auto callee = make_function_object();
+        hoisting_visitor hv{};
+        accept(s.block(), hv);
+        auto func = [&s, this, prev_scope, callee, ids = hv.ids()](const mjs::value& this_, const std::vector<mjs::value>& args) {
+            auto_scope as{*this, prev_scope};
+            auto& scope = scopes_->activation;
+            //scope->put(mjs::string{"this"}, this_);//TODO:dont delete? dont enum?
+            assert(this_.type() == mjs::value_type::undefined);
+            scope->put(mjs::string{"arguments"}, mjs::value{make_arguments_array(args, callee)}, mjs::property_attribute::dont_delete);
+            for (size_t i = 0; i < std::min(args.size(), s.params().size()); ++i) {
+                scope->put(s.params()[i], args[i]);
+            }
+            for (const auto& id: ids) {
+                assert(!scope->has_property(id)); // TODO: Handle this..
+                scope->put(id, mjs::value::undefined);
+            }
+            return accept(s.block(), *this).result;
+        };
+        callee->call_function(func);
+        prev_scope->activation->put(s.id(), mjs::value{callee});
+        return completion{};
     }
 
     completion operator()(const mjs::statement& s) {
@@ -318,7 +392,7 @@ private:
 
 auto make_global() {
     auto global = mjs::object::make(mjs::string{"Object"}, nullptr); // TODO
-    set_function(global, mjs::string{"alert"}, [](const std::vector<mjs::value>& args) {
+    set_function(global, mjs::string{"alert"}, [](const mjs::value&, const std::vector<mjs::value>& args) {
         std::wcout << "ALERT";
         if (!args.empty()) std::wcout << ": " << args[0];
         std::wcout << "\n";
@@ -330,8 +404,10 @@ auto make_global() {
 void test(const std::wstring_view& text, const mjs::value& expected) {
     auto global = make_global();
     eval_visitor ev{global};
+    auto ss = mjs::parse(text);
+    assert(ss->type() == mjs::statement_type::block);
     mjs::value res{};
-    for (const auto& s: mjs::parse(text)) {
+    for (const auto& s: static_cast<const mjs::block_statement&>(*ss).l()) {
         res = accept(*s, ev).result;
     }
     if (res != expected) {
@@ -345,11 +421,17 @@ int main() {
         test(L"1+2*3", mjs::value{7.});
         test(L"x = 42; 'test ' + 2 * (6 - 4 + 1) + ' ' + x", mjs::value{mjs::string{"test 6 42"}});
         test(L"y=1/2; z='string'; y+z", mjs::value{mjs::string{"0.5string"}});
-        auto ss = mjs::parse(L"function f(x, y){ function g(z) { return x+y+z; } alert(g(1) + ' ' + g(10)); }; f(2,3)");
+        test(L"function f(x,y) { return x*x+y; } f(2, 3)", mjs::value{7.0});
+        test(L"function f(){ i = 42; }; f(); i", mjs::value{42.0});
+        test(L"i = 1; function f(){ var i = 42; }; f(); i", mjs::value{1.0});
+        auto ss = mjs::parse(L"function f(){ var i = 42; }; f(); i");
+        assert(ss->type() == mjs::statement_type::block);
+        auto& bs = static_cast<const mjs::block_statement&>(*ss);
         auto global = make_global();
+        // TODO: Hoist
         eval_visitor e{global};
         print_visitor p{std::wcout};
-        for (const auto& s: ss) {
+        for (const auto& s: bs.l()) {
             std::wcout << "> ";
             accept(*s, p);
             std::wcout << "\n";
