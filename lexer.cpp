@@ -264,6 +264,7 @@ std::pair<token_type, int> get_punctuation(std::wstring_view v) {
     case '~': return { token_type::tilde, 1 };
     case '?': return { token_type::question, 1 };
     case ':': return { token_type::colon, 1 };
+    case '.': return { token_type::dot, 1 };
     case '+':
         if (v.length() > 1 && v[1] == '+') {
             return p{ token_type::plusplus, 2};

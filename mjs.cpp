@@ -67,8 +67,14 @@ public:
     void operator()(const mjs::binary_expression& e) {
         const int precedence = mjs::operator_precedence(e.op());
         print_with_parentheses(e.lhs(), precedence);
-        os_ << op_text(e.op());
-        print_with_parentheses(e.rhs(), precedence);
+        if (e.op() == mjs::token_type::dot) {
+            os_ << '[';
+            accept(e.rhs(), *this);
+            os_ << ']';
+        } else {
+            os_ << op_text(e.op());
+            print_with_parentheses(e.rhs(), precedence);
+        }
     }
 
     void operator()(const mjs::conditional_expression& e) {
@@ -261,15 +267,11 @@ auto make_function_object() {
     return mjs::object::make(mjs::string{"Function"}, nullptr); // TODO
 }
 
-auto make_function(const mjs::native_function_type& f) {
+auto make_function(const mjs::native_function_type& f, int named_args) {
     auto o = make_function_object();
+    o->put(mjs::string{"length"}, mjs::value{static_cast<double>(named_args)}, mjs::property_attribute::read_only | mjs::property_attribute::dont_delete | mjs::property_attribute::dont_enum);
     o->call_function(f);
     return o;
-}
-
-template<typename F>
-void set_function(const mjs::object_ptr& o, const mjs::string& name, const F& f) {
-    o->put(name, mjs::value{make_function(f)});
 }
 
 auto make_arguments_array(const std::vector<mjs::value>& args, const mjs::object_ptr& callee) {
@@ -530,6 +532,25 @@ public:
         }
     }
 
+    static mjs::object_ptr to_object(const mjs::value& v) {
+        switch (v.type()) {
+            // undefined and null give runtime errors
+        case mjs::value_type::undefined:
+        case mjs::value_type::null:
+            {
+                std::ostringstream oss;
+                oss << "Cannot convert " << v.type() << " to object";
+                throw std::runtime_error(oss.str());
+            }
+        case mjs::value_type::object:
+            return v.object_value();
+        default:
+            NOT_IMPLEMENTED(v);
+
+
+        }
+    }
+
     mjs::value operator()(const mjs::binary_expression& e) {
         if (e.op() == mjs::token_type::comma) {
             (void)get_value(accept(e.lhs(), *this));;
@@ -555,6 +576,9 @@ public:
         auto r = get_value(accept(e.rhs(), *this));
         if (e.op() == mjs::token_type::andand || e.op() == mjs::token_type::oror) {
             return r;
+        }
+        if (e.op() == mjs::token_type::dot) {
+            return mjs::value{mjs::reference{to_object(l), to_string(r)}};
         }
         return do_binary_op(e.op(), l, r);
     }
@@ -727,13 +751,39 @@ private:
 };
 
 auto make_global(const mjs::block_statement& bs) {
+    // §15.1
     auto global = mjs::object::make(mjs::string{"Object"}, nullptr); // TODO
-    set_function(global, mjs::string{"alert"}, [](const mjs::value&, const std::vector<mjs::value>& args) {
-        std::wcout << "ALERT";
-        if (!args.empty()) std::wcout << ": " << args[0];
-        std::wcout << "\n";
-        return mjs::value::undefined; 
-    });
+
+    const auto attr = mjs::property_attribute::dont_enum;
+
+    global->put(mjs::string{"NaN"}, mjs::value{NAN}, attr);
+    global->put(mjs::string{"Infinity"}, mjs::value{INFINITY}, attr);
+    global->put(mjs::string{"eval"}, mjs::value{make_function(
+        [](const mjs::value&, const std::vector<mjs::value>& args) {
+        if (args.empty()) {
+            return mjs::value::undefined; 
+        } else if (args.front().type() != mjs::value_type::string) {
+            return args.front();
+        }
+        auto bs = mjs::parse(args.front().string_value().view());
+        (void)bs;
+        throw std::runtime_error("TODO: Handle eval");
+    }, 1)}, attr);
+    global->put(mjs::string{"isNaN"}, mjs::value{make_function(
+        [](const mjs::value&, const std::vector<mjs::value>& args) {
+        return mjs::value(std::isnan(to_number(args.empty() ? mjs::value::undefined : args.front())));
+    }, 1)}, attr);
+    global->put(mjs::string{"isFinite"}, mjs::value{make_function(
+        [](const mjs::value&, const std::vector<mjs::value>& args) {
+        return mjs::value(std::isfinite(to_number(args.empty() ? mjs::value::undefined : args.front())));
+    }, 1)}, attr);
+    global->put(mjs::string{"alert"}, mjs::value{make_function(
+        [](const mjs::value&, const std::vector<mjs::value>& args) {
+            std::wcout << "ALERT";
+            if (!args.empty()) std::wcout << ": " << args[0];
+            std::wcout << "\n";
+            return mjs::value::undefined; 
+    }, 1)}, attr);
     for (const auto& id: hoisting_visitor::scan(bs)) {
         global->put(id, mjs::value::undefined);
     }
@@ -804,6 +854,7 @@ int main() {
         test(L"x=2; y=0; while(1) { if(x) {x = x - 1; y = y + 2; continue; y = y + 1000; } else break; y = y + 1;} y", mjs::value{4.0});
         test(L"var x = 0; for(var i = 10, dec = 1; i; i = i - dec) x = x + i; x", mjs::value{55.0});
         test(L"var x=0; for (i=2; i; i=i-1) x=x+i; x+i", mjs::value{3.0});
+        test(L"function sum() {  var s = 0; for (var i = 0; i < arguments.length; ++i) s += arguments[i]; return s; } sum(1,2,3)", mjs::value{6.0});
         // TODO: for .. in, with
         auto bs = mjs::parse(L";");
         auto global = make_global(*bs);

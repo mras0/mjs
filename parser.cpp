@@ -8,6 +8,8 @@ namespace mjs {
 
 int operator_precedence(token_type tt) {
     switch (tt) {
+    case token_type::dot:
+        return 1;
     case token_type::multiply:
     case token_type::divide:
     case token_type::mod:
@@ -205,15 +207,6 @@ private:
         return parse_expression1(parse_assignment_expression(), comma_precedence);
     }
 
-    expression_ptr parse_member_expression() {
-        // MemberExpression :
-        //  PrimaryExpression
-        //  MemberExpression [ Expression ]
-        //  MemberExpression . Identifier
-        //  new MemberExpression Arguments
-        return parse_primary_expression();
-    }
-
     expression_list parse_argument_list() {
         EXPECT(token_type::lparen);
         expression_list l;
@@ -226,7 +219,44 @@ private:
         return l;
     }
 
+    expression_ptr parse_member_expression() {
+        // MemberExpression :
+        //  PrimaryExpression
+        //  MemberExpression [ Expression ]
+        //  MemberExpression . Identifier
+        //  new MemberExpression Arguments
+
+        expression_ptr me{};
+        if (accept(token_type::new_)) {
+            auto member = parse_member_expression();
+            auto args = parse_argument_list();
+            me = make_expression<prefix_expression>(token_type::new_, make_expression<call_expression>(std::move(member), std::move(args)));
+        } else {
+            me = parse_primary_expression();
+        }
+        if (accept(token_type::lbracket)) {
+            auto e = parse_expression();
+            EXPECT(token_type::rbracket);
+            return make_expression<binary_expression>(token_type::dot, std::move(me), std::move(e));
+        } else if (accept(token_type::dot)) {
+            return make_expression<binary_expression>(token_type::dot, std::move(me), make_expression<literal_expression>(token{token_type::string_literal, EXPECT(token_type::identifier).text()}));
+        } else {
+            return me;
+        }
+    }
+
     expression_ptr parse_left_hand_side_expression() {
+        // LeftHandSideExpression :
+        //  NewExpression
+        //    MemberExpression
+        //    new NewExpression
+        //  CallExpression
+        //    MemberExpression Arguments
+        //    CallExpression Arguments
+        //    CallExpression [ Expression ]
+        //    CallExpression . Identifier
+
+
         // LeftHandSideExpression :
         //  NewExpression
         //  CallExpression
@@ -240,6 +270,12 @@ private:
         //  CallExpression Arguments
         //  CallExpression [ Expression ]
         //  CallExpression . Identifier
+
+        // MemberExpression:
+        //   PrimaryExpression
+        //   MemberExpression [ Expression ]
+        //   MemberExpression .  Identifier
+        //   new MemberExpression Arguments
 
         auto m = parse_member_expression();
         if (current_token_type() == token_type::lparen) {
