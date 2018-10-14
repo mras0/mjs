@@ -11,8 +11,6 @@ enum class token_type {
     whitespace,         // TAB/VT/FF/SP \x09, \x0B, \0x0C, \0x20
     line_terminator,    // LF/CR        \x0A, \x0D
     identifier,
-    null_literal,
-    boolean_literal,
     numeric_literal,
     string_literal,
     // Punctuators
@@ -63,6 +61,11 @@ enum class token_type {
     rbracket,           // ]
     semicolon,          // ;
     // Reserved Words
+    undefined_,
+    null_,
+    false_,
+    true_,
+
     break_,
     continue_,
     delete_,
@@ -87,7 +90,7 @@ std::ostream& operator<<(std::ostream& os, token_type t);
 std::wostream& operator<<(std::wostream& os, token_type t);
 
 constexpr bool is_literal(token_type tt) {
-    return tt == token_type::null_literal || tt == token_type::boolean_literal || tt == token_type::numeric_literal || tt == token_type::string_literal;
+    return tt == token_type::undefined_ || tt == token_type::null_ || tt == token_type::true_ || tt == token_type::false_ || tt == token_type::numeric_literal || tt == token_type::string_literal;
 }
 
 constexpr bool is_relational(token_type tt) {

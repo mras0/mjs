@@ -4,6 +4,10 @@
 #include <cstring>
 
 #define RESERVED_WORDS(X) \
+    X(undefined)          \
+    X(null)               \
+    X(false)              \
+    X(true)               \
     X(break)              \
     X(continue)           \
     X(delete)             \
@@ -70,8 +74,6 @@ std::ostream& operator<<(std::ostream& os, token_type t) {
         CASE_TOKEN_TYPE(whitespace);
         CASE_TOKEN_TYPE(line_terminator);
         CASE_TOKEN_TYPE(identifier);
-        CASE_TOKEN_TYPE(null_literal);
-        CASE_TOKEN_TYPE(boolean_literal);
         CASE_TOKEN_TYPE(numeric_literal);
         CASE_TOKEN_TYPE(string_literal);
         CASE_TOKEN_TYPE(equal);              // =
@@ -120,6 +122,7 @@ std::ostream& operator<<(std::ostream& os, token_type t) {
         CASE_TOKEN_TYPE(lbracket);           // [
         CASE_TOKEN_TYPE(rbracket);           // ]
         CASE_TOKEN_TYPE(semicolon);          // ;
+        CASE_TOKEN_TYPE(eof);
 #define X(rw) case token_type::rw ## _: return os << #rw;
         RESERVED_WORDS(X)
 #undef X

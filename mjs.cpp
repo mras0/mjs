@@ -4,6 +4,7 @@
 #include <sstream>
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 
 #include "value.h"
 #include "parser.h"
@@ -28,12 +29,12 @@ public:
 
     void operator()(const mjs::literal_expression& e) {
         switch (e.t().type()) {
-        case mjs::token_type::numeric_literal:
-            os_ << e.t().dvalue();
-            return;
-        case mjs::token_type::string_literal:
-            os_ << '"' << cpp_quote(e.t().text()) << '"';
-            return;
+        case mjs::token_type::undefined_:       os_ << "undefined"; return;
+        case mjs::token_type::null_:            os_ << "null"; return;
+        case mjs::token_type::true_:            os_ << "true"; return;
+        case mjs::token_type::false_:           os_ << "false"; return;
+        case mjs::token_type::numeric_literal:  os_ << e.t().dvalue(); return;
+        case mjs::token_type::string_literal:   os_ << '"' << cpp_quote(e.t().text()) << '"'; return;
         default:
             NOT_IMPLEMENTED(e);
         }
@@ -285,6 +286,24 @@ auto make_arguments_array(const std::vector<mjs::value>& args, const mjs::object
     return as;
 }
 
+
+mjs::object_ptr to_object(const mjs::value& v) {
+    switch (v.type()) {
+        // undefined and null give runtime errors
+    case mjs::value_type::undefined:
+    case mjs::value_type::null:
+        {
+            std::ostringstream oss;
+            oss << "Cannot convert " << v.type() << " to object";
+            throw std::runtime_error(oss.str());
+        }
+    case mjs::value_type::object:
+        return v.object_value();
+    default:
+        NOT_IMPLEMENTED(v);
+    }
+}
+
 enum class completion_type {
     normal, break_, continue_, return_
 };
@@ -311,7 +330,6 @@ std::wostream& operator<<(std::wostream& os, const completion& c) {
     return os << c.type << " " << c.result;
 }
 
-
 class eval_visitor {
 public:
     explicit eval_visitor(const mjs::object_ptr& global) {
@@ -329,6 +347,10 @@ public:
 
     mjs::value operator()(const mjs::literal_expression& e) {
          switch (e.t().type()) {
+         case mjs::token_type::undefined_:      return mjs::value::undefined;
+         case mjs::token_type::null_:           return mjs::value::null;
+         case mjs::token_type::true_:           return mjs::value{true};
+         case mjs::token_type::false_:          return mjs::value{false};
          case mjs::token_type::numeric_literal: return mjs::value{e.t().dvalue()};
          case mjs::token_type::string_literal:  return mjs::value{e.t().text()};
          default: NOT_IMPLEMENTED(e);
@@ -532,25 +554,6 @@ public:
         }
     }
 
-    static mjs::object_ptr to_object(const mjs::value& v) {
-        switch (v.type()) {
-            // undefined and null give runtime errors
-        case mjs::value_type::undefined:
-        case mjs::value_type::null:
-            {
-                std::ostringstream oss;
-                oss << "Cannot convert " << v.type() << " to object";
-                throw std::runtime_error(oss.str());
-            }
-        case mjs::value_type::object:
-            return v.object_value();
-        default:
-            NOT_IMPLEMENTED(v);
-
-
-        }
-    }
-
     mjs::value operator()(const mjs::binary_expression& e) {
         if (e.op() == mjs::token_type::comma) {
             (void)get_value(accept(e.lhs(), *this));;
@@ -750,9 +753,39 @@ private:
     scope_ptr scopes_;
 };
 
+mjs::object_ptr make_object_object() {
+    // §15.2
+
+    auto p = mjs::object::make(mjs::string{"ObjectPrototype"}, nullptr);
+
+    auto constructor = [p](const mjs::value& this_, const std::vector<mjs::value>& args) {
+        assert(this_.type() == mjs::value_type::undefined); (void)this_;
+        if (args.empty() || args.front().type() == mjs::value_type::undefined || args.front().type() == mjs::value_type::null) {
+            auto o = mjs::object::make(mjs::string{"Object"}, p);
+            return mjs::value{o};
+        }
+        return mjs::value{to_object(args.front())};
+    };
+
+    auto f = make_function(constructor, 1);
+    f->construct_function(constructor);
+    f->put(mjs::string{"prototype"}, mjs::value{p});
+
+    // §15.2.4
+    p->put(mjs::string{"constructor"}, mjs::value{f});
+    p->put(mjs::string{"toString"}, mjs::value{make_function([](const mjs::value& this_, const std::vector<mjs::value>&){
+        return mjs::value{mjs::string{"[object "} + this_.object_value()->class_name() + mjs::string{"]"}};
+    }, 1)});
+    p->put(mjs::string{"valueOf"}, mjs::value{make_function([](const mjs::value& this_, const std::vector<mjs::value>&){
+        return this_;
+    }, 1)});
+
+    return f;
+}
+
 auto make_global(const mjs::block_statement& bs) {
     // §15.1
-    auto global = mjs::object::make(mjs::string{"Object"}, nullptr); // TODO
+    auto global = mjs::object::make(mjs::string{"Global"}, nullptr);
 
     const auto attr = mjs::property_attribute::dont_enum;
 
@@ -784,6 +817,9 @@ auto make_global(const mjs::block_statement& bs) {
             std::wcout << "\n";
             return mjs::value::undefined; 
     }, 1)}, attr);
+
+    global->put(mjs::string{"Object"}, mjs::value{make_object_object()}, attr);
+
     for (const auto& id: hoisting_visitor::scan(bs)) {
         global->put(id, mjs::value::undefined);
     }
@@ -805,57 +841,69 @@ void test(const std::wstring_view& text, const mjs::value& expected) {
     }
 }
 
+void eval_tests() {
+    using namespace mjs;
+    test(L"undefined", value::undefined);
+    test(L"null", value::null);
+    test(L"false", value{false});
+    test(L"true", value{true});
+    test(L"'te\"st'", value{string{"te\"st"}});
+    test(L"\"te'st\"", value{string{"te'st"}});
+    test(L"-7.5 % 2", value{-1.5});
+    test(L"1+2*3", value{7.});
+    test(L"x = 42; 'test ' + 2 * (6 - 4 + 1) + ' ' + x", value{string{"test 6 42"}});
+    test(L"y=1/2; z='string'; y+z", value{string{"0.5string"}});
+    test(L"var x=2; x++;", value{2.0});
+    test(L"var x=2; x++; x", value{3.0});
+    test(L"var x=2; x--;", value{2.0});
+    test(L"var x=2; x--; x", value{1.0});
+    test(L"var x = 42; delete x; x", value::undefined);
+    test(L"void(2+2)", value::undefined);
+    test(L"typeof(2)", value{string{"number"}});
+    test(L"x=4.5; ++x", value{5.5});
+    test(L"x=4.5; --x", value{3.5});
+    test(L"x=42; +x;", value{42.0});
+    test(L"x=42; -x;", value{-42.0});
+    test(L"x=42; !x;", value{false});
+    test(L"x=42; ~x;", value{(double)~42});
+    test(L"1<<2", value{4.0});
+    test(L"-5>>2", value{-2.0});
+    test(L"-5>>>2", value{1073741822.0});
+    test(L"1 < 2", value{true});
+    test(L"1 > 2", value{false});
+    test(L"1 <= 2", value{true});
+    test(L"1 >= 2", value{false});
+    test(L"1 == 2", value{false});
+    test(L"1 != 2", value{true});
+    test(L"255 & 128", value{128.0});
+    test(L"255 ^ 128", value{127.0});
+    test(L"64 | 128", value{192.0});
+    test(L"42 || 13", value{42.0});
+    test(L"42 && 13", value{13.0});
+    test(L"1 ? 2 : 3", value{2.0});
+    test(L"0 ? 2 : 1+2", value{3.0});
+    test(L"x=2.5; x+=4; x", value{6.5});
+    test(L"function f(x,y) { return x*x+y; } f(2, 3)", value{7.0});
+    test(L"function f(){ i = 42; }; f(); i", value{42.0});
+    test(L"i = 1; function f(){ var i = 42; }; f(); i", value{1.0});
+    test(L";", value::undefined);
+    test(L"if (1) 2;", value{2.0});
+    test(L"if (0) 2;", value::undefined);
+    test(L"if (0) 2; else ;", value::undefined);
+    test(L"if (0) 2; else 3;", value{3.0});
+    test(L"1,2", value{2.0});
+    test(L"x=5; while(x-3) { x = x - 1; } x", value{3.0});
+    test(L"x=2; y=0; while(1) { if(x) {x = x - 1; y = y + 2; continue; y = y + 1000; } else break; y = y + 1;} y", value{4.0});
+    test(L"var x = 0; for(var i = 10, dec = 1; i; i = i - dec) x = x + i; x", value{55.0});
+    test(L"var x=0; for (i=2; i; i=i-1) x=x+i; x+i", value{3.0});
+    // TODO: for .. in, with
+    test(L"function sum() {  var s = 0; for (var i = 0; i < arguments.length; ++i) s += arguments[i]; return s; } sum(1,2,3)", value{6.0});
+    test(L"''+Object(null)", value{string{"[object Object]"}});
+    test(L"o=Object(null); o.x=42; o.y=60; o.x+o['y']", value{102.0});
+}
+
 int main() {
     try {
-        test(L"-7.5 % 2", mjs::value{-1.5});
-        test(L"1+2*3", mjs::value{7.});
-        test(L"x = 42; 'test ' + 2 * (6 - 4 + 1) + ' ' + x", mjs::value{mjs::string{"test 6 42"}});
-        test(L"y=1/2; z='string'; y+z", mjs::value{mjs::string{"0.5string"}});
-        test(L"var x=2; x++;", mjs::value{2.0});
-        test(L"var x=2; x++; x", mjs::value{3.0});
-        test(L"var x=2; x--;", mjs::value{2.0});
-        test(L"var x=2; x--; x", mjs::value{1.0});
-        test(L"var x = 42; delete x; x", mjs::value::undefined);
-        test(L"void(2+2)", mjs::value::undefined);
-        test(L"typeof(2)", mjs::value{mjs::string{"number"}});
-        test(L"x=4.5; ++x", mjs::value{5.5});
-        test(L"x=4.5; --x", mjs::value{3.5});
-        test(L"x=42; +x;", mjs::value{42.0});
-        test(L"x=42; -x;", mjs::value{-42.0});
-        test(L"x=42; !x;", mjs::value{false});
-        test(L"x=42; ~x;", mjs::value{(double)~42});
-        test(L"1<<2", mjs::value{4.0});
-        test(L"-5>>2", mjs::value{-2.0});
-        test(L"-5>>>2", mjs::value{1073741822.0});
-        test(L"1 < 2", mjs::value{true});
-        test(L"1 > 2", mjs::value{false});
-        test(L"1 <= 2", mjs::value{true});
-        test(L"1 >= 2", mjs::value{false});
-        test(L"1 == 2", mjs::value{false});
-        test(L"1 != 2", mjs::value{true});
-        test(L"255 & 128", mjs::value{128.0});
-        test(L"255 ^ 128", mjs::value{127.0});
-        test(L"64 | 128", mjs::value{192.0});
-        test(L"42 || 13", mjs::value{42.0});
-        test(L"42 && 13", mjs::value{13.0});
-        test(L"1 ? 2 : 3", mjs::value{2.0});
-        test(L"0 ? 2 : 1+2", mjs::value{3.0});
-        test(L"x=2.5; x+=4; x", mjs::value{6.5});
-        test(L"function f(x,y) { return x*x+y; } f(2, 3)", mjs::value{7.0});
-        test(L"function f(){ i = 42; }; f(); i", mjs::value{42.0});
-        test(L"i = 1; function f(){ var i = 42; }; f(); i", mjs::value{1.0});
-        test(L";", mjs::value::undefined);
-        test(L"if (1) 2;", mjs::value{2.0});
-        test(L"if (0) 2;", mjs::value::undefined);
-        test(L"if (0) 2; else ;", mjs::value::undefined);
-        test(L"if (0) 2; else 3;", mjs::value{3.0});
-        test(L"1,2", mjs::value{2.0});
-        test(L"x=5; while(x-3) { x = x - 1; } x", mjs::value{3.0});
-        test(L"x=2; y=0; while(1) { if(x) {x = x - 1; y = y + 2; continue; y = y + 1000; } else break; y = y + 1;} y", mjs::value{4.0});
-        test(L"var x = 0; for(var i = 10, dec = 1; i; i = i - dec) x = x + i; x", mjs::value{55.0});
-        test(L"var x=0; for (i=2; i; i=i-1) x=x+i; x+i", mjs::value{3.0});
-        test(L"function sum() {  var s = 0; for (var i = 0; i < arguments.length; ++i) s += arguments[i]; return s; } sum(1,2,3)", mjs::value{6.0});
-        // TODO: for .. in, with
         auto bs = mjs::parse(L";");
         auto global = make_global(*bs);
         eval_visitor e{global};

@@ -23,6 +23,11 @@ enum class value_type {
     // internal
     reference, native_function
 };
+
+constexpr bool is_primitive(value_type t) {
+    return t == value_type::undefined ||t == value_type::null || t == value_type::boolean || t == value_type::number || t == value_type::string;
+}
+
 const char* string_value(value_type t);
 template<typename CharT, typename CharTraitsT>
 std::basic_ostream<CharT, CharTraitsT>& operator<<(std::basic_ostream<CharT, CharTraitsT>& os, value_type t) {
@@ -127,7 +132,7 @@ inline value get_value(value&& v) {
 
 [[nodiscard]] bool put_value(const value& ref, const value& val);
 
-class object {
+class object : public std::enable_shared_from_this<object> {
 public:
     static object_ptr make(const string& class_name, const object_ptr& prototype = nullptr) {
         struct make_shared_helper : object {
@@ -136,6 +141,8 @@ public:
 
         return std::make_shared<make_shared_helper>(class_name, prototype);
     }
+
+    virtual ~object() {}
 
     // §8.6.2, Page 22: Internal Properties and Methods
 
@@ -209,8 +216,27 @@ public:
     }
 
     // [[DefaultValue]] (Hint)
-    value default_value(value_type hint) const {
-        throw std::runtime_error(std::string("Not implemented. default_value hint=") + string_value(hint));
+    value default_value(value_type hint) {
+        assert(hint != value_type::undefined); // When hint is undefined, assume Number unless it's a Date object in which case assume String
+
+        for (int i = 0; i < 2; ++i) {
+            const char* id = (hint == value_type::string) ^ i ? "toString" : "valueOf";
+            const auto& fo = get(mjs::string{id});
+            if (fo.type() != value_type::object) {
+                continue;
+            }
+            const auto& f = fo.object_value()->call_function();
+            if (!f) {
+                continue;
+            }
+            auto v = f(mjs::value{shared_from_this()}, {});
+            if (!is_primitive(v.type())) {
+                continue;
+            }
+            return v;
+        }
+        
+        throw std::runtime_error("default_value() not implemented");
     }
 
     // [[Construct]] (Arguments...)
@@ -229,6 +255,7 @@ public:
 
 private:
     explicit object(const string& class_name, const object_ptr& prototype) : class_(class_name), prototype_(prototype){}
+    object(const object&) = delete;
 
     struct property {
         value val;
