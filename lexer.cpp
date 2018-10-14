@@ -74,25 +74,52 @@ std::ostream& operator<<(std::ostream& os, token_type t) {
         CASE_TOKEN_TYPE(boolean_literal);
         CASE_TOKEN_TYPE(numeric_literal);
         CASE_TOKEN_TYPE(string_literal);
-        CASE_TOKEN_TYPE(comma);
-        CASE_TOKEN_TYPE(not_);
-        CASE_TOKEN_TYPE(tilde);
-        CASE_TOKEN_TYPE(equal);
-        CASE_TOKEN_TYPE(plusplus);
-        CASE_TOKEN_TYPE(minusminus);
-        CASE_TOKEN_TYPE(plus);
-        CASE_TOKEN_TYPE(minus);
-        CASE_TOKEN_TYPE(multiply);
-        CASE_TOKEN_TYPE(divide);
-        CASE_TOKEN_TYPE(mod);
-        CASE_TOKEN_TYPE(lparen);
-        CASE_TOKEN_TYPE(rparen);
-        CASE_TOKEN_TYPE(lbrace);
-        CASE_TOKEN_TYPE(rbrace);
-        CASE_TOKEN_TYPE(lbracket);
-        CASE_TOKEN_TYPE(rbracket);
-        CASE_TOKEN_TYPE(semicolon);
-        CASE_TOKEN_TYPE(eof);
+        CASE_TOKEN_TYPE(equal);              // =
+        CASE_TOKEN_TYPE(gt);                 // >
+        CASE_TOKEN_TYPE(lt);                 // <
+        CASE_TOKEN_TYPE(equalequal);         // ==
+        CASE_TOKEN_TYPE(ltequal);            // <=
+        CASE_TOKEN_TYPE(gtequal);            // >=
+        CASE_TOKEN_TYPE(notequal);           // !=
+        CASE_TOKEN_TYPE(comma);              // ,
+        CASE_TOKEN_TYPE(not_);               // !
+        CASE_TOKEN_TYPE(tilde);              // ~
+        CASE_TOKEN_TYPE(question);           // ?
+        CASE_TOKEN_TYPE(colon);              // :
+        CASE_TOKEN_TYPE(dot);                // .
+        CASE_TOKEN_TYPE(andand);             // &&
+        CASE_TOKEN_TYPE(oror);               // ||
+        CASE_TOKEN_TYPE(plusplus);           // ++
+        CASE_TOKEN_TYPE(minusminus);         // --
+        CASE_TOKEN_TYPE(plus);               // +
+        CASE_TOKEN_TYPE(minus);              // -
+        CASE_TOKEN_TYPE(multiply);           // *
+        CASE_TOKEN_TYPE(divide);             // /
+        CASE_TOKEN_TYPE(and_);               // &
+        CASE_TOKEN_TYPE(or_);                // |
+        CASE_TOKEN_TYPE(xor_);               // ^
+        CASE_TOKEN_TYPE(mod);                // %
+        CASE_TOKEN_TYPE(lshift);             // <<
+        CASE_TOKEN_TYPE(rshift);             // >>
+        CASE_TOKEN_TYPE(rshiftshift);        // >>>
+        CASE_TOKEN_TYPE(plusequal);          // +=
+        CASE_TOKEN_TYPE(minusequal);         // -=
+        CASE_TOKEN_TYPE(multiplyequal);      // *=
+        CASE_TOKEN_TYPE(divideequal);        // /=
+        CASE_TOKEN_TYPE(andequal);           // &=
+        CASE_TOKEN_TYPE(orequal);            // |=
+        CASE_TOKEN_TYPE(xorequal);           // ^=
+        CASE_TOKEN_TYPE(modequal);           // %=
+        CASE_TOKEN_TYPE(lshiftequal);        // <<=
+        CASE_TOKEN_TYPE(rshiftequal);        // >>=
+        CASE_TOKEN_TYPE(rshiftshiftequal);   // >>>=
+        CASE_TOKEN_TYPE(lparen);             // (
+        CASE_TOKEN_TYPE(rparen);             // )
+        CASE_TOKEN_TYPE(lbrace);             // {
+        CASE_TOKEN_TYPE(rbrace);             // }
+        CASE_TOKEN_TYPE(lbracket);           // [
+        CASE_TOKEN_TYPE(rbracket);           // ]
+        CASE_TOKEN_TYPE(semicolon);          // ;
 #define X(rw) case token_type::rw ## _: return os << #rw;
         RESERVED_WORDS(X)
 #undef X
@@ -103,19 +130,72 @@ std::ostream& operator<<(std::ostream& os, token_type t) {
 
 const char* op_text(token_type tt) {
     switch (tt) {
-    case token_type::comma: return ",";
-    case token_type::not_: return "!";
-    case token_type::tilde: return "~";
-    case token_type::equal: return "=";
-    case token_type::plusplus: return "++";
-    case token_type::minusminus: return "--";
-    case token_type::plus: return "+";
-    case token_type::minus: return "-";
-    case token_type::multiply: return "*";
-    case token_type::divide: return "/";
-    case token_type::mod: return "%";
+    case token_type::equal:              return "=";
+    case token_type::gt:                 return ">";
+    case token_type::lt:                 return "<";
+    case token_type::equalequal:         return "==";
+    case token_type::ltequal:            return "<=";
+    case token_type::gtequal:            return ">=";
+    case token_type::notequal:           return "!=";
+    case token_type::comma:              return ":";
+    case token_type::not_:               return "!";
+    case token_type::tilde:              return "~";
+    case token_type::question:           return "?";
+    case token_type::colon:              return ":";
+    case token_type::dot:                return ". ";
+    case token_type::andand:             return "&&";
+    case token_type::oror:               return "||";
+    case token_type::plusplus:           return "++";
+    case token_type::minusminus:         return "--";
+    case token_type::plus:               return "+";
+    case token_type::minus:              return "-";
+    case token_type::multiply:           return "*";
+    case token_type::divide:             return "/";
+    case token_type::and_:               return "&";
+    case token_type::or_:                return "|";
+    case token_type::xor_:               return "^";
+    case token_type::mod:                return "%";
+    case token_type::lshift:             return "<<";
+    case token_type::rshift:             return ">>";
+    case token_type::rshiftshift:        return ">>>";
+    case token_type::plusequal:          return "+=";
+    case token_type::minusequal:         return "-=";
+    case token_type::multiplyequal:      return "*=";
+    case token_type::divideequal:        return "/=";
+    case token_type::andequal:           return "&=";
+    case token_type::orequal:            return "|=";
+    case token_type::xorequal:           return "^=";
+    case token_type::modequal:           return "%=";
+    case token_type::lshiftequal:        return "<<=";
+    case token_type::rshiftequal:        return ">>=";
+    case token_type::rshiftshiftequal:   return ">>>=";
+    case token_type::lparen:             return "(";
+    case token_type::rparen:             return ")";
+    case token_type::lbrace:             return "{";
+    case token_type::rbrace:             return "}";
+    case token_type::lbracket:           return "[";
+    case token_type::rbracket:           return "]";
+    case token_type::semicolon:          return ";";
     default:
         throw std::runtime_error("Invalid token type in op_text: " + std::to_string((int)tt));
+    }
+}
+
+token_type without_assignment(token_type t) {
+    switch (t) {
+    case token_type::plusequal:         return token_type::plus;
+    case token_type::minusequal:        return token_type::minus;
+    case token_type::multiplyequal:     return token_type::multiply;
+    case token_type::divideequal:       return token_type::divide;
+    case token_type::modequal:          return token_type::mod;
+    case token_type::lshiftequal:       return token_type::lshift;
+    case token_type::rshiftequal:       return token_type::rshift;
+    case token_type::rshiftshiftequal:  return token_type::rshiftshift;
+    case token_type::andequal:          return token_type::and_;
+    case token_type::orequal:           return token_type::or_;
+    case token_type::xorequal:          return token_type::xor_;
+    default:
+        throw std::runtime_error("Invalid token type in without_assignment: " + std::to_string((int)t));
     }
 }
 
@@ -145,15 +225,81 @@ std::pair<token_type, int> get_punctuation(std::wstring_view v) {
     using p = std::pair<token_type, int>;
     assert(!v.empty());
     switch (v[0]) {
-    case '=': return { token_type::equal, 1 };
+#if 0
+
+#endif
+    case '=': return v.length() > 1 && v[1] == '=' ? p{ token_type::equalequal, 2} : p{ token_type::equal, 1};
+    case '>':
+        if (v.length() > 1 && v[1] == '>') {
+            if (v.length() > 2 && v[2] == '>') {
+                if(v.length() > 3 && v[3] == '=') {
+                    return p{token_type::rshiftshiftequal, 4};
+                } else {
+                    return p{token_type::rshiftshift, 3};
+                }                
+            } else if (v.length() > 2 && v[2] == '=') {
+                return p{token_type::rshiftequal, 3};
+            } else {
+                return p{token_type::rshift, 2};
+            }
+        } else if (v.length() > 1 && v[1] == '=') {
+            return p{token_type::gtequal, 2};
+        } else {
+            return p{token_type::gt, 1};
+        }
+    case '<':
+        if (v.length() > 1 && v[1] == '<') {
+            if (v.length() > 2 && v[2] == '=') {
+                return p{token_type::lshiftequal, 3};
+            } else {
+                return p{token_type::lshift, 2};
+            }
+        } else if (v.length() > 1 && v[1] == '=') {
+            return p{token_type::ltequal, 2};
+        } else {
+            return p{token_type::lt, 1};
+        }
     case ',': return { token_type::comma, 1 };
-    case '!': return { token_type::not_, 1 };
+    case '!': return v.length() > 1 && v[1] == '=' ? p{ token_type::notequal, 2} : p{ token_type::not_, 1};
     case '~': return { token_type::tilde, 1 };
-    case '+': return v.length() > 1 && v[1] == '+' ? p{ token_type::plusplus, 2} : p{ token_type::plus, 1};
-    case '-': return v.length() > 1 && v[1] == '-' ? p{ token_type::minusminus, 2} : p{ token_type::minus, 1};
-    case '*': return { token_type::multiply, 1};
-    case '/': return { token_type::divide, 1};
-    case '%': return { token_type::mod, 1};
+    case '?': return { token_type::question, 1 };
+    case ':': return { token_type::colon, 1 };
+    case '+':
+        if (v.length() > 1 && v[1] == '+') {
+            return p{ token_type::plusplus, 2};
+        } else if (v.length() > 1 && v[1] == '=') {
+            return p{ token_type::plusequal, 2};
+        } else {
+            return p{ token_type::plus, 1};
+        }
+    case '-': 
+        if (v.length() > 1 && v[1] == '-') {
+            return p{ token_type::minusminus, 2};
+        } else if (v.length() > 1 && v[1] == '=') {
+            return p{ token_type::minusequal, 2};
+        } else {
+            return p{ token_type::minus, 1};
+        }
+    case '*': return v.length() > 1 && v[1] == '=' ? p{ token_type::multiplyequal, 2} : p{ token_type::multiply, 1};
+    case '/': return v.length() > 1 && v[1] == '=' ? p{ token_type::divideequal, 2} : p{ token_type::divide, 1};
+    case '%': return v.length() > 1 && v[1] == '=' ? p{ token_type::modequal, 2} : p{ token_type::mod, 1};
+    case '&':
+        if (v.length() > 1 && v[1] == '&') {
+            return p{ token_type::andand, 2};
+        } else if (v.length() > 1 && v[1] == '=') {
+            return p{ token_type::andequal, 2};
+        } else {
+            return p{ token_type::and_, 1};
+        }
+    case '^': return v.length() > 1 && v[1] == '=' ? p{ token_type::xorequal, 2} : p{ token_type::xor_, 1};
+    case '|':
+        if (v.length() > 1 && v[1] == '|') {
+            return p{ token_type::oror, 2};
+        } else if (v.length() > 1 && v[1] == '=') {
+            return p{ token_type::orequal, 2};
+        } else {
+            return p{ token_type::or_, 1};
+        }
     case '(': return { token_type::lparen, 1};
     case ')': return { token_type::rparen, 1};
     case '{': return { token_type::lbrace, 1};
@@ -163,7 +309,7 @@ std::pair<token_type, int> get_punctuation(std::wstring_view v) {
     case ';': return { token_type::semicolon, 1};
     }
     std::ostringstream oss;
-    oss << "Unhandled character in " << __FUNCTION__ << ": " << v[0] << " 0x" << std::hex << (int)v[0] << "\n";
+    oss << "Unhandled character in " << __FUNCTION__ << ": " << (char)v[0] << " 0x" << std::hex << (int)v[0] << "\n";
     throw std::runtime_error(oss.str());
 }
 

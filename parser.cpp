@@ -6,9 +6,6 @@
 
 namespace mjs {
 
-constexpr int assignment_precedence = 15;
-constexpr int comma_precedence      = 16;
-
 int operator_precedence(token_type tt) {
     switch (tt) {
     case token_type::multiply:
@@ -18,8 +15,44 @@ int operator_precedence(token_type tt) {
     case token_type::plus:
     case token_type::minus:
         return 6;
+    case token_type::lshift:
+    case token_type::rshift:
+    case token_type::rshiftshift:
+        return 7;
+    case token_type::lt:
+    case token_type::ltequal:
+    case token_type::gt:
+    case token_type::gtequal:
+        return 8;
+    case token_type::equalequal:
+    case token_type::notequal:
+        return 9;
+    case token_type::and_:
+        return 10;
+    case token_type::xor_:
+        return 11;
+    case token_type::or_:
+        return 12;
+    case token_type::andand:
+        return 13;
+    case token_type::oror:
+        return 13;
+    case token_type::question:
     case token_type::equal:
+    case token_type::plusequal:
+    case token_type::minusequal:
+    case token_type::multiplyequal:
+    case token_type::divideequal:
+    case token_type::modequal:
+    case token_type::lshiftequal:
+    case token_type::rshiftequal:
+    case token_type::rshiftshiftequal:
+    case token_type::andequal:
+    case token_type::orequal:
+    case token_type::xorequal:
         return assignment_precedence;
+    case token_type::comma:
+        return comma_precedence;
     default:
         return comma_precedence + 1;
     }
@@ -143,8 +176,13 @@ private:
             if (precedence > outer_precedence) {
                 break;
             }
-            // TODO: Handle '?'
             get_token();
+            if (op == token_type::question) {
+                auto l = parse_assignment_expression();
+                EXPECT(token_type::colon);
+                lhs = make_expression<conditional_expression>(std::move(lhs), std::move(l), parse_assignment_expression());
+                continue;
+            }
             auto rhs = parse_unary_expression();
             for (;;) {
                 const auto look_ahead = current_token_type();

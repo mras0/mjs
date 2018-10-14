@@ -16,45 +16,45 @@ enum class token_type {
     numeric_literal,
     string_literal,
     // Punctuators
-    equal, // =
-    // >
-    // <
-    // ==
-    // <=
-    // >=
-    // !=
-    comma, // ,
-    not_, // !
-    tilde, // ~
-    // ?
-    // :
-    // .
-    // &&
-    // ||
-    plusplus, // ++
-    minusminus, // --
-    plus, // +
-    minus, // -
-    multiply, // *
-    divide, // /
-    // &
-    // |
-    // ^
-    mod, // %
-    // <<
-    // >>
-    // >>>
-    // +=
-    // -=
-    // *=
-    // /=
-    // &=
-    // |=
-    // ^=
-    // %=
-    // <<=
-    // >>=
-    // >>>=
+    equal,              // =
+    gt,                 // >
+    lt,                 // <
+    equalequal,         // ==
+    ltequal,            // <=
+    gtequal,            // >=
+    notequal,           // !=
+    comma,              // ,
+    not_,               // !
+    tilde,              // ~
+    question,           // ?
+    colon,              // :
+    dot,                // .
+    andand,             // &&
+    oror,               // ||
+    plusplus,           // ++
+    minusminus,         // --
+    plus,               // +
+    minus,              // -
+    multiply,           // *
+    divide,             // /
+    and_,               // &
+    or_,                // |
+    xor_,               // ^
+    mod,                // %
+    lshift,             // <<
+    rshift,             // >>
+    rshiftshift,        // >>>
+    plusequal,          // +=
+    minusequal,         // -=
+    multiplyequal,      // *=
+    divideequal,        // /=
+    andequal,           // &=
+    orequal,            // |=
+    xorequal,           // ^=
+    modequal,           // %=
+    lshiftequal,        // <<=
+    rshiftequal,        // >>=
+    rshiftshiftequal,   // >>>=
     lparen,             // (
     rparen,             // )
     lbrace,             // {
@@ -62,7 +62,6 @@ enum class token_type {
     lbracket,           // [
     rbracket,           // ]
     semicolon,          // ;
-
     // Reserved Words
     break_,
     continue_,
@@ -90,6 +89,12 @@ std::wostream& operator<<(std::wostream& os, token_type t);
 constexpr bool is_literal(token_type tt) {
     return tt == token_type::null_literal || tt == token_type::boolean_literal || tt == token_type::numeric_literal || tt == token_type::string_literal;
 }
+
+constexpr bool is_relational(token_type tt) {
+    return tt == token_type::lt || tt == token_type::ltequal || tt == token_type::gt || tt == token_type::gtequal;
+}
+
+extern token_type without_assignment(token_type t);
 
 const char* op_text(token_type tt);
 

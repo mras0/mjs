@@ -12,6 +12,8 @@
 namespace mjs {
 
 int operator_precedence(token_type tt);
+constexpr int assignment_precedence = 15;
+constexpr int comma_precedence      = 16;
 
 class syntax_node {
 public:
@@ -33,6 +35,7 @@ enum class expression_type {
     prefix,
     postfix,
     binary,
+    conditional,
 };
 
 class expression : public syntax_node {
@@ -194,6 +197,29 @@ private:
     }
 };
 
+class conditional_expression : public expression {
+public:
+    explicit conditional_expression(expression_ptr&& cond, expression_ptr&& lhs, expression_ptr&& rhs) : cond_(std::move(cond)), lhs_(std::move(lhs)), rhs_(std::move(rhs)) {
+        assert(lhs_);
+        assert(rhs_);
+    }
+
+    expression_type type() const override { return expression_type::conditional; }
+
+    const expression& cond() const { return *cond_; }
+    const expression& lhs() const { return *lhs_; }
+    const expression& rhs() const { return *rhs_; }
+
+private:
+    expression_ptr cond_;
+    expression_ptr lhs_;
+    expression_ptr rhs_;
+
+    void print(std::wostream& os) const override {
+        os << "conditional_expression{" << *cond_ << ", " << *lhs_ << ", " << *rhs_ << "}";
+    }
+};
+
 template<typename Visitor>
 auto accept(const expression& e, Visitor& v) {
     switch (e.type()) {
@@ -203,6 +229,7 @@ auto accept(const expression& e, Visitor& v) {
     case expression_type::prefix:     return v(static_cast<const prefix_expression&>(e));
     case expression_type::postfix:    return v(static_cast<const postfix_expression&>(e));
     case expression_type::binary:     return v(static_cast<const binary_expression&>(e));
+    case expression_type::conditional:return v(static_cast<const conditional_expression&>(e));
     }
     assert(!"Not implemented");
     return v(e);

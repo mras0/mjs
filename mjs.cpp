@@ -71,6 +71,14 @@ public:
         print_with_parentheses(e.rhs(), precedence);
     }
 
+    void operator()(const mjs::conditional_expression& e) {
+        accept(e.cond(), *this);
+        os_ << " ? ";
+        accept(e.lhs(), *this);
+        os_ << " : ";
+        accept(e.rhs(), *this);
+    }
+
     void operator()(const mjs::expression& e) {
         NOT_IMPLEMENTED(e);
     }
@@ -419,19 +427,53 @@ public:
         return mjs::value{orig};
     }
 
-    mjs::value operator()(const mjs::binary_expression& e) {
-        if (e.op() == mjs::token_type::equal) {
-            auto l = accept(e.lhs(), *this);
-            auto r = get_value(accept(e.rhs(), *this));
-            if (!put_value(l, r)) {
-                NOT_IMPLEMENTED(e);
-            }
-            return r;
+    // 0=false, 1=true, -1=undefined
+    static int tri_compare(double l, double r) {
+        if (std::isnan(l) || std::isnan(r)) {
+            return -1;
         }
+        if (l == r || (l == 0.0 && r == 0.0))  {
+            return 0;
+        }
+        if (l == +INFINITY) {
+            return 0;
+        } else if (r == +INFINITY) {
+            return 1;
+        } else if (r == -INFINITY) {
+            return 0;
+        } else if (l == -INFINITY) {
+            return 1;
+        }
+        return l < r;
+    }
+    static bool compare_equal(const mjs::value& l, const mjs::value& r) {
+        if (l.type() == r.type()) {
+            if (l.type() == mjs::value_type::undefined || l.type() == mjs::value_type::null) {
+                return true;
+            } else if (l.type() == mjs::value_type::number) {
+                const double ln = l.number_value();
+                const double rn = r.number_value();
+                if (std::isnan(ln) || std::isnan(rn)) {
+                    return false;
+                }
+                if ((ln == 0.0 && rn == 0.0) || ln == rn) {
+                    return true;
+                }
+                return false;
+            } else if (l.type() == mjs::value_type::string) {
+                return l.string_value() == r.string_value();
+            } else if (l.type() == mjs::value_type::boolean) {
+                return l.boolean_value() == r.boolean_value();
+            }
+            assert(l.type() == mjs::value_type::object);
+            return l.object_value() == r.object_value();
+        }
+        // Types are different
+        NOT_IMPLEMENTED("compare_equal");
+    }
 
-        auto l = get_value(accept(e.lhs(), *this));
-        auto r = get_value(accept(e.rhs(), *this));
-        if (e.op() == mjs::token_type::plus) {
+    static mjs::value do_binary_op(const mjs::token_type op, mjs::value& l, mjs::value& r) {
+        if (op == mjs::token_type::plus) {
             l = to_primitive(l);
             r = to_primitive(r);
             if (l.type() == mjs::value_type::string || r.type() == mjs::value_type::string) {
@@ -440,16 +482,88 @@ public:
                 return mjs::value{ls + rs};
             }
             // Otherwise handle like the other operators
+        } else if (is_relational(op)) {
+            l = to_primitive(l, mjs::value_type::number);
+            r = to_primitive(r, mjs::value_type::number);
+            if (l.type() == mjs::value_type::string && r.type() == mjs::value_type::string) {
+                // TODO: See §11.8.5 step 16-21
+                NOT_IMPLEMENTED(op);
+            }
+            const auto ln = to_number(l);
+            const auto rn = to_number(r);
+            int res;
+            switch (op) {
+            case mjs::token_type::lt:
+                res = tri_compare(ln, rn);
+                return mjs::value{res == -1 ? false : static_cast<bool>(res)};
+            case mjs::token_type::ltequal:
+                res = tri_compare(rn, ln);
+                return mjs::value{res == -1 || res == 1 ? false : true};
+            case mjs::token_type::gt:
+                res = tri_compare(rn, ln);
+                return mjs::value{res == -1 ? false : static_cast<bool>(res)};
+            case mjs::token_type::gtequal:
+                res = tri_compare(ln, rn);
+                return mjs::value{res == -1 || res == 1 ? false : true};
+            default: NOT_IMPLEMENTED(op);
+            }
+        } else if (op == mjs::token_type::equalequal || op == mjs::token_type::notequal) {
+            const bool eq = compare_equal(l ,r);
+            return mjs::value{op == mjs::token_type::equalequal ? eq : !eq};
         }
+
         const auto ln = to_number(l);
         const auto rn = to_number(r);
-        switch (e.op()) {
-        case mjs::token_type::plus:     return mjs::value{ln + rn};
-        case mjs::token_type::minus:    return mjs::value{ln - rn};
-        case mjs::token_type::multiply: return mjs::value{ln * rn};
-        case mjs::token_type::divide:   return mjs::value{ln / rn};
-        case mjs::token_type::mod:      return mjs::value{std::fmod(ln, rn)};
-        default: NOT_IMPLEMENTED(e);
+        switch (op) {
+        case mjs::token_type::plus:         return mjs::value{ln + rn};
+        case mjs::token_type::minus:        return mjs::value{ln - rn};
+        case mjs::token_type::multiply:     return mjs::value{ln * rn};
+        case mjs::token_type::divide:       return mjs::value{ln / rn};
+        case mjs::token_type::mod:          return mjs::value{std::fmod(ln, rn)};
+        case mjs::token_type::lshift:       return mjs::value{static_cast<double>(mjs::to_int32(ln) << (mjs::to_uint32(rn) & 0x1f))};
+        case mjs::token_type::rshift:       return mjs::value{static_cast<double>(mjs::to_int32(ln) >> (mjs::to_uint32(rn) & 0x1f))};
+        case mjs::token_type::rshiftshift:  return mjs::value{static_cast<double>(mjs::to_uint32(ln) >> (mjs::to_uint32(rn) & 0x1f))};
+        case mjs::token_type::and_:         return mjs::value{static_cast<double>(mjs::to_int32(ln) & mjs::to_int32(rn))};
+        case mjs::token_type::xor_:         return mjs::value{static_cast<double>(mjs::to_int32(ln) ^ mjs::to_int32(rn))};
+        case mjs::token_type::or_:          return mjs::value{static_cast<double>(mjs::to_int32(ln) | mjs::to_int32(rn))};
+        default: NOT_IMPLEMENTED(op);
+        }
+    }
+
+    mjs::value operator()(const mjs::binary_expression& e) {
+        if (e.op() == mjs::token_type::comma) {
+            (void)get_value(accept(e.lhs(), *this));;
+            return get_value(accept(e.rhs(), *this));
+        }
+        if (operator_precedence(e.op()) == mjs::assignment_precedence) {
+            auto l = accept(e.lhs(), *this);
+            auto r = get_value(accept(e.rhs(), *this));
+            if (e.op() != mjs::token_type::equal) {
+                auto lval = get_value(l);
+                r = do_binary_op(without_assignment(e.op()), lval, r);
+            }
+            if (!put_value(l, r)) {
+                NOT_IMPLEMENTED(e);
+            }
+            return r;
+        }
+
+        auto l = get_value(accept(e.lhs(), *this));
+        if ((e.op() == mjs::token_type::andand && !to_boolean(l)) || (e.op() == mjs::token_type::oror && to_boolean(l))) {
+            return l;
+        }
+        auto r = get_value(accept(e.rhs(), *this));
+        if (e.op() == mjs::token_type::andand || e.op() == mjs::token_type::oror) {
+            return r;
+        }
+        return do_binary_op(e.op(), l, r);
+    }
+
+    mjs::value operator()(const mjs::conditional_expression& e) {
+        if (to_boolean(get_value(accept(e.cond(), *this)))) {
+            return get_value(accept(e.lhs(), *this));
+        } else {
+            return get_value(accept(e.rhs(), *this));
         }
     }
 
@@ -660,6 +774,23 @@ int main() {
         test(L"x=42; -x;", mjs::value{-42.0});
         test(L"x=42; !x;", mjs::value{false});
         test(L"x=42; ~x;", mjs::value{(double)~42});
+        test(L"1<<2", mjs::value{4.0});
+        test(L"-5>>2", mjs::value{-2.0});
+        test(L"-5>>>2", mjs::value{1073741822.0});
+        test(L"1 < 2", mjs::value{true});
+        test(L"1 > 2", mjs::value{false});
+        test(L"1 <= 2", mjs::value{true});
+        test(L"1 >= 2", mjs::value{false});
+        test(L"1 == 2", mjs::value{false});
+        test(L"1 != 2", mjs::value{true});
+        test(L"255 & 128", mjs::value{128.0});
+        test(L"255 ^ 128", mjs::value{127.0});
+        test(L"64 | 128", mjs::value{192.0});
+        test(L"42 || 13", mjs::value{42.0});
+        test(L"42 && 13", mjs::value{13.0});
+        test(L"1 ? 2 : 3", mjs::value{2.0});
+        test(L"0 ? 2 : 1+2", mjs::value{3.0});
+        test(L"x=2.5; x+=4; x", mjs::value{6.5});
         test(L"function f(x,y) { return x*x+y; } f(2, 3)", mjs::value{7.0});
         test(L"function f(){ i = 42; }; f(); i", mjs::value{42.0});
         test(L"i = 1; function f(){ var i = 42; }; f(); i", mjs::value{1.0});
@@ -668,10 +799,12 @@ int main() {
         test(L"if (0) 2;", mjs::value::undefined);
         test(L"if (0) 2; else ;", mjs::value::undefined);
         test(L"if (0) 2; else 3;", mjs::value{3.0});
+        test(L"1,2", mjs::value{2.0});
         test(L"x=5; while(x-3) { x = x - 1; } x", mjs::value{3.0});
         test(L"x=2; y=0; while(1) { if(x) {x = x - 1; y = y + 2; continue; y = y + 1000; } else break; y = y + 1;} y", mjs::value{4.0});
         test(L"var x = 0; for(var i = 10, dec = 1; i; i = i - dec) x = x + i; x", mjs::value{55.0});
         test(L"var x=0; for (i=2; i; i=i-1) x=x+i; x+i", mjs::value{3.0});
+        // TODO: for .. in, with
         auto bs = mjs::parse(L";");
         auto global = make_global(*bs);
         eval_visitor e{global};
