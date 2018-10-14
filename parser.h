@@ -30,6 +30,8 @@ enum class expression_type {
     identifier,
     literal,
     call,
+    prefix,
+    postfix,
     binary,
 };
 
@@ -129,6 +131,46 @@ private:
     }
 };
 
+class prefix_expression : public expression {
+public:
+    explicit prefix_expression(token_type op, expression_ptr&& e) : op_(op), e_(std::move(e)) {
+        assert(e_);
+    }
+
+    expression_type type() const override { return expression_type::prefix; }
+
+    token_type op() const { return op_; }
+    const expression& e() const { return *e_; }
+
+private:
+    token_type op_;
+    expression_ptr e_;
+
+    void print(std::wostream& os) const override {
+        os << "prefix_expression{" << op_ << ", " << *e_ << "}";
+    }
+};
+
+class postfix_expression : public expression {
+public:
+    explicit postfix_expression(token_type op, expression_ptr&& e) : op_(op), e_(std::move(e)) {
+        assert(e_);
+    }
+
+    expression_type type() const override { return expression_type::postfix; }
+
+    token_type op() const { return op_; }
+    const expression& e() const { return *e_; }
+
+private:
+    token_type op_;
+    expression_ptr e_;
+
+    void print(std::wostream& os) const override {
+        os << "postfix_expression{" << op_ << ", " << *e_ << "}";
+    }
+};
+
 class binary_expression : public expression {
 public:
     explicit binary_expression(token_type op, expression_ptr&& lhs, expression_ptr&& rhs) : op_(op), lhs_(std::move(lhs)), rhs_(std::move(rhs)) {
@@ -158,6 +200,8 @@ auto accept(const expression& e, Visitor& v) {
     case expression_type::identifier: return v(static_cast<const identifier_expression&>(e));
     case expression_type::literal:    return v(static_cast<const literal_expression&>(e));
     case expression_type::call:       return v(static_cast<const call_expression&>(e));
+    case expression_type::prefix:     return v(static_cast<const prefix_expression&>(e));
+    case expression_type::postfix:    return v(static_cast<const postfix_expression&>(e));
     case expression_type::binary:     return v(static_cast<const binary_expression&>(e));
     }
     assert(!"Not implemented");
@@ -188,38 +232,47 @@ private:
     }
 };
 
-class variable_statement : public statement {
+class declaration {
 public:
-    class declaration {
-    public:
-        explicit declaration(const string& id, expression_ptr&& init) : id_(id), init_(std::move(init)) {}
+    using list = std::vector<declaration>;
 
-        const string& id() const { return id_;}
+    explicit declaration(const string& id, expression_ptr&& init) : id_(id), init_(std::move(init)) {
+        assert(!id.view().empty() || init_);
+    }
 
-        const expression* init() const { return init_.get(); }
+    const string& id() const { return id_;}
 
-        friend std::wostream& operator<<(std::wostream& os, const declaration& d) {
-            os << '{' << d.id_;
+    const expression* init() const { return init_.get(); }
+
+    friend std::wostream& operator<<(std::wostream& os, const declaration& d) {
+        os << '{';
+        if (!d.id_.view().empty()) {
+            os << d.id_;
             if (d.init_) {
                 os << ", " << *d.init_;
             }
-            return os << '}';
+        } else {
+            os << *d.init_;
         }
-
-    private:
-        string id_;
-        expression_ptr init_;
-    };
-    using declaration_list = std::vector<declaration>;
-
-    statement_type type() const override { return statement_type::variable; }
-
-    explicit variable_statement(declaration_list&& l) : l_(std::move(l)) {}
-
-    const declaration_list& l() const { return l_; }
+        return os << '}';
+    }
 
 private:
-    declaration_list l_;
+    string id_;
+    expression_ptr init_;
+};
+
+
+class variable_statement : public statement {
+public:
+    statement_type type() const override { return statement_type::variable; }
+
+    explicit variable_statement(declaration::list&& l) : l_(std::move(l)) {}
+
+    const declaration::list& l() const { return l_; }
+
+private:
+    declaration::list l_;
 
     void print(std::wostream& os) const override {
         os << "variable_statement{[";
@@ -307,7 +360,39 @@ private:
         os  << "while_statement{" << *cond_ << ", " << *s_ << "}";
     }
 };
-//for_,
+
+class for_statement : public statement {
+public:
+    explicit for_statement(statement_ptr&& init, expression_ptr&& cond, expression_ptr&& iter, statement_ptr&& s) : init_(std::move(init)), cond_(std::move(cond)), iter_(std::move(iter)), s_(std::move(s)) {
+        assert(!init_ || init_->type() == statement_type::expression || init_->type() == statement_type::variable);
+        assert(s_);
+    }
+
+    statement_type type() const override { return statement_type::for_; }
+
+    const statement* init() const { return init_.get(); }
+    const expression* cond() const { return cond_.get(); }
+    const expression* iter() const { return iter_.get(); }
+    const statement& s() const { return *s_; }
+
+private:
+    statement_ptr  init_;
+    expression_ptr cond_;
+    expression_ptr iter_;
+    statement_ptr  s_;
+
+    void print(std::wostream& os) const override {
+        os << "for_statement{";
+        if (init_) os << *init_; else os << "{}";
+        os << ',';
+        if (cond_) os << *cond_; else os << "{}";
+        os << ',';
+        if (iter_) os << *iter_; else os << "{}";
+        os << ',' << *s_;
+        os << "}";
+    }
+};
+
 //for_in,
 
 class continue_statement : public statement {
@@ -386,7 +471,7 @@ auto accept(const statement& s, Visitor& v) {
     case statement_type::expression:            return v(static_cast<const expression_statement&>(s));
     case statement_type::if_:                   return v(static_cast<const if_statement&>(s));
     case statement_type::while_:                return v(static_cast<const while_statement&>(s));
-    case statement_type::for_:                  break;
+    case statement_type::for_:                  return v(static_cast<const for_statement&>(s));
     case statement_type::for_in:                break;
     case statement_type::continue_:             return v(static_cast<const continue_statement&>(s));
     case statement_type::break_:                return v(static_cast<const break_statement&>(s));
@@ -402,7 +487,7 @@ auto accept(const statement& s, Visitor& v) {
 // Parser
 //
 
-statement_ptr parse(const std::wstring_view& str);
+std::unique_ptr<block_statement> parse(const std::wstring_view& str);
 
 } // namespace mjs
 

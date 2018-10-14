@@ -13,6 +13,7 @@ int operator_precedence(token_type tt) {
     switch (tt) {
     case token_type::multiply:
     case token_type::divide:
+    case token_type::mod:
         return 5;
     case token_type::plus:
     case token_type::minus:
@@ -44,13 +45,13 @@ class parser {
 public:
     explicit parser(const std::wstring_view& str) : lexer_(str) {}
 
-    statement_ptr parse() {
+    std::unique_ptr<block_statement> parse() {
         statement_list l;
         skip_whitespace();
         while (lexer_.current_token()) {
             l.push_back(parse_statement_or_function_declaration());
         }
-        return make_statement<block_statement>(std::move(l));
+        return std::make_unique<block_statement>(std::move(l));
     }
 
 private:
@@ -109,13 +110,30 @@ private:
     }
 
     expression_ptr parse_postfix_expression() {
-        // TODO: ++/--
-        return parse_left_hand_side_expression();
+        // TODO: no line break before
+        auto lhs = parse_left_hand_side_expression();
+        if (auto t = current_token_type(); accept(token_type::plusplus) || accept(token_type::minusminus)) {
+            return make_expression<postfix_expression>(t, std::move(lhs));
+        }
+        return lhs;        
     }
 
     expression_ptr parse_unary_expression() {
-        // TODO: Prefixes...
-        return parse_postfix_expression();
+        switch (auto t = current_token_type(); t) {
+        case token_type::delete_:
+        case token_type::void_:
+        case token_type::typeof_:
+        case token_type::plusplus:
+        case token_type::minusminus:
+        case token_type::plus:
+        case token_type::minus:
+        case token_type::tilde:
+        case token_type::not_:
+            accept(t);
+            return make_expression<prefix_expression>(t, parse_unary_expression());
+        default:
+            return parse_postfix_expression();
+        }
     }
 
     expression_ptr parse_expression1(expression_ptr&& lhs, int outer_precedence) {
@@ -142,11 +160,11 @@ private:
     }
 
     expression_ptr parse_assignment_expression() {
-        return parse_expression1(parse_left_hand_side_expression(), assignment_precedence);
+        return parse_expression1(parse_unary_expression(), assignment_precedence);
     }
 
     expression_ptr parse_expression() {
-        return parse_expression1(parse_left_hand_side_expression(), comma_precedence);
+        return parse_expression1(parse_assignment_expression(), comma_precedence);
     }
 
     expression_ptr parse_member_expression() {
@@ -202,15 +220,15 @@ private:
         return make_statement<block_statement>(std::move(l));
     }
 
-    variable_statement::declaration_list parse_variable_declaration_list() {
-        variable_statement::declaration_list l;
+    declaration::list parse_variable_declaration_list() {
+        declaration::list l;
         do {
             auto id = EXPECT(token_type::identifier).text();
             expression_ptr init{};
             if (accept(token_type::equal)) {
                 init = parse_assignment_expression();
             }
-            l.push_back(variable_statement::declaration{id, std::move(init)});
+            l.push_back(declaration{id, std::move(init)});
         } while (accept(token_type::comma));
         return l;
     }
@@ -245,6 +263,27 @@ private:
             auto cond = parse_expression();
             EXPECT(token_type::rparen);
             return make_statement<while_statement>(std::move(cond), parse_statement());
+        } else if (accept(token_type::for_)) {
+            statement_ptr init{};
+            expression_ptr cond{}, iter{};
+            EXPECT(token_type::lparen);
+            if (!accept(token_type::semicolon)) {
+                if (accept(token_type::var_)) {
+                    init = make_statement<variable_statement>(parse_variable_declaration_list());
+                } else {
+                    init = make_statement<expression_statement>(parse_expression());
+                }
+                EXPECT(token_type::semicolon);
+            }
+            if (!accept(token_type::semicolon)) {
+                cond = parse_expression();
+                EXPECT(token_type::semicolon);
+            }
+            if (!accept(token_type::rparen)) {
+                iter = parse_expression();
+                EXPECT(token_type::rparen);
+            }
+            return make_statement<for_statement>(std::move(init), std::move(cond), std::move(iter), parse_statement());
         } else if (accept(token_type::continue_)) {
             return make_statement<continue_statement>();
         } else if (accept(token_type::break_)) {
@@ -287,7 +326,7 @@ private:
     }
 };
 
-statement_ptr parse(const std::wstring_view& str) {
+std::unique_ptr<block_statement> parse(const std::wstring_view& str) {
     return parser{str}.parse();
 }
 

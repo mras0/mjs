@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 #include <functional>
 #include <vector>
 
@@ -220,21 +221,39 @@ public:
     void call_function(const native_function_type& f) { call_ = f; }
     const native_function_type& call_function() const { return call_; }
 
+    std::vector<string> property_names() const {
+        std::unordered_set<string> names;
+        add_property_names(names);
+        return std::vector<string>(std::make_move_iterator(names.begin()), std::make_move_iterator(names.end()));
+    }
+
 private:
+    explicit object(const string& class_name, const object_ptr& prototype) : class_(class_name), prototype_(prototype){}
+
     struct property {
         value val;
         property_attribute attr;
 
         bool has_attribute(property_attribute a) const { return (attr & a) == a; }
     };
-
-    explicit object(const string& class_name, const object_ptr& prototype) : class_(class_name), prototype_(prototype){}
+    using property_map = std::unordered_map<string, property>;
 
     string class_;
     object_ptr prototype_;
     native_function_type construct_;
     native_function_type call_;
-    std::unordered_map<string, property> properties_;
+    property_map properties_;
+
+    void add_property_names(std::unordered_set<string>& names) const {
+        for (const auto& p: properties_) {
+            if (!p.second.has_attribute(property_attribute::dont_enum)) {
+                names.insert(p.first);
+            }                
+        }
+        if (prototype_) {
+            prototype_->add_property_names(names);
+        }
+    }
 };
 
 // §9 Type Conversions

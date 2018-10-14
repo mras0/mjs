@@ -24,15 +24,15 @@ enum class token_type {
     // >=
     // !=
     comma, // ,
-    // !
-    // ~
+    not_, // !
+    tilde, // ~
     // ?
     // :
     // .
     // &&
     // ||
-    // ++
-    // --
+    plusplus, // ++
+    minusminus, // --
     plus, // +
     minus, // -
     multiply, // *
@@ -40,7 +40,7 @@ enum class token_type {
     // &
     // |
     // ^
-    // %
+    mod, // %
     // <<
     // >>
     // >>>

@@ -75,11 +75,16 @@ std::ostream& operator<<(std::ostream& os, token_type t) {
         CASE_TOKEN_TYPE(numeric_literal);
         CASE_TOKEN_TYPE(string_literal);
         CASE_TOKEN_TYPE(comma);
+        CASE_TOKEN_TYPE(not_);
+        CASE_TOKEN_TYPE(tilde);
         CASE_TOKEN_TYPE(equal);
+        CASE_TOKEN_TYPE(plusplus);
+        CASE_TOKEN_TYPE(minusminus);
         CASE_TOKEN_TYPE(plus);
         CASE_TOKEN_TYPE(minus);
         CASE_TOKEN_TYPE(multiply);
         CASE_TOKEN_TYPE(divide);
+        CASE_TOKEN_TYPE(mod);
         CASE_TOKEN_TYPE(lparen);
         CASE_TOKEN_TYPE(rparen);
         CASE_TOKEN_TYPE(lbrace);
@@ -98,14 +103,19 @@ std::ostream& operator<<(std::ostream& os, token_type t) {
 
 const char* op_text(token_type tt) {
     switch (tt) {
+    case token_type::comma: return ",";
+    case token_type::not_: return "!";
+    case token_type::tilde: return "~";
     case token_type::equal: return "=";
+    case token_type::plusplus: return "++";
+    case token_type::minusminus: return "--";
     case token_type::plus: return "+";
     case token_type::minus: return "-";
     case token_type::multiply: return "*";
     case token_type::divide: return "/";
-
+    case token_type::mod: return "%";
     default:
-        throw std::runtime_error("Invalid token type: " + std::to_string((int)tt));
+        throw std::runtime_error("Invalid token type in op_text: " + std::to_string((int)tt));
     }
 }
 
@@ -132,14 +142,18 @@ constexpr bool is_digit(int ch) {
 }
 
 std::pair<token_type, int> get_punctuation(std::wstring_view v) {
+    using p = std::pair<token_type, int>;
     assert(!v.empty());
     switch (v[0]) {
     case '=': return { token_type::equal, 1 };
     case ',': return { token_type::comma, 1 };
-    case '+': return { token_type::plus, 1};
-    case '-': return { token_type::minus, 1};
+    case '!': return { token_type::not_, 1 };
+    case '~': return { token_type::tilde, 1 };
+    case '+': return v.length() > 1 && v[1] == '+' ? p{ token_type::plusplus, 2} : p{ token_type::plus, 1};
+    case '-': return v.length() > 1 && v[1] == '-' ? p{ token_type::minusminus, 2} : p{ token_type::minus, 1};
     case '*': return { token_type::multiply, 1};
     case '/': return { token_type::divide, 1};
+    case '%': return { token_type::mod, 1};
     case '(': return { token_type::lparen, 1};
     case ')': return { token_type::rparen, 1};
     case '{': return { token_type::lbrace, 1};
@@ -207,10 +221,20 @@ void lexer::next_token() {
             RESERVED_WORDS(X)
 #undef X
             else current_token_  = token{token_type::identifier, string{id}};
-        } else if (is_digit(ch) /*|| (ch == '.' && token_end < text_.size() && is_digit(text_[token_end]))*/) {
+        } else if (is_digit(ch) || (ch == '.' && token_end < text_.size() && is_digit(text_[token_end]))) {
             // TODO: Handle HexIntegerLiteral and exponent/decimal point
-            while (token_end < text_.size() && is_digit(text_[token_end])) {
-                ++token_end;
+            bool ndot = ch == '.';
+            bool ne = false;
+            for (; token_end < text_.size(); ++token_end) {
+                const int ch2 = text_[token_end];
+                if (is_digit(ch2)) {
+                } else if (ch2 == '.' && !ndot) {
+                    ndot = true;
+                } else if ((ch2 == 'e' || ch2 == 'E') && !ne) {
+                    ne = true;
+                } else {
+                    break;
+                }
             }
             std::string s{text_.begin() + text_pos_, text_.begin() + token_end};
             size_t len;

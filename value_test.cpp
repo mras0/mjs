@@ -16,7 +16,14 @@ int main( int argc, char* argv[] ) {
   return result;
 }
 using namespace mjs;
-//     undefined, null, boolean, number, string, object
+
+std::ostream& operator<<(std::ostream& os, const std::vector<string>& vs) {
+    os << "{";
+    for (size_t i = 0; i < vs.size(); ++i) {
+        os << (i ? ", " : "") << vs[i];
+    }
+    return os << "}";
+}
 
 TEST_CASE("value - undefined") {
     REQUIRE(value::undefined.type() == value_type::undefined);
@@ -56,6 +63,7 @@ TEST_CASE("value - string") {
 
 TEST_CASE("object") {
     auto o = object::make(string{"Object"});
+    REQUIRE(o->property_names() == (std::vector<string>{}));
     const auto n = string{"test"};
     const auto n2 = string{"foo"};
     REQUIRE(!o->has_property(n));
@@ -64,12 +72,13 @@ TEST_CASE("object") {
     o->put(n, value{42.0});
     REQUIRE(o->has_property(n));
     REQUIRE(o->can_put(n));
-    o->put(n2, value{n2}, property_attribute::dont_delete | property_attribute::read_only);
+    o->put(n2, value{n2}, property_attribute::dont_enum | property_attribute::dont_delete | property_attribute::read_only);
     REQUIRE(o->has_property(n2));
     REQUIRE(!o->can_put(n2));
     REQUIRE(o->get(n) == value{42.0});
     REQUIRE(o->get(n2) == value{n2});
     REQUIRE(&o->get(n) == &o->get(n)); // Should return same reference
+    REQUIRE(o->property_names() == (std::vector<string>{n}));
     o->put(n, value{n});
     REQUIRE(o->get(n) == value{n});
     REQUIRE(o->delete_property(n));
@@ -80,6 +89,7 @@ TEST_CASE("object") {
     REQUIRE(!o->delete_property(n2));
     REQUIRE(o->has_property(n2));
     REQUIRE(o->get(n2) == value{n2});
+    REQUIRE(o->property_names() == (std::vector<string>{}));
 }
 
 TEST_CASE("Type Converions") {
