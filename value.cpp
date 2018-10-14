@@ -38,7 +38,7 @@ const value& reference::get_value() const {
     return base_->get(property_name_);
 }
 
-void reference::put_value(const value& val) {
+void reference::put_value(const value& val) const {
     base_->put(property_name_, val);
 }
 
@@ -129,10 +129,9 @@ bool operator==(const value& l, const value& r) {
     NOT_IMPLEMENTED();
 }
 
-[[nodiscard]] bool put_value(const object_ptr& global, const value& ref, const value& val) {
+[[nodiscard]] bool put_value(const value& ref, const value& val) {
     if (ref.type() != value_type::reference) return false;
-    auto b = ref.reference_value().base();
-    (b ? b : global)->put(ref.reference_value().property_name(), val);
+    ref.reference_value().put_value(val);
     return true;
 }
 

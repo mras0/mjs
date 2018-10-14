@@ -62,6 +62,25 @@ enum class token_type {
     lbracket,           // [
     rbracket,           // ]
     semicolon,          // ;
+
+    // Reserved Words
+    break_,
+    continue_,
+    delete_,
+    else_,
+    for_,
+    function_,
+    if_,
+    in_,
+    new_,
+    return_,
+    this_,
+    typeof_,
+    var_,
+    void_,
+    while_,
+    with_,
+
     eof,
 };
 

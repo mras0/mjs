@@ -2,6 +2,7 @@
 #include <string>
 #include <stdexcept>
 #include <sstream>
+#include <algorithm>
 #include <cassert>
 
 #include "value.h"
@@ -15,6 +16,8 @@ auto make_runtime_error(const std::wstring_view& s) {
 
 class print_visitor {
 public:
+    explicit print_visitor(std::wostream& os) : os_(os) {}
+
     void operator()(const mjs::identifier_expression& e) {
         std::wcout << e.id();
     }
@@ -22,10 +25,10 @@ public:
     void operator()(const mjs::literal_expression& e) {
         switch (e.t().type()) {
         case mjs::token_type::numeric_literal:
-            std::wcout << e.t().dvalue();
+            os_ << e.t().dvalue();
             return;
         case mjs::token_type::string_literal:
-            std::wcout << '"' << cpp_quote(e.t().text()) << '"';
+            os_ << '"' << cpp_quote(e.t().text()) << '"';
             return;
         default:
             NOT_IMPLEMENTED(e);
@@ -33,24 +36,50 @@ public:
     }
     void operator()(const mjs::call_expression& e) {
         accept(e.member(), *this);
-        std::wcout << '(';
+        os_ << '(';
         const auto& args = e.arguments();
         for (size_t i = 0; i < args.size(); ++i) {
-            std::wcout << (i ? ", " : "");
+            os_ << (i ? ", " : "");
             accept(*args[i], *this);
         }
-        std::wcout << ')';
+        os_ << ')';
     }
 
     void operator()(const mjs::binary_expression& e) {
         const int precedence = mjs::operator_precedence(e.op());
         print_with_parentheses(e.lhs(), precedence);
-        std::wcout << op_text(e.op());
+        os_ << op_text(e.op());
         print_with_parentheses(e.rhs(), precedence);
     }
 
     void operator()(const mjs::expression& e) {
         NOT_IMPLEMENTED(e);
+    }
+
+    void operator()(const mjs::block_statement& s) {
+        os_ << '{';
+        for (const auto& bs: s.l()) {
+            accept(*bs, *this);
+            os_ << ';';
+        }
+        os_ << '}';
+    }
+
+    void operator()(const mjs::function_definition& s) {
+        os_ << "function " << s.id() << "(";
+        for (size_t i = 0; i < s.params().size(); ++i) {
+            os_ << (i?", ":"") << s.params()[i];
+        }
+        os_ << ")";
+        (*this)(s.block());
+    }
+
+    void operator()(const mjs::return_statement& s) {
+        os_ << "return";
+        if (s.e()) {
+            os_ << " ";
+            accept(*s.e(), *this);
+        }
     }
 
     void operator()(const mjs::expression_statement& s) {
@@ -62,20 +91,82 @@ public:
     }
 
 private:
+    std::wostream& os_;
+
     void print_with_parentheses(const mjs::expression& e, int outer_precedence) {
         const int inner_precedence = e.type() == mjs::expression_type::binary ? mjs::operator_precedence(static_cast<const mjs::binary_expression&>(e).op()) : 0;
-        if (inner_precedence > outer_precedence) std::wcout << '(';
+        if (inner_precedence > outer_precedence) os_ << '(';
         accept(e, *this);
-        if (inner_precedence > outer_precedence) std::wcout << ')';
+        if (inner_precedence > outer_precedence) os_ << ')';
     }
 };
 
+auto make_function_object() {
+    return mjs::object::make(mjs::string{"Function"}, nullptr); // TODO
+}
+
+auto make_function(const mjs::native_function_type& f) {
+    auto o = make_function_object();
+    o->call_function(f);
+    return o;
+}
+
+template<typename F>
+void set_function(const mjs::object_ptr& o, const mjs::string& name, const F& f) {
+    o->put(name, mjs::value{make_function(f)});
+}
+
+auto make_arguments_array(const std::vector<mjs::value>& args, const mjs::object_ptr& callee) {
+    assert(callee->class_name().str() == L"Function");
+    auto as = mjs::object::make(mjs::string{"Object"}, nullptr /*Object prototype*/); // TODO: See §10.1.8
+    as->put(mjs::string{"callee"}, mjs::value{callee});
+    as->put(mjs::string{"length"}, mjs::value{static_cast<double>(args.size())}, mjs::property_attribute::dont_enum);
+    for (size_t i = 0; i < args.size(); ++i) {
+        as->put(mjs::to_string(mjs::value{static_cast<double>(i)}), args[i], mjs::property_attribute::dont_enum);
+    }
+    return as;
+}
+
+enum class completion_type {
+    normal, break_, continue_, return_
+};
+std::wostream& operator<<(std::wostream& os, const completion_type& t) {
+    switch (t) {
+    case completion_type::normal: return os << "Normal completion";
+    case completion_type::break_: return os << "Break";
+    case completion_type::continue_: return os << "Continue";
+    case completion_type::return_: return os << "Return";
+    }
+    NOT_IMPLEMENTED((int)t);
+}
+
+struct completion {
+    completion_type type;
+    mjs::value result;
+
+    explicit completion(completion_type t = completion_type::normal, const mjs::value& r = mjs::value::undefined) : type(t), result(r) {}
+
+    explicit operator bool() const { return type != completion_type::normal; }
+};
+
+std::wostream& operator<<(std::wostream& os, const completion& c) {
+    return os << c.type << " " << c.result;
+}
+
+
 class eval_visitor {
 public:
-    explicit eval_visitor(const mjs::object_ptr& global) : global_(global) {}
+    explicit eval_visitor(const mjs::object_ptr& global) {
+        scopes_.reset(new scope{global, nullptr});
+    }
+
+    ~eval_visitor() {
+        assert(scopes_ && !scopes_->prev);
+    }
 
     mjs::value operator()(const mjs::identifier_expression& e) {
-        return mjs::value{mjs::reference{global_, e.id()}};
+        // §10.1.4 
+        return mjs::value{scopes_->lookup(e.id())};
     }
 
     mjs::value operator()(const mjs::literal_expression& e) {
@@ -114,7 +205,7 @@ public:
         if (e.op() == mjs::token_type::equal) {
             auto l = accept(e.lhs(), *this);
             auto r = get_value(accept(e.rhs(), *this));
-            if (!put_value(global_, l, r)) {
+            if (!put_value(l, r)) {
                 NOT_IMPLEMENTED(e);
             }
             return r;
@@ -147,32 +238,87 @@ public:
         NOT_IMPLEMENTED(e);
     }
 
-    mjs::value operator()(const mjs::expression_statement& s) {
-        return accept(s.e(), *this);
+    //
+    // Statements
+    //
+
+    completion operator()(const mjs::block_statement& s) {
+        for (const auto& bs: s.l()) {
+            if (auto c = accept(*bs, *this)) {
+                return c;
+            }
+        }
+        return completion{completion_type::normal};
     }
 
-    mjs::value operator()(const mjs::statement& s) {
+    completion operator()(const mjs::function_definition& s) {
+        auto prev_scope = scopes_;
+        auto callee = make_function_object();
+        auto func = [&s, this, prev_scope, callee](const std::vector<mjs::value>& args) {
+            auto_scope as{*this, prev_scope};
+            auto& scope = scopes_->activation;
+            scope->put(mjs::string{"arguments"}, mjs::value{make_arguments_array(args, callee)});
+            for (size_t i = 0; i < std::min(args.size(), s.params().size()); ++i) {
+                scope->put(s.params()[i], args[i]);
+            }
+            return accept(s.block(), *this).result;
+        };
+        prev_scope->activation->put(s.id(), mjs::value{make_function(func)});
+        return completion{};
+    }
+
+    completion operator()(const mjs::return_statement& s) {
+        mjs::value res{};
+        if (s.e()) {
+            res = get_value(accept(*s.e(), *this));
+        }
+        return completion{completion_type::return_, res};
+    }
+
+    completion operator()(const mjs::expression_statement& s) {
+        return completion{completion_type::normal, accept(s.e(), *this)};
+    }
+
+    completion operator()(const mjs::statement& s) {
         NOT_IMPLEMENTED(s);
     }
 
 private:
-    mjs::object_ptr global_;
+    class scope;
+    using scope_ptr = std::shared_ptr<scope>;
+    class scope {
+    public:
+        explicit scope(const mjs::object_ptr& act, const scope_ptr& prev) : activation(act), prev(prev) {}
+
+        mjs::reference lookup(const mjs::string& id) const {
+            if (!prev || activation->has_property(id)) {
+                return mjs::reference{activation, id};
+            }
+            return prev->lookup(id);
+        }
+
+        mjs::object_ptr activation;
+        scope_ptr prev;
+    };
+    class auto_scope {
+    public:
+        explicit auto_scope(eval_visitor& parent, const scope_ptr& prev) : parent(parent), old_scopes(parent.scopes_) {
+            auto activation = mjs::object::make(mjs::string{"Activation"}, nullptr); // TODO
+            parent.scopes_.reset(new scope{activation, prev});
+        }
+        ~auto_scope() {
+            parent.scopes_ = old_scopes;
+        }
+
+        eval_visitor& parent;
+        scope_ptr old_scopes;
+    };
+    scope_ptr scopes_;
 };
-
-auto make_function(const mjs::native_function_type& f) {
-    auto o = mjs::object::make(mjs::string{"Function"}, nullptr); // TODO
-    o->call_function(f);
-    return o;
-}
-
-template<typename F>
-void set_function(const mjs::object_ptr& o, const char* name, const F& f) {
-    o->put(mjs::string{name}, mjs::value{make_function(f)});
-}
 
 auto make_global() {
     auto global = mjs::object::make(mjs::string{"Object"}, nullptr); // TODO
-    set_function(global, "alert", [](const std::vector<mjs::value>& args) {
+    set_function(global, mjs::string{"alert"}, [](const std::vector<mjs::value>& args) {
         std::wcout << "ALERT";
         if (!args.empty()) std::wcout << ": " << args[0];
         std::wcout << "\n";
@@ -186,7 +332,7 @@ void test(const std::wstring_view& text, const mjs::value& expected) {
     eval_visitor ev{global};
     mjs::value res{};
     for (const auto& s: mjs::parse(text)) {
-        res = accept(*s, ev);
+        res = accept(*s, ev).result;
     }
     if (res != expected) {
         std::wcout << "Test failed: " << text << " expecting " << expected << " got " << res << "\n";
@@ -199,15 +345,15 @@ int main() {
         test(L"1+2*3", mjs::value{7.});
         test(L"x = 42; 'test ' + 2 * (6 - 4 + 1) + ' ' + x", mjs::value{mjs::string{"test 6 42"}});
         test(L"y=1/2; z='string'; y+z", mjs::value{mjs::string{"0.5string"}});
-        auto ss = mjs::parse(L"y=42; z='string'; alert(y+z)");
+        auto ss = mjs::parse(L"function f(x, y){ function g(z) { return x+y+z; } alert(g(1) + ' ' + g(10)); }; f(2,3)");
         auto global = make_global();
         eval_visitor e{global};
-        print_visitor p;
+        print_visitor p{std::wcout};
         for (const auto& s: ss) {
             std::wcout << "> ";
             accept(*s, p);
             std::wcout << "\n";
-            std::wcout << accept(*s, e) << "\n";
+            std::wcout << accept(*s, e).result << "\n";
         }
     } catch (const std::exception& e) {
         std::wcout << e.what() << "\n";

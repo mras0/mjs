@@ -192,6 +192,15 @@ private:
         }
     }
 
+    statement_ptr parse_block() {
+        expect(token_type::lbrace, __FUNCTION__);
+        statement_list l;
+        while (!accept(token_type::rbrace)) {
+            l.push_back(parse_statement_or_function_declaration());
+        }
+        return make_statement<block_statement>(std::move(l));
+    }
+
     statement_ptr parse_statement() {
         // Statement :
         //  Block
@@ -203,13 +212,36 @@ private:
         //  ContinueStatement
         //  BreakStatement
         //  ReturnStatement
-        return make_statement<expression_statement>(parse_expression());
+        if (current_token_type() == token_type::lbrace) {
+            return parse_block();
+        } else if (accept(token_type::return_)) {
+            expression_ptr e{};
+            if (current_token_type() != token_type::semicolon) {
+                e = parse_expression();
+            }
+            return make_statement<return_statement>(std::move(e));
+        } else {
+            return make_statement<expression_statement>(parse_expression());
+        }
+    }
+
+    statement_ptr parse_function() {
+        // function Identifier ( FormalParameterListopt ) Block
+        expect(token_type::function_, __FUNCTION__);
+        auto id = expect(token_type::identifier, __FUNCTION__).text();
+        expect(token_type::lparen, __FUNCTION__);
+        std::vector<string> params;
+        if (!accept(token_type::rparen)) {
+            do {
+                params.push_back(expect(token_type::identifier, __FUNCTION__).text());
+            } while (accept(token_type::comma));
+            expect(token_type::rparen, __FUNCTION__);
+        }
+        return make_statement<function_definition>(id, std::move(params), parse_block());
     }
 
     statement_ptr parse_statement_or_function_declaration() {
-        // if function.... see §13
-        // function Identifier ( FormalParameterListopt ) Block
-        auto s = parse_statement();
+        auto s = current_token_type() == token_type::function_ ? parse_function() : parse_statement();
         accept(token_type::semicolon);
         return s;
     }

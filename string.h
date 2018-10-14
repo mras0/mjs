@@ -14,6 +14,8 @@ public:
     explicit string(std::wstring&& s) : s_(std::move(s)) {}
     string(const string& s) : s_(s.s_) {}
     string(string&& s) : s_(std::move(s.s_)) {}
+    string& operator=(const string& s) { s_ = s.s_; return *this; }
+    string& operator=(const string&& s) { s_ = std::move(s.s_); return *this; }
 
     string& operator+=(const string& rhs) {
         s_ += rhs.s_;

@@ -39,6 +39,9 @@ public:
 };
 
 enum class statement_type {
+    block,
+    function_definition,
+    return_,
     expression,
 };
 
@@ -151,6 +154,72 @@ auto accept(const expression& e, Visitor& v) {
 // Statements
 //
 
+class block_statement : public statement {
+public:
+    explicit block_statement(statement_list&& l) : l_(std::move(l)) {}
+
+    statement_type type() const { return statement_type::block; }
+
+    const statement_list& l() const { return l_; }
+private:
+    statement_list l_;
+
+    void print(std::wostream& os) const override {
+        os << "block_statement{";
+        for (size_t i = 0; i < l_.size(); ++i) {
+            if (i) os << ", ";
+            os << *l_[i];
+        }
+        os << "}";
+    }
+};
+
+class function_definition : public statement {
+public:
+    explicit function_definition(const string& id, std::vector<string>&& params, statement_ptr&& block) : id_(id), params_(std::move(params)), block_(std::move(block)) {
+        assert(block_->type() == statement_type::block);
+    }
+
+    statement_type type() const { return statement_type::function_definition; }
+    
+    const string& id() const { return id_; }
+    const std::vector<string>& params() const { return params_; }
+    const block_statement& block() const { return static_cast<const block_statement&>(*block_); }
+
+private:
+    string id_;
+    std::vector<string> params_;
+    statement_ptr block_;
+    
+    void print(std::wostream& os) const override {
+        os << "function_definition{" << id_ << ", [";
+        for (size_t i = 0; i < params_.size(); ++i) {
+            if (i) os << ", ";
+            os << params_[i];
+        }
+        os << "], " << *block_ << "}";
+    }
+};
+
+class return_statement : public statement {
+public:
+    explicit return_statement(expression_ptr&& e) : e_(std::move(e)) {}
+
+    statement_type type() const { return statement_type::return_; }
+
+    const expression_ptr& e() const { return e_; }
+
+private:
+    expression_ptr e_;
+
+    void print(std::wostream& os) const override {
+        os << "return_statement{";
+        if (e_) os << *e_;
+        os << "}";
+    }
+};
+
+
 class expression_statement : public statement {
 public:
     explicit expression_statement(expression_ptr&& e) : e_(std::move(e)) {}
@@ -170,6 +239,9 @@ private:
 template<typename Visitor>
 auto accept(const statement& s, Visitor& v) {
     switch (s.type()) {
+    case statement_type::block: return v(static_cast<const block_statement&>(s));
+    case statement_type::function_definition: return v(static_cast<const function_definition&>(s));
+    case statement_type::return_: return v(static_cast<const return_statement&>(s));
     case statement_type::expression: return v(static_cast<const expression_statement&>(s));
     }
     assert(!"Not implemented");

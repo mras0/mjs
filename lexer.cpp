@@ -3,6 +3,25 @@
 #include <sstream>
 #include <cstring>
 
+#define RESERVED_WORDS(X) \
+    X(break)              \
+    X(continue)           \
+    X(delete)             \
+    X(else)               \
+    X(for)                \
+    X(function)           \
+    X(if)                 \
+    X(in)                 \
+    X(new)                \
+    X(return)             \
+    X(this)               \
+    X(typeof)             \
+    X(var)                \
+    X(void)               \
+    X(while)              \
+    X(with)
+
+
 namespace mjs {
 
 const token eof_token{token_type::eof};
@@ -69,6 +88,9 @@ std::ostream& operator<<(std::ostream& os, token_type t) {
         CASE_TOKEN_TYPE(rbracket);
         CASE_TOKEN_TYPE(semicolon);
         CASE_TOKEN_TYPE(eof);
+#define X(rw) case token_type::rw ## _: return os << #rw;
+        RESERVED_WORDS(X)
+#undef X
 #undef CASE_TOKEN_TYPE
     }
     return os << "token_type{" << (int)t << "}";
@@ -179,7 +201,12 @@ void lexer::next_token() {
             while (token_end < text_.size() && (is_identifier_letter(text_[token_end]) || is_digit(text_[token_end]))) {
                 ++token_end;
             }
-            current_token_  = token{token_type::identifier, string{std::wstring{text_.begin() + text_pos_, text_.begin() + token_end}}};
+            auto id = std::wstring{text_.begin() + text_pos_, text_.begin() + token_end};
+            if (0) {}
+#define X(rw) else if (id == L ## #rw) current_token_ = token{token_type::rw ## _};
+            RESERVED_WORDS(X)
+#undef X
+            else current_token_  = token{token_type::identifier, string{id}};
         } else if (is_digit(ch) /*|| (ch == '.' && token_end < text_.size() && is_digit(text_[token_end]))*/) {
             // TODO: Handle HexIntegerLiteral and exponent/decimal point
             while (token_end < text_.size() && is_digit(text_[token_end])) {

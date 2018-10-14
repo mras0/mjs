@@ -52,13 +52,15 @@ using native_function_type = std::function<value (const std::vector<value>&)>;
 // §8.7
 class reference {
 public:
-    explicit reference(const object_ptr& base, const string& property_name) : base_(base), property_name_(property_name) {}
+    explicit reference(const object_ptr& base, const string& property_name) : base_(base), property_name_(property_name) {
+        assert(base);
+    }
 
     const object_ptr& base() const { return base_; }
     const string& property_name() const { return property_name_; }
 
     const value& get_value() const;
-    void put_value(const value& val);
+    void put_value(const value& val) const;
 
 private:
     object_ptr base_;
@@ -122,11 +124,11 @@ inline value get_value(value&& v) {
     return v.type() == value_type::reference ? v.reference_value().get_value() : std::move(v);
 }
 
-[[nodiscard]] bool put_value(const object_ptr& global, const value& ref, const value& val);
+[[nodiscard]] bool put_value(const value& ref, const value& val);
 
 class object {
 public:
-    static auto make(const string& class_name, const object_ptr& prototype = nullptr) {
+    static object_ptr make(const string& class_name, const object_ptr& prototype = nullptr) {
         struct make_shared_helper : object {
             make_shared_helper(const string& class_name, const object_ptr& prototype) : object(class_name, prototype) {}
         };
