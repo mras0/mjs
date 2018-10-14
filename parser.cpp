@@ -2,6 +2,7 @@
 #include <sstream>
 
 #define UNHANDLED() unhandled(__FUNCTION__, __LINE__)
+#define EXPECT(tt) expect(tt, __FUNCTION__, __LINE__)
 
 namespace mjs {
 
@@ -79,11 +80,11 @@ private:
         return eof_token;
     }
 
-    token expect(token_type tt, const char* func) {
+    token expect(token_type tt, const char* func, int line) {
         auto t = accept(tt);
         if (!t) {
             std::ostringstream oss;
-            oss << "Expected " << tt << " in " << func << " got " << lexer_.current_token();
+            oss << "Expected " << tt << " in " << func << " line " << line << " got " << lexer_.current_token();
             throw std::runtime_error(oss.str());
         }
         return t;
@@ -99,7 +100,7 @@ private:
             return make_expression<identifier_expression>(id.text());
         } else if (accept(token_type::lparen)) {
             auto e = parse_expression();
-            expect(token_type::rparen, __FUNCTION__);
+            EXPECT(token_type::rparen);
             return e;
         } else if (is_literal(current_token_type())) {
             return make_expression<literal_expression>(get_token());
@@ -158,13 +159,13 @@ private:
     }
 
     expression_list parse_argument_list() {
-        expect(token_type::lparen, __FUNCTION__);
+        EXPECT(token_type::lparen);
         expression_list l;
         if (!accept(token_type::rparen)) {
             do {
                 l.push_back(parse_assignment_expression());
             } while (accept(token_type::comma));
-            expect(token_type::rparen, __FUNCTION__);
+            EXPECT(token_type::rparen);
         }
         return l;
     }
@@ -193,7 +194,7 @@ private:
     }
 
     statement_ptr parse_block() {
-        expect(token_type::lbrace, __FUNCTION__);
+        EXPECT(token_type::lbrace);
         statement_list l;
         while (!accept(token_type::rbrace)) {
             l.push_back(parse_statement_or_function_declaration());
@@ -204,7 +205,7 @@ private:
     variable_statement::declaration_list parse_variable_declaration_list() {
         variable_statement::declaration_list l;
         do {
-            auto id = expect(token_type::identifier, __FUNCTION__).text();
+            auto id = EXPECT(token_type::identifier).text();
             expression_ptr init{};
             if (accept(token_type::equal)) {
                 init = parse_assignment_expression();
@@ -229,6 +230,25 @@ private:
             return parse_block();
         } else if (accept(token_type::var_)) {
             return make_statement<variable_statement>(parse_variable_declaration_list());
+        } else if (current_token_type() == token_type::semicolon) {
+            return make_statement<empty_statement>();
+        } else if (accept(token_type::if_)) {
+            EXPECT(token_type::lparen);
+            auto cond = parse_expression();
+            EXPECT(token_type::rparen);
+            auto if_s = parse_statement();
+            accept(token_type::semicolon);
+            auto else_s = accept(token_type::else_) ? parse_statement() : statement_ptr{};
+            return make_statement<if_statement>(std::move(cond), std::move(if_s), std::move(else_s));
+        } else if (accept(token_type::while_)) {
+            EXPECT(token_type::lparen);
+            auto cond = parse_expression();
+            EXPECT(token_type::rparen);
+            return make_statement<while_statement>(std::move(cond), parse_statement());
+        } else if (accept(token_type::continue_)) {
+            return make_statement<continue_statement>();
+        } else if (accept(token_type::break_)) {
+            return make_statement<break_statement>();
         } else if (accept(token_type::return_)) {
             expression_ptr e{};
             if (current_token_type() != token_type::semicolon) {
@@ -241,16 +261,15 @@ private:
     }
 
     statement_ptr parse_function() {
-        // function Identifier ( FormalParameterListopt ) Block
-        expect(token_type::function_, __FUNCTION__);
-        auto id = expect(token_type::identifier, __FUNCTION__).text();
-        expect(token_type::lparen, __FUNCTION__);
+        EXPECT(token_type::function_);
+        auto id = EXPECT(token_type::identifier).text();
+        EXPECT(token_type::lparen);
         std::vector<string> params;
         if (!accept(token_type::rparen)) {
             do {
-                params.push_back(expect(token_type::identifier, __FUNCTION__).text());
+                params.push_back(EXPECT(token_type::identifier).text());
             } while (accept(token_type::comma));
-            expect(token_type::rparen, __FUNCTION__);
+            EXPECT(token_type::rparen);
         }
         return make_statement<function_definition>(id, std::move(params), parse_block());
     }

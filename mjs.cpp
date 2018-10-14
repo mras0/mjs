@@ -18,6 +18,10 @@ class print_visitor {
 public:
     explicit print_visitor(std::wostream& os) : os_(os) {}
 
+    //
+    // Expressions
+    //
+
     void operator()(const mjs::identifier_expression& e) {
         std::wcout << e.id();
     }
@@ -56,11 +60,14 @@ public:
         NOT_IMPLEMENTED(e);
     }
 
+    //
+    // Statements
+    //
+
     void operator()(const mjs::block_statement& s) {
         os_ << '{';
         for (const auto& bs: s.l()) {
             accept(*bs, *this);
-            os_ << ';';
         }
         os_ << '}';
     }
@@ -75,10 +82,44 @@ public:
                 accept(*d.init(), *this);
             }
         }
+        os_ << ';';
     }
+
+    void operator()(const mjs::empty_statement&) {
+        os_ << ';';
+    }
+
+    void operator()(const mjs::if_statement& s) {
+        os_ << "if ("; 
+        accept(s.cond(), *this);
+        os_ << ") ";
+        accept(s.if_s(), *this);
+        if (auto e = s.else_s()) {
+            os_ << " else ";
+            accept(*e, *this);
+        }
+    }
+    
+    void operator()(const mjs::while_statement& s) {
+        os_ << "while (";
+        accept(s.cond(), *this);
+        os_ << ") ";
+        accept(s.s(), *this);
+    }
+    //void operator()(const mjs::for_statement&){}
+    //void operator()(const mjs::for_in_statement&){}
 
     void operator()(const mjs::expression_statement& s) {
         accept(s.e(), *this);
+        os_ << ';';
+    }
+
+    void operator()(const mjs::continue_statement&) {
+        os_ << "continue;";
+    }
+
+    void operator()(const mjs::break_statement&) {
+        os_ << "break;";
     }
 
     void operator()(const mjs::return_statement& s) {
@@ -87,6 +128,7 @@ public:
             os_ << " ";
             accept(*s.e(), *this);
         }
+        os_ << ';';
     }
 
     void operator()(const mjs::function_definition& s) {
@@ -130,14 +172,27 @@ public:
         }
     }
  
-    //void operator()(const mjs::empty,
+    void operator()(const mjs::empty_statement&) {}
+    
     void operator()(const mjs::expression_statement&){}
-    //void operator()(const mjs::if_,
-    //void operator()(const mjs::iteration,
-    //void operator()(const mjs::continue_,
-    //void operator()(const mjs::break_,
+    
+    void operator()(const mjs::if_statement& s) {
+        accept(s.if_s(), *this);
+        if (auto e = s.else_s()) {
+            accept(*e, *this);
+        }
+    }
+
+    void operator()(const mjs::while_statement& s){
+        accept(s.s(), *this);
+    }
+
+    //void operator()(const mjs::for_statement&){}
+    //void operator()(const mjs::for_in_statement&){}
+    void operator()(const mjs::continue_statement&){}
+    void operator()(const mjs::break_statement&){}
     void operator()(const mjs::return_statement&){}
-    //void operator()(const mjs::with,
+    //void operator()(const mjs::with_statement&){}
     //void operator()(const mjs::function_definition,
 
     void operator()(const mjs::statement& s) {
@@ -295,7 +350,7 @@ public:
                 return c;
             }
         }
-        return completion{completion_type::normal};
+        return completion{};
     }
 
     completion operator()(const mjs::variable_statement& s) {
@@ -305,19 +360,49 @@ public:
                 scopes_->activation->put(d.id(), accept(*d.init(), *this));
             }
         }
-        return completion{completion_type::normal};
+        return completion{};
     }
 
-    //completion operator()(const mjs::empty_statement&){}
+    completion operator()(const mjs::empty_statement&) {
+        return completion{};
+    }
 
     completion operator()(const mjs::expression_statement& s) {
         return completion{completion_type::normal, get_value(accept(s.e(), *this))};
     }
 
-    //completion operator()(const mjs::if_statement&){}
-    //completion operator()(const mjs::iteration_statement&){}
-    //completion operator()(const mjs::continue_statement&){}
-    //completion operator()(const mjs::break_statement&){}
+    completion operator()(const mjs::if_statement& s) {
+        if (to_boolean(get_value(accept(s.cond(), *this)))) {
+            return accept(s.if_s(), *this);
+        } else if (auto e = s.else_s()) {
+            return accept(*e, *this);
+        }
+        return completion{};
+    }
+
+    completion operator()(const mjs::while_statement& s) {
+        while (to_boolean(get_value(accept(s.cond(), *this)))) {
+            auto c2 = accept(s.s(), *this);
+            if (c2.type == completion_type::break_) {
+                return completion{};
+            } else if (c2.type == completion_type::return_) {
+                return c2;
+            }
+            assert(c2.type == completion_type::normal || c2.type == completion_type::continue_);
+        }
+        return completion{};
+    }
+    //completion operator()(const mjs::for_statement&) {}
+    //completion operator()(const mjs::for_in_statement&) {}
+
+    completion operator()(const mjs::continue_statement&) {
+        return completion{completion_type::continue_};
+    }
+
+    completion operator()(const mjs::break_statement&) {
+        return completion{completion_type::break_};
+    }
+
     completion operator()(const mjs::return_statement& s) {
         mjs::value res{};
         if (s.e()) {
@@ -326,7 +411,7 @@ public:
         return completion{completion_type::return_, res};
     }
 
-    //completion operator()(const mjs::with_statement&){}
+    //completion operator()(const mjs::with_statement&) {}
 
     completion operator()(const mjs::function_definition& s) {
         auto prev_scope = scopes_;
@@ -424,11 +509,17 @@ int main() {
         test(L"function f(x,y) { return x*x+y; } f(2, 3)", mjs::value{7.0});
         test(L"function f(){ i = 42; }; f(); i", mjs::value{42.0});
         test(L"i = 1; function f(){ var i = 42; }; f(); i", mjs::value{1.0});
-        auto ss = mjs::parse(L"function f(){ var i = 42; }; f(); i");
+        test(L"if (1) 2;", mjs::value{2.0});
+        test(L"if (0) 2;", mjs::value::undefined);
+        test(L"if (0) 2; else ;", mjs::value::undefined);
+        test(L"if (0) 2; else 3;", mjs::value{3.0});
+        test(L"x=5; while(x-3) { x = x - 1; } x", mjs::value{3.0});
+        test(L"x=2; y=0; while(1) { if(x) {x = x - 1; y = y + 2; continue; } else break; y = y + 1;} y", mjs::value{4.0});
+        auto ss = mjs::parse(L"alert(42);");
         assert(ss->type() == mjs::statement_type::block);
         auto& bs = static_cast<const mjs::block_statement&>(*ss);
         auto global = make_global();
-        // TODO: Hoist
+        // TODO: Hoist global variables...
         eval_visitor e{global};
         print_visitor p{std::wcout};
         for (const auto& s: bs.l()) {
