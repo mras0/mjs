@@ -493,7 +493,24 @@ public:
             return l.object_value() == r.object_value();
         }
         // Types are different
-        NOT_IMPLEMENTED("compare_equal");
+        if (l.type() == mjs::value_type::null && r.type() == mjs::value_type::undefined) {
+            return true;
+        } else if (l.type() == mjs::value_type::undefined && r.type() == mjs::value_type::null) {
+            return true;
+        } else if (l.type() == mjs::value_type::number && r.type() == mjs::value_type::string) {
+            return compare_equal(l, mjs::value{to_number(r.string_value())});
+        } else if (l.type() == mjs::value_type::string && r.type() == mjs::value_type::number) {
+            return compare_equal(mjs::value{to_number(l.string_value())}, r);
+        } else if (l.type() == mjs::value_type::boolean) {
+            return compare_equal(mjs::value{static_cast<double>(l.boolean_value())}, r);
+        } else if (r.type() == mjs::value_type::boolean) {
+            return compare_equal(l, mjs::value{static_cast<double>(r.boolean_value())});
+        } else if ((l.type() == mjs::value_type::string || l.type() == mjs::value_type::number) && r.type() == mjs::value_type::object) {
+            return compare_equal(l, to_primitive(r));
+        } else if ((r.type() == mjs::value_type::string || r.type() == mjs::value_type::number) && l.type() == mjs::value_type::object) {
+            return compare_equal(to_primitive(l), r);
+        }
+        return false;
     }
 
     static mjs::value do_binary_op(const mjs::token_type op, mjs::value& l, mjs::value& r) {
@@ -900,11 +917,21 @@ void eval_tests() {
     test(L"function sum() {  var s = 0; for (var i = 0; i < arguments.length; ++i) s += arguments[i]; return s; } sum(1,2,3)", value{6.0});
     test(L"''+Object(null)", value{string{"[object Object]"}});
     test(L"o=Object(null); o.x=42; o.y=60; o.x+o['y']", value{102.0});
+
+    // wat
+    test(L"!!('')", value{false});
+    test(L"\"\" == false", value{true});
+    test(L"null == false", value{false});
+    test(L"+true", value{1.0});
+    test(L"true + true", value{2.0});
+    test(L"!!('0' && Object(null))", value{true});
+
 }
 
 int main() {
     try {
-        auto bs = mjs::parse(L";");
+        eval_tests();
+        auto bs = mjs::parse(L"\"\" == false");
         auto global = make_global(*bs);
         eval_visitor e{global};
         print_visitor p{std::wcout};

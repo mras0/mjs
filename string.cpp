@@ -20,6 +20,7 @@ std::wostream& operator<<(std::wostream& os, const string& s) {
 
 double to_number(const string& s) {
     // TODO: Implement real algorithm from §9.3.1 ToNumber Applied to the String Type
+    if (s.view().empty()) return 0;
     std::wistringstream wis{s.str()};
     double d;
     return wis >> d ? d : NAN;

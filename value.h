@@ -217,8 +217,13 @@ public:
 
     // [[DefaultValue]] (Hint)
     value default_value(value_type hint) {
-        assert(hint != value_type::undefined); // When hint is undefined, assume Number unless it's a Date object in which case assume String
+        if (hint == value_type::undefined) {
+            // When hint is undefined, assume Number unless it's a Date object in which case assume String
+            assert(class_name().str() != L"Date");
+            hint = value_type::number;
+        }
 
+        assert(hint == value_type::number || hint == value_type::string);
         for (int i = 0; i < 2; ++i) {
             const char* id = (hint == value_type::string) ^ i ? "toString" : "valueOf";
             const auto& fo = get(mjs::string{id});
