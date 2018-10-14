@@ -16,6 +16,8 @@ int operator_precedence(token_type tt) {
     case token_type::plus:
     case token_type::minus:
         return 6;
+    case token_type::equal:
+        return assignment_precedence;
     default:
         return comma_precedence + 1;
     }
@@ -207,7 +209,9 @@ private:
     statement_ptr parse_statement_or_function_declaration() {
         // if function.... see §13
         // function Identifier ( FormalParameterListopt ) Block
-        return parse_statement();
+        auto s = parse_statement();
+        accept(token_type::semicolon);
+        return s;
     }
 
     [[noreturn]] void unhandled(const char* function, int line) {

@@ -143,6 +143,8 @@ auto accept(const expression& e, Visitor& v) {
     case expression_type::call:       return v(static_cast<const call_expression&>(e));
     case expression_type::binary:     return v(static_cast<const binary_expression&>(e));
     }
+    assert(!"Not implemented");
+    return v(e);
 }
 
 //
@@ -170,6 +172,8 @@ auto accept(const statement& s, Visitor& v) {
     switch (s.type()) {
     case statement_type::expression: return v(static_cast<const expression_statement&>(s));
     }
+    assert(!"Not implemented");
+    return v(s);
 }
 
 //

@@ -56,6 +56,7 @@ std::ostream& operator<<(std::ostream& os, token_type t) {
         CASE_TOKEN_TYPE(numeric_literal);
         CASE_TOKEN_TYPE(string_literal);
         CASE_TOKEN_TYPE(comma);
+        CASE_TOKEN_TYPE(equal);
         CASE_TOKEN_TYPE(plus);
         CASE_TOKEN_TYPE(minus);
         CASE_TOKEN_TYPE(multiply);
@@ -75,6 +76,7 @@ std::ostream& operator<<(std::ostream& os, token_type t) {
 
 const char* op_text(token_type tt) {
     switch (tt) {
+    case token_type::equal: return "=";
     case token_type::plus: return "+";
     case token_type::minus: return "-";
     case token_type::multiply: return "*";
@@ -110,6 +112,7 @@ constexpr bool is_digit(int ch) {
 std::pair<token_type, int> get_punctuation(std::wstring_view v) {
     assert(!v.empty());
     switch (v[0]) {
+    case '=': return { token_type::equal, 1 };
     case ',': return { token_type::comma, 1 };
     case '+': return { token_type::plus, 1};
     case '-': return { token_type::minus, 1};

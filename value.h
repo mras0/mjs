@@ -122,6 +122,8 @@ inline value get_value(value&& v) {
     return v.type() == value_type::reference ? v.reference_value().get_value() : std::move(v);
 }
 
+[[nodiscard]] bool put_value(const object_ptr& global, const value& ref, const value& val);
+
 class object {
 public:
     static auto make(const string& class_name, const object_ptr& prototype = nullptr) {

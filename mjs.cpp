@@ -27,8 +27,9 @@ public:
         case mjs::token_type::string_literal:
             std::wcout << '"' << cpp_quote(e.t().text()) << '"';
             return;
+        default:
+            NOT_IMPLEMENTED(e);
         }
-        NOT_IMPLEMENTED(e);
     }
     void operator()(const mjs::call_expression& e) {
         accept(e.member(), *this);
@@ -81,8 +82,8 @@ public:
          switch (e.t().type()) {
          case mjs::token_type::numeric_literal: return mjs::value{e.t().dvalue()};
          case mjs::token_type::string_literal:  return mjs::value{e.t().text()};
+         default: NOT_IMPLEMENTED(e);
          }
-         NOT_IMPLEMENTED(e);
     }
 
     mjs::value operator()(const mjs::call_expression& e) {
@@ -110,6 +111,15 @@ public:
     }
 
     mjs::value operator()(const mjs::binary_expression& e) {
+        if (e.op() == mjs::token_type::equal) {
+            auto l = accept(e.lhs(), *this);
+            auto r = get_value(accept(e.rhs(), *this));
+            if (!put_value(global_, l, r)) {
+                NOT_IMPLEMENTED(e);
+            }
+            return r;
+        }
+
         auto l = get_value(accept(e.lhs(), *this));
         auto r = get_value(accept(e.rhs(), *this));
         if (e.op() == mjs::token_type::plus) {
@@ -129,8 +139,8 @@ public:
         case mjs::token_type::minus:    return mjs::value{ln - rn};
         case mjs::token_type::multiply: return mjs::value{ln * rn};
         case mjs::token_type::divide:   return mjs::value{ln / rn};
+        default: NOT_IMPLEMENTED(e);
         }
-        NOT_IMPLEMENTED(e);
     }
 
     mjs::value operator()(const mjs::expression& e) {
@@ -155,36 +165,41 @@ auto make_function(const mjs::native_function_type& f) {
     return o;
 }
 
+template<typename F>
+void set_function(const mjs::object_ptr& o, const char* name, const F& f) {
+    o->put(mjs::string{name}, mjs::value{make_function(f)});
+}
+
 auto make_global() {
     auto global = mjs::object::make(mjs::string{"Object"}, nullptr); // TODO
-    global->put(mjs::string{"x"}, mjs::value{42.0});
-    global->put(mjs::string{"alert"}, mjs::value{make_function(
-        [](const std::vector<mjs::value>& args) {
+    set_function(global, "alert", [](const std::vector<mjs::value>& args) {
         std::wcout << "ALERT";
         if (!args.empty()) std::wcout << ": " << args[0];
         std::wcout << "\n";
         return mjs::value::undefined; 
-    })});
+    });
     return global;
 }
 
-bool test_expression(const std::wstring_view& text, const mjs::value& expected) {
-    auto ss = mjs::parse(text);
-    assert(ss.size() == 1);
+void test(const std::wstring_view& text, const mjs::value& expected) {
     auto global = make_global();
     eval_visitor ev{global};
-    auto res = accept(*ss[0], ev);
+    mjs::value res{};
+    for (const auto& s: mjs::parse(text)) {
+        res = accept(*s, ev);
+    }
     if (res != expected) {
         std::wcout << "Test failed: " << text << " expecting " << expected << " got " << res << "\n";
-        return false;
+        assert(false);
     }
-    return true;
 }
 
 int main() {
     try {
-        assert(test_expression(L"'test ' + 2 * (6 - 4 + 1) + ' ' + x", mjs::value{mjs::string{"test 6 42"}}));
-        auto ss = mjs::parse(L"alert()");
+        test(L"1+2*3", mjs::value{7.});
+        test(L"x = 42; 'test ' + 2 * (6 - 4 + 1) + ' ' + x", mjs::value{mjs::string{"test 6 42"}});
+        test(L"y=1/2; z='string'; y+z", mjs::value{mjs::string{"0.5string"}});
+        auto ss = mjs::parse(L"y=42; z='string'; alert(y+z)");
         auto global = make_global();
         eval_visitor e{global};
         print_visitor p;

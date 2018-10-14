@@ -16,7 +16,7 @@ enum class token_type {
     numeric_literal,
     string_literal,
     // Punctuators
-    // =
+    equal, // =
     // >
     // <
     // ==

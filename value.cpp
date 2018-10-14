@@ -129,6 +129,13 @@ bool operator==(const value& l, const value& r) {
     NOT_IMPLEMENTED();
 }
 
+[[nodiscard]] bool put_value(const object_ptr& global, const value& ref, const value& val) {
+    if (ref.type() != value_type::reference) return false;
+    auto b = ref.reference_value().base();
+    (b ? b : global)->put(ref.reference_value().property_name(), val);
+    return true;
+}
+
 //
 // Type Conversions
 //
