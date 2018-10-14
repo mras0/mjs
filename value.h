@@ -110,6 +110,9 @@ private:
 std::ostream& operator<<(std::ostream& os, const value& v);
 std::wostream& operator<<(std::wostream& os, const value& v);
 bool operator==(const value& l, const value& r);
+inline bool operator!=(const value& l, const value& r) {
+    return !(l == r);
+}
 
 inline value get_value(const value& v) {
     return v.type() == value_type::reference ? v.reference_value().get_value() : v;

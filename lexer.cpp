@@ -31,7 +31,8 @@ std::wstring cpp_quote(const std::wstring_view& s) {
 std::ostream& operator<<(std::ostream& os, const token& t) {
     std::wostringstream oss;
     oss << t;
-    return os << oss.str().c_str();
+    auto s = oss.str();
+    return os << std::string{s.begin(),s.end()};
 }
 
 std::wostream& operator<<(std::wostream& os, const token& t) {
@@ -175,7 +176,7 @@ void lexer::next_token() {
             while (token_end < text_.size() && (is_identifier_letter(text_[token_end]) || is_digit(text_[token_end]))) {
                 ++token_end;
             }
-            current_token_  = token{token_type::identifier, string{std::wstring{&text_[text_pos_], &text_[token_end]}}};
+            current_token_  = token{token_type::identifier, string{std::wstring{text_.begin() + text_pos_, text_.begin() + token_end}}};
         } else if (is_digit(ch) /*|| (ch == '.' && token_end < text_.size() && is_digit(text_[token_end]))*/) {
             // TODO: Handle HexIntegerLiteral and exponent/decimal point
             while (token_end < text_.size() && is_digit(text_[token_end])) {

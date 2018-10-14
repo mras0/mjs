@@ -128,7 +128,7 @@ private:
             for (;;) {
                 const auto look_ahead = current_token_type();
                 const auto look_ahead_precedence = operator_precedence(look_ahead);
-                if (look_ahead_precedence > precedence || (look_ahead_precedence > precedence && !is_right_to_left(look_ahead))) {
+                if (look_ahead_precedence > precedence || (look_ahead_precedence == precedence && !is_right_to_left(look_ahead))) {
                     break;
                 }
                 rhs = parse_expression1(std::move(rhs), look_ahead_precedence);
@@ -158,10 +158,12 @@ private:
     expression_list parse_argument_list() {
         expect(token_type::lparen, __FUNCTION__);
         expression_list l;
-        do {
-            l.push_back(parse_assignment_expression());
-        } while (accept(token_type::comma));
-        expect(token_type::rparen, __FUNCTION__);
+        if (!accept(token_type::rparen)) {
+            do {
+                l.push_back(parse_assignment_expression());
+            } while (accept(token_type::comma));
+            expect(token_type::rparen, __FUNCTION__);
+        }
         return l;
     }
 

@@ -175,6 +175,9 @@ private:
     token current_token_;
 };
 
+std::wstring cpp_quote(const std::wstring_view& s);
+inline std::wstring cpp_quote(const string& s) { return cpp_quote(s.view()); }
+
 } // namespace mjs
 
 #endif
