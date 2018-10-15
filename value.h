@@ -42,11 +42,11 @@ enum class property_attribute {
     internal = 1<<3,
 };
 
-inline property_attribute operator|(property_attribute l, property_attribute r) {
+constexpr inline property_attribute operator|(property_attribute l, property_attribute r) {
     return static_cast<property_attribute>(static_cast<int>(l) | static_cast<int>(r));
 }
 
-inline property_attribute operator&(property_attribute l, property_attribute r) {
+constexpr inline property_attribute operator&(property_attribute l, property_attribute r) {
     return static_cast<property_attribute>(static_cast<int>(l) & static_cast<int>(r));
 }
 
@@ -83,6 +83,7 @@ public:
     explicit value(const object_ptr& o) : type_(value_type::object), o_(o) {}
     explicit value(const reference& r) : type_(value_type::reference), r_(r) {}
     explicit value(const native_function_type& f) : type_(value_type::native_function), f_(f) {}
+    explicit value(const void*) = delete;
     value(const value& rhs);
     value(value&& rhs);
     ~value() { destroy(); }
@@ -164,6 +165,8 @@ public:
     const string& class_name() const { return class_; }
 
     // [[Value]] ()
+    const value& internal_value() const { return value_; }
+    void internal_value(const value& v) { value_ = v; }
 
     // [[Get]] (PropertyName)
     const value& get(const string& name) {
@@ -258,8 +261,9 @@ public:
         return std::vector<string>(std::make_move_iterator(names.begin()), std::make_move_iterator(names.end()));
     }
 
-private:
+protected:
     explicit object(const string& class_name, const object_ptr& prototype) : class_(class_name), prototype_(prototype){}
+private:
     object(const object&) = delete;
 
     struct property {
@@ -272,6 +276,7 @@ private:
 
     string class_;
     object_ptr prototype_;
+    value value_;
     native_function_type construct_;
     native_function_type call_;
     property_map properties_;

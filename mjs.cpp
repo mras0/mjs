@@ -55,6 +55,7 @@ public:
         case mjs::token_type::delete_: os_ << "delete "; break;
         case mjs::token_type::typeof_: os_ << "typeof "; break;
         case mjs::token_type::void_:   os_ << "void "; break;
+        case mjs::token_type::new_:    os_ << "new "; break;
         default:                       os_ << op_text(e.op());
         }
         accept(e.e(), *this);
@@ -68,10 +69,20 @@ public:
     void operator()(const mjs::binary_expression& e) {
         const int precedence = mjs::operator_precedence(e.op());
         print_with_parentheses(e.lhs(), precedence);
-        if (e.op() == mjs::token_type::dot) {
+        if (e.op() == mjs::token_type::lbracket) {
             os_ << '[';
             accept(e.rhs(), *this);
             os_ << ']';
+        } else if (e.op() == mjs::token_type::dot) {
+            os_ << '.';
+            if (e.rhs().type() == mjs::expression_type::literal) {
+                if (const auto& t = static_cast<const mjs::literal_expression&>(e.rhs()).t(); t.type() == mjs::token_type::string_literal) {
+                    os_ << t.text();
+                    return;
+                }
+            }
+            assert(false && "Unexpected type for rhs in dot expression");
+            accept(e.rhs(), *this);
         } else {
             os_ << op_text(e.op());
             print_with_parentheses(e.rhs(), precedence);
@@ -264,29 +275,6 @@ private:
     std::vector<mjs::string> ids_;
 };
 
-auto make_function_object() {
-    return mjs::object::make(mjs::string{"Function"}, nullptr); // TODO
-}
-
-auto make_function(const mjs::native_function_type& f, int named_args) {
-    auto o = make_function_object();
-    o->put(mjs::string{"length"}, mjs::value{static_cast<double>(named_args)}, mjs::property_attribute::read_only | mjs::property_attribute::dont_delete | mjs::property_attribute::dont_enum);
-    o->call_function(f);
-    return o;
-}
-
-auto make_arguments_array(const std::vector<mjs::value>& args, const mjs::object_ptr& callee) {
-    assert(callee->class_name().str() == L"Function");
-    auto as = mjs::object::make(mjs::string{"Object"}, nullptr /*Object prototype*/); // TODO: See §10.1.8
-    as->put(mjs::string{"callee"}, mjs::value{callee});
-    as->put(mjs::string{"length"}, mjs::value{static_cast<double>(args.size())}, mjs::property_attribute::dont_enum);
-    for (size_t i = 0; i < args.size(); ++i) {
-        as->put(mjs::to_string(mjs::value{static_cast<double>(i)}), args[i], mjs::property_attribute::dont_enum);
-    }
-    return as;
-}
-
-
 mjs::object_ptr to_object(const mjs::value& v) {
     switch (v.type()) {
         // undefined and null give runtime errors
@@ -294,7 +282,7 @@ mjs::object_ptr to_object(const mjs::value& v) {
     case mjs::value_type::null:
         {
             std::ostringstream oss;
-            oss << "Cannot convert " << v.type() << " to object";
+            oss << "Cannot convert " << v.type() << " to object in " << __FUNCTION__;
             throw std::runtime_error(oss.str());
         }
     case mjs::value_type::object:
@@ -303,6 +291,223 @@ mjs::object_ptr to_object(const mjs::value& v) {
         NOT_IMPLEMENTED(v);
     }
 }
+
+class global_object : public mjs::object {
+public:
+    static std::shared_ptr<global_object> make(const mjs::block_statement& bs) {
+        struct make_shared_helper : global_object {
+            make_shared_helper(){}
+        };
+
+        auto global = std::make_shared<make_shared_helper>();
+        for (const auto& id: hoisting_visitor::scan(bs)) {
+            global->put(id, mjs::value::undefined);
+        }
+
+        return global;
+    }
+
+    auto make_raw_function() {
+        auto o = mjs::object::make(mjs::string{"Function"}, function_prototype_);
+        o->put(mjs::string{"prototype"}, mjs::value{function_prototype_});
+        return o;
+    }
+
+    static auto put_function(const mjs::object_ptr& o, const mjs::native_function_type& f, int named_args) {
+        assert(o->class_name().str() == L"Function");
+        assert(!o->call_function());
+        o->put(mjs::string{"length"}, mjs::value{static_cast<double>(named_args)}, mjs::property_attribute::read_only | mjs::property_attribute::dont_delete | mjs::property_attribute::dont_enum);
+        o->call_function(f);
+        o->construct_function(f);
+    }
+
+    auto make_function(const mjs::native_function_type& f, int named_args) {
+        auto o = make_raw_function();
+        put_function(o, f, named_args);
+        return o;
+    }
+
+    auto make_arguments_array(const std::vector<mjs::value>& args, const mjs::object_ptr& callee) {
+        assert(callee->class_name().str() == L"Function");
+        auto as = mjs::object::make(mjs::string{"Object"}, object_prototype_); // TODO: See §10.1.8
+        as->put(mjs::string{"callee"}, mjs::value{callee}, mjs::property_attribute::dont_enum);
+        as->put(mjs::string{"length"}, mjs::value{static_cast<double>(args.size())}, mjs::property_attribute::dont_enum);
+        for (size_t i = 0; i < args.size(); ++i) {
+            as->put(mjs::to_string(mjs::value{static_cast<double>(i)}), args[i], mjs::property_attribute::dont_enum);
+        }
+        return as;
+    }
+
+private:
+    explicit global_object() : mjs::object(mjs::string{"Global"}, mjs::object_ptr{}) {
+        object_prototype_   = mjs::object::make(mjs::string{"ObjectPrototype"}, nullptr);
+        function_prototype_ = mjs::object::make(mjs::string{"Function"}, object_prototype_);
+        popuplate_global();
+    }
+
+    static constexpr auto prototype_attribute = mjs::property_attribute::dont_enum | mjs::property_attribute::dont_delete | mjs::property_attribute::read_only;
+
+    mjs::object_ptr object_prototype_;
+    mjs::object_ptr function_prototype_;
+
+    mjs::value function_constructor(const mjs::value&, const std::vector<mjs::value>&) {
+        NOT_IMPLEMENTED("function constructor not implemented");
+    }
+
+    mjs::object_ptr make_function_object() {
+        auto o = make_function(std::bind(&global_object::function_constructor, this, std::placeholders::_1, std::placeholders::_2), 1);
+        o->put(mjs::string{"prototype"}, mjs::value{function_prototype_}, prototype_attribute);
+        o->put(mjs::string{"length"}, mjs::value{1.0});
+
+        // §15.3.4
+        function_prototype_->call_function([](const mjs::value&, const std::vector<mjs::value>&) {
+            return mjs::value::undefined;
+        });
+        function_prototype_->put(mjs::string{"constructor"}, mjs::value{o});
+        // TODO: toString()
+        return o;
+    }
+
+    mjs::value object_constructor(const mjs::value&, const std::vector<mjs::value>& args) {
+        if (args.empty() || args.front().type() == mjs::value_type::undefined || args.front().type() == mjs::value_type::null) {
+            auto o = mjs::object::make(mjs::string{"Object"}, object_prototype_);
+            return mjs::value{o};
+        }
+        return mjs::value{to_object(args.front())};
+    }
+
+    mjs::object_ptr make_object_object() {
+        auto o = make_function(std::bind(&global_object::object_constructor, this, std::placeholders::_1, std::placeholders::_2), 1);
+        o->put(mjs::string{"prototype"}, mjs::value{object_prototype_}, prototype_attribute);
+
+        // §15.2.4
+        object_prototype_->put(mjs::string{"constructor"}, mjs::value{o});
+        object_prototype_->put(mjs::string{"toString"}, mjs::value{make_function([](const mjs::value& this_, const std::vector<mjs::value>&){
+            return mjs::value{mjs::string{"[object "} + this_.object_value()->class_name() + mjs::string{"]"}};
+        }, 0)});
+        object_prototype_->put(mjs::string{"valueOf"}, mjs::value{make_function([](const mjs::value& this_, const std::vector<mjs::value>&){
+            return this_;
+        }, 0)});
+        return o;
+    }
+
+    static void validate_type(const mjs::value& v, const wchar_t* expected_type) {
+        if (v.type() == mjs::value_type::object && v.object_value()->class_name().view() == expected_type) {
+            return;
+        }
+        std::wostringstream woss;
+        woss << v << " is not a " << expected_type;
+        throw make_runtime_error(woss.str());
+    }
+
+    mjs::object_ptr make_boolean_object() {
+        auto p = mjs::object::make(mjs::string{"Boolean"}, object_prototype_);
+        p->internal_value(mjs::value{false});
+
+        auto c = make_function([p](const mjs::value&, const std::vector<mjs::value>& args) {
+            auto o = mjs::object::make(mjs::string{"Boolean"}, p);
+            o->internal_value(mjs::value{!args.empty() && to_boolean(args.front())});
+            return mjs::value{o};
+        }, 1);
+        c->call_function([](const mjs::value&, const std::vector<mjs::value>& args) {
+            return mjs::value{!args.empty() && to_boolean(args.front())};
+        });
+        c->put(mjs::string{"prototype"}, mjs::value{p}, prototype_attribute);
+
+        p->put(mjs::string{"constructor"}, mjs::value{c});
+        p->put(mjs::string{"toString"}, mjs::value{make_function([](const mjs::value& this_, const std::vector<mjs::value>&){
+            validate_type(this_, L"Boolean");
+            return mjs::value{mjs::string{this_.object_value()->internal_value().boolean_value() ? L"true" : L"false"}};
+        }, 0)});
+        p->put(mjs::string{"valueOf"}, mjs::value{make_function([](const mjs::value& this_, const std::vector<mjs::value>&){
+            validate_type(this_, L"Boolean");
+            return this_.object_value()->internal_value();
+        }, 0)});
+
+        return mjs::object_ptr{c};
+    }
+
+    mjs::object_ptr make_number_object() {
+        auto p = mjs::object::make(mjs::string{"Number"}, object_prototype_);
+        p->internal_value(mjs::value{0.});
+
+        auto c = make_function([p](const mjs::value&, const std::vector<mjs::value>& args) {
+            auto o = mjs::object::make(mjs::string{"Number"}, p);
+            o->internal_value(mjs::value{args.empty() ? 0.0 : to_number(args.front())});
+            return mjs::value{o};
+        }, 1);
+        c->call_function([](const mjs::value&, const std::vector<mjs::value>& args) {
+            return mjs::value{args.empty() ? 0.0 : to_number(args.front())};
+        });
+        c->put(mjs::string{L"prototype"}, mjs::value{p}, prototype_attribute);
+        c->put(mjs::string{"MAX_VALUE"}, mjs::value{1.7976931348623157e308});
+        c->put(mjs::string{"MIN_VALUE"}, mjs::value{5e-324});
+        c->put(mjs::string{"NaN"}, mjs::value{NAN});
+        c->put(mjs::string{"NEGATIVE_INFINITY"}, mjs::value{-INFINITY});
+        c->put(mjs::string{"POSITIVE_INFINITY"}, mjs::value{INFINITY});
+
+        p->put(mjs::string{L"constructor"}, mjs::value{c});
+        p->put(mjs::string{"toString"}, mjs::value{make_function([](const mjs::value& this_, const std::vector<mjs::value>& args){
+            validate_type(this_, L"Number");
+            const int radix = args.empty() ? 10 : to_int32(args.front());
+            if (radix < 2 || radix > 36) {
+                std::wostringstream woss;
+                woss << "Invalid radix in Number.toString: " << args.front();
+                throw make_runtime_error(woss.str());
+            }
+            if (radix != 10) {
+                NOT_IMPLEMENTED(radix);
+            }
+            return mjs::value{to_string(this_.object_value()->internal_value())};
+        }, 1)});
+        p->put(mjs::string{"valueOf"}, mjs::value{make_function([](const mjs::value& this_, const std::vector<mjs::value>&){
+            validate_type(this_, L"Number");
+            return this_.object_value()->internal_value();
+        }, 0)});
+
+        return mjs::object_ptr{c};
+    }
+
+    void popuplate_global() {
+        // §15.1
+        const auto attr = mjs::property_attribute::dont_enum;
+        put(mjs::string{"Object"}, mjs::value{make_object_object()}, attr);
+        put(mjs::string{"Function"}, mjs::value{make_function_object()}, attr);
+        // TODO: Array
+        // TODO: String
+        put(mjs::string{"Boolean"}, mjs::value{make_boolean_object()}, attr);
+        put(mjs::string{"Number"}, mjs::value{make_number_object()}, attr);
+
+        put(mjs::string{"NaN"}, mjs::value{NAN}, attr);
+        put(mjs::string{"Infinity"}, mjs::value{INFINITY}, attr);
+        put(mjs::string{"eval"}, mjs::value{make_function(
+            [](const mjs::value&, const std::vector<mjs::value>& args) {
+            if (args.empty()) {
+                return mjs::value::undefined; 
+            } else if (args.front().type() != mjs::value_type::string) {
+                return args.front();
+            }
+            auto bs = mjs::parse(args.front().string_value().view());
+            (void)bs;
+            throw std::runtime_error("TODO: Handle eval");
+        }, 1)}, attr);
+        put(mjs::string{"isNaN"}, mjs::value{make_function(
+            [](const mjs::value&, const std::vector<mjs::value>& args) {
+            return mjs::value(std::isnan(to_number(args.empty() ? mjs::value::undefined : args.front())));
+        }, 1)}, attr);
+        put(mjs::string{"isFinite"}, mjs::value{make_function(
+            [](const mjs::value&, const std::vector<mjs::value>& args) {
+            return mjs::value(std::isfinite(to_number(args.empty() ? mjs::value::undefined : args.front())));
+        }, 1)}, attr);
+        put(mjs::string{"alert"}, mjs::value{make_function(
+            [](const mjs::value&, const std::vector<mjs::value>& args) {
+            std::wcout << "ALERT";
+            if (!args.empty()) std::wcout << ": " << args[0];
+            std::wcout << "\n";
+            return mjs::value::undefined; 
+        }, 1)}, attr);
+    }
+};
 
 enum class completion_type {
     normal, break_, continue_, return_
@@ -332,7 +537,7 @@ std::wostream& operator<<(std::wostream& os, const completion& c) {
 
 class eval_visitor {
 public:
-    explicit eval_visitor(const mjs::object_ptr& global) {
+    explicit eval_visitor(const std::shared_ptr<global_object>& global) : global_(global) {
         scopes_.reset(new scope{global, nullptr});
     }
 
@@ -360,10 +565,7 @@ public:
     mjs::value operator()(const mjs::call_expression& e) {
         auto member = accept(e.member(), *this);
         auto mval = get_value(member);
-        std::vector<mjs::value> args;
-        for (const auto& a: e.arguments()) {
-            args.push_back(get_value(accept(*a, *this)));
-        }
+        auto args = eval_argument_list(e.arguments());
         if (mval.type() != mjs::value_type::object) {
             std::wostringstream woss;
             woss << e.member() << " is not a function";
@@ -375,13 +577,22 @@ public:
             woss << e.member() << " is not callable";
             throw make_runtime_error(woss.str());
         }
+        auto this_ = mjs::value::null;
+        if (member.type() == mjs::value_type::reference) {
+            if (auto o = member.reference_value().base(); o->class_name().view() != L"Activation") {
+                this_ = mjs::value{o};
+            }
+        }
 
         // TODO: scope etc.
-        // TODO: Handle this as 11.2.3 specifies
-        return c(mjs::value{}, args);
+        return c(this_, args);
     }
 
     mjs::value operator()(const mjs::prefix_expression& e) {
+        if (e.op() == mjs::token_type::new_) {
+            return handle_new_expression(e.e());
+        }
+
         auto u = accept(e.e(), *this);
         if (e.op() == mjs::token_type::delete_) {
             if (u.type() != mjs::value_type::reference) {
@@ -429,7 +640,7 @@ public:
         } else if (e.op() == mjs::token_type::not_) {
             return mjs::value{!to_boolean(get_value(u))};
         }
-        NOT_IMPLEMENTED(e.op());
+        NOT_IMPLEMENTED(e);
     }
 
     mjs::value operator()(const mjs::postfix_expression& e) {
@@ -597,7 +808,7 @@ public:
         if (e.op() == mjs::token_type::andand || e.op() == mjs::token_type::oror) {
             return r;
         }
-        if (e.op() == mjs::token_type::dot) {
+        if (e.op() == mjs::token_type::dot || e.op() == mjs::token_type::lbracket) {
             return mjs::value{mjs::reference{to_object(l), to_string(r)}};
         }
         return do_binary_op(e.op(), l, r);
@@ -712,13 +923,12 @@ public:
 
     completion operator()(const mjs::function_definition& s) {
         auto prev_scope = scopes_;
-        auto callee = make_function_object();
+        auto callee = global_->make_raw_function();
         auto func = [&s, this, prev_scope, callee, ids = hoisting_visitor::scan(s.block())](const mjs::value& this_, const std::vector<mjs::value>& args) {
             auto_scope as{*this, prev_scope};
             auto& scope = scopes_->activation;
-            //scope->put(mjs::string{"this"}, this_);//TODO:dont delete? dont enum?
-            assert(this_.type() == mjs::value_type::undefined);
-            scope->put(mjs::string{"arguments"}, mjs::value{make_arguments_array(args, callee)}, mjs::property_attribute::dont_delete);
+            scope->put(mjs::string{"this"}, this_, mjs::property_attribute::dont_delete | mjs::property_attribute::dont_enum | mjs::property_attribute::read_only);
+            scope->put(mjs::string{"arguments"}, mjs::value{global_->make_arguments_array(args, callee)}, mjs::property_attribute::dont_delete);
             for (size_t i = 0; i < std::min(args.size(), s.params().size()); ++i) {
                 scope->put(s.params()[i], args[i]);
             }
@@ -728,7 +938,7 @@ public:
             }
             return accept(s.block(), *this).result;
         };
-        callee->call_function(func);
+        global_->put_function(callee, func, static_cast<int>(s.params().size()));
         prev_scope->activation->put(s.id(), mjs::value{callee});
         return completion{};
     }
@@ -767,87 +977,49 @@ private:
         eval_visitor& parent;
         scope_ptr old_scopes;
     };
-    scope_ptr scopes_;
-};
+    scope_ptr                      scopes_;
+    std::shared_ptr<global_object> global_;
 
-mjs::object_ptr make_object_object() {
-    // §15.2
-
-    auto p = mjs::object::make(mjs::string{"ObjectPrototype"}, nullptr);
-
-    auto constructor = [p](const mjs::value& this_, const std::vector<mjs::value>& args) {
-        assert(this_.type() == mjs::value_type::undefined); (void)this_;
-        if (args.empty() || args.front().type() == mjs::value_type::undefined || args.front().type() == mjs::value_type::null) {
-            auto o = mjs::object::make(mjs::string{"Object"}, p);
-            return mjs::value{o};
+    std::vector<mjs::value> eval_argument_list(const mjs::expression_list& es) {
+        std::vector<mjs::value> args;
+        for (const auto& e: es) {
+            args.push_back(get_value(accept(*e, *this)));
         }
-        return mjs::value{to_object(args.front())};
-    };
-
-    auto f = make_function(constructor, 1);
-    f->construct_function(constructor);
-    f->put(mjs::string{"prototype"}, mjs::value{p});
-
-    // §15.2.4
-    p->put(mjs::string{"constructor"}, mjs::value{f});
-    p->put(mjs::string{"toString"}, mjs::value{make_function([](const mjs::value& this_, const std::vector<mjs::value>&){
-        return mjs::value{mjs::string{"[object "} + this_.object_value()->class_name() + mjs::string{"]"}};
-    }, 1)});
-    p->put(mjs::string{"valueOf"}, mjs::value{make_function([](const mjs::value& this_, const std::vector<mjs::value>&){
-        return this_;
-    }, 1)});
-
-    return f;
-}
-
-auto make_global(const mjs::block_statement& bs) {
-    // §15.1
-    auto global = mjs::object::make(mjs::string{"Global"}, nullptr);
-
-    const auto attr = mjs::property_attribute::dont_enum;
-
-    global->put(mjs::string{"NaN"}, mjs::value{NAN}, attr);
-    global->put(mjs::string{"Infinity"}, mjs::value{INFINITY}, attr);
-    global->put(mjs::string{"eval"}, mjs::value{make_function(
-        [](const mjs::value&, const std::vector<mjs::value>& args) {
-        if (args.empty()) {
-            return mjs::value::undefined; 
-        } else if (args.front().type() != mjs::value_type::string) {
-            return args.front();
-        }
-        auto bs = mjs::parse(args.front().string_value().view());
-        (void)bs;
-        throw std::runtime_error("TODO: Handle eval");
-    }, 1)}, attr);
-    global->put(mjs::string{"isNaN"}, mjs::value{make_function(
-        [](const mjs::value&, const std::vector<mjs::value>& args) {
-        return mjs::value(std::isnan(to_number(args.empty() ? mjs::value::undefined : args.front())));
-    }, 1)}, attr);
-    global->put(mjs::string{"isFinite"}, mjs::value{make_function(
-        [](const mjs::value&, const std::vector<mjs::value>& args) {
-        return mjs::value(std::isfinite(to_number(args.empty() ? mjs::value::undefined : args.front())));
-    }, 1)}, attr);
-    global->put(mjs::string{"alert"}, mjs::value{make_function(
-        [](const mjs::value&, const std::vector<mjs::value>& args) {
-            std::wcout << "ALERT";
-            if (!args.empty()) std::wcout << ": " << args[0];
-            std::wcout << "\n";
-            return mjs::value::undefined; 
-    }, 1)}, attr);
-
-    global->put(mjs::string{"Object"}, mjs::value{make_object_object()}, attr);
-
-    for (const auto& id: hoisting_visitor::scan(bs)) {
-        global->put(id, mjs::value::undefined);
+        return args;
     }
-    return global;
-}
+
+    mjs::value handle_new_expression(const mjs::expression& e) {
+        mjs::value o;
+        std::vector<mjs::value> args;
+        if (e.type() == mjs::expression_type::call) {
+            const auto& ce = static_cast<const mjs::call_expression&>(e);
+            o = accept(ce.member(), *this);
+            args = eval_argument_list(ce.arguments());
+        } else {
+            o = accept(e, *this);
+        }
+        o = get_value(o);
+        if (o.type() != mjs::value_type::object) {
+            std::wostringstream woss;
+            woss << e << " is not an object";
+            throw make_runtime_error(woss.str());
+        }
+        auto c = o.object_value()->construct_function();
+        if (!c) {
+            std::wostringstream woss;
+            woss << e << " is not constructable";
+            throw make_runtime_error(woss.str());
+        }
+        return c(mjs::value{}, args);
+    }
+};
 
 void test(const std::wstring_view& text, const mjs::value& expected) {
     std::cout << "Parsing \"" << std::string(text.begin(), text.end()) << "\"..." << std::flush;
     auto bs = mjs::parse(text);
     print_visitor pv{std::wcout}; accept(*bs, pv); std::wcout << '\n';
-    auto global = make_global(*bs); eval_visitor ev{global};
+    auto global = global_object::make(*bs);
+    eval_visitor ev{global};
     mjs::value res{};
     for (const auto& s: bs->l()) {
         res = accept(*s, ev).result;
@@ -917,6 +1089,33 @@ void eval_tests() {
     test(L"function sum() {  var s = 0; for (var i = 0; i < arguments.length; ++i) s += arguments[i]; return s; } sum(1,2,3)", value{6.0});
     test(L"''+Object(null)", value{string{"[object Object]"}});
     test(L"o=Object(null); o.x=42; o.y=60; o.x+o['y']", value{102.0});
+    test(L"a=Object(null);b=Object(null);a.x=b;a.x.y=42;a['x']['y']", value{42.0});
+    test(L"'' + new Object", value{string{L"[object Object]"}});
+    test(L"'' + new Object()", value{string{L"[object Object]"}});
+    test(L"'' + new Object(null)", value{string{L"[object Object]"}});
+    test(L"'' + new Object(undefined)", value{string{L"[object Object]"}});
+    test(L"o = new Object;o.x=42; new Object(o).x", value{42.0});
+    // TODO: Object(42), Object('str'), Object(true)
+    // TODO: Function
+    // TODO: Array
+    // TODO: String
+    test(L"Boolean()", value{false});
+    test(L"Boolean(true)", value{true});
+    test(L"Boolean(42)", value{true});
+    test(L"Boolean(0)", value{false});
+    test(L"Boolean('')", value{false});
+    test(L"Boolean('x')", value{true});
+    test(L"0 + new Boolean()", value{0.});
+    test(L"0 + new Boolean(1)", value{1.});
+    test(L"'' + new Boolean(0)", value{string{"false"}});
+    test(L"'' + new Boolean(1)", value{string{"true"}});
+    test(L"Number()", value{0.});
+    test(L"Number(42.42)", value{42.42});
+    test(L"Number.MIN_VALUE", value{5e-324});
+    test(L"new Number(42.42).toString()", value{string{"42.42"}});
+    test(L"''+new Number(60)", value{string{"60"}});
+    // TODO: Math
+    // TODO: Date
 
     // wat
     test(L"!!('')", value{false});
@@ -931,8 +1130,8 @@ void eval_tests() {
 int main() {
     try {
         eval_tests();
-        auto bs = mjs::parse(L"\"\" == false");
-        auto global = make_global(*bs);
+        auto bs = mjs::parse(L"o=new Object");
+        auto global = global_object::make(*bs);
         eval_visitor e{global};
         print_visitor p{std::wcout};
         for (const auto& s: bs->l()) {

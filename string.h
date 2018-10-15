@@ -10,6 +10,7 @@ class string {
 public:
     explicit string() : s_() {}
     explicit string(const char* str);
+    explicit string(const wchar_t* s) : s_(s) {}
     explicit string(const std::wstring_view& s) : s_(s) {}
     explicit string(std::wstring&& s) : s_(std::move(s)) {}
     string(const string& s) : s_(s.s_) {}

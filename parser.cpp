@@ -228,20 +228,24 @@ private:
 
         expression_ptr me{};
         if (accept(token_type::new_)) {
-            auto member = parse_member_expression();
-            auto args = parse_argument_list();
-            me = make_expression<prefix_expression>(token_type::new_, make_expression<call_expression>(std::move(member), std::move(args)));
+            auto e = parse_member_expression();
+            if (current_token_type() == token_type::lparen) {
+                e = make_expression<call_expression>(std::move(e), parse_argument_list());
+            }
+            me = make_expression<prefix_expression>(token_type::new_, std::move(e));
         } else {
             me = parse_primary_expression();
         }
-        if (accept(token_type::lbracket)) {
-            auto e = parse_expression();
-            EXPECT(token_type::rbracket);
-            return make_expression<binary_expression>(token_type::dot, std::move(me), std::move(e));
-        } else if (accept(token_type::dot)) {
-            return make_expression<binary_expression>(token_type::dot, std::move(me), make_expression<literal_expression>(token{token_type::string_literal, EXPECT(token_type::identifier).text()}));
-        } else {
-            return me;
+        for (;;) {
+            if (accept(token_type::lbracket)) {
+                auto e = parse_expression();
+                EXPECT(token_type::rbracket);
+                me = make_expression<binary_expression>(token_type::lbracket, std::move(me), std::move(e));
+            } else if (accept(token_type::dot)) {
+                me = make_expression<binary_expression>(token_type::dot, std::move(me), make_expression<literal_expression>(token{token_type::string_literal, EXPECT(token_type::identifier).text()}));
+            } else {
+                return me;
+            }
         }
     }
 
