@@ -8,8 +8,7 @@ namespace mjs {
 
 int operator_precedence(token_type tt) {
     switch (tt) {
-    case token_type::dot:
-        return 1;
+        // Don't handle dot here
     case token_type::multiply:
     case token_type::divide:
     case token_type::mod:
@@ -282,10 +281,18 @@ private:
         //   new MemberExpression Arguments
 
         auto m = parse_member_expression();
-        if (current_token_type() == token_type::lparen) {
-            return make_expression<call_expression>(std::move(m), parse_argument_list());
-        } else {
-            return std::move(m);
+        for (;;) {
+            if (current_token_type() == token_type::lparen) {
+                m = make_expression<call_expression>(std::move(m), parse_argument_list());
+            } else if (accept(token_type::lbracket)) {
+                auto e = parse_expression();
+                EXPECT(token_type::rbracket);
+                m = make_expression<binary_expression>(token_type::lbracket, std::move(m), std::move(e));
+            } else if (accept(token_type::dot)) {
+                m = make_expression<binary_expression>(token_type::dot, std::move(m), make_expression<literal_expression>(token{token_type::string_literal, EXPECT(token_type::identifier).text()}));
+            } else {
+                return m;
+            }
         }
     }
 
