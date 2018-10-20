@@ -274,6 +274,68 @@ private:
     std::vector<mjs::string> ids_;
 };
 
+mjs::string index_string(uint32_t index) {
+    return mjs::string{std::to_wstring(index)};
+}
+
+class array_object : public mjs::object {
+public:
+    static std::shared_ptr<array_object> make(const mjs::object_ptr& prototype, uint32_t length) {
+        struct make_shared_helper : array_object {
+            make_shared_helper(const mjs::object_ptr& prototype, uint32_t length) : array_object(prototype, length) {}
+        };
+        return std::make_shared<make_shared_helper>(prototype, length);
+    }
+
+    void put(const mjs::string& name, const mjs::value& val, mjs::property_attribute attr) override {
+        if (!can_put(name)) {
+            return;
+        }
+
+        if (name.view() == L"length") {
+            const uint32_t length = to_uint32(mjs::object::get(mjs::string{"length"}));
+            const uint32_t new_length = to_uint32(val);
+            if (new_length < length) {
+                for (uint32_t i = new_length; i < length; ++i) {
+                    const bool res = mjs::object::delete_property(index_string(i));
+                    assert(res); (void)res;
+                }
+            }
+            mjs::object::put(mjs::string{"length"}, mjs::value{static_cast<double>(new_length)});
+        } else {
+            mjs::object::put(name, val, attr);
+            uint32_t index = to_uint32(mjs::value{name});
+            if (name.view() == mjs::to_string(index).view() && index != UINT32_MAX && index >= to_uint32(mjs::object::get(mjs::string{"length"}))) {
+                mjs::object::put(mjs::string{"length"}, mjs::value{static_cast<double>(index+1)});
+            }
+        }
+    }
+
+    void unchecked_put(uint32_t index, const mjs::value& val) {
+        const auto name = index_string(index);
+        assert(index < to_uint32(get(mjs::string{"length"})) && can_put(name));
+        mjs::object::put(name, val);
+    }
+
+private:
+    explicit array_object(const mjs::object_ptr& prototype, uint32_t length) : object{mjs::string{"Array"}, prototype} {
+        mjs::object::put(mjs::string{"length"}, mjs::value{static_cast<double>(length)}, mjs::property_attribute::dont_enum | mjs::property_attribute::dont_delete);
+    }
+};
+
+mjs::string join(const mjs::object_ptr& o, const std::wstring_view& sep) {
+    const uint32_t l = to_uint32(o->get(mjs::string{"length"}));
+    std::wstring s;
+    for (uint32_t i = 0; i < l; ++i) {
+        if (i) s += sep;
+        const auto& oi = o->get(mjs::string{std::to_wstring(i)});
+        if (oi.type() != mjs::value_type::undefined && oi.type() != mjs::value_type::null) {
+            s += to_string(oi).view();
+        }
+    }
+    return mjs::string{s};
+}
+
 class global_object : public mjs::object {
 public:
     static std::shared_ptr<global_object> make(const mjs::block_statement& bs) {
@@ -348,9 +410,10 @@ private:
 
     mjs::object_ptr object_prototype_;
     mjs::object_ptr function_prototype_;
+    mjs::object_ptr array_prototype_;
+    mjs::object_ptr string_prototype_;
     mjs::object_ptr boolean_prototype_;
     mjs::object_ptr number_prototype_;
-    mjs::object_ptr string_prototype_;
 
     static constexpr auto prototype_attributes = mjs::property_attribute::dont_enum | mjs::property_attribute::dont_delete | mjs::property_attribute::read_only;
 
@@ -579,10 +642,33 @@ private:
             return index == std::wstring_view::npos ? -1. : static_cast<double>(index);
         });
 
-        make_string_function("split", 1, [](const std::wstring_view& s, const std::vector<mjs::value>& args){
-            (void)s;(void)args;
-            if (1) NOT_IMPLEMENTED("split");
-            return 0.0;
+        make_string_function("split", 1, [this](const std::wstring_view& s, const std::vector<mjs::value>& args){
+            auto a = array_constructor(mjs::value::null, {}).object_value();
+            if (args.empty()) {
+                a->put(index_string(0), mjs::value{mjs::string{s}});
+            } else {
+                const auto sep = to_string(args.front());
+                if (sep.view().empty()) {
+                    for (uint32_t i = 0; i < s.length(); ++i) {
+                        a->put(index_string(i), mjs::value{mjs::string{ s.substr(i,1) }});
+                    }
+                } else {
+                    size_t pos = 0;
+                    uint32_t i = 0;
+                    for (; pos < s.length(); ++i) {
+                        const auto next_pos = s.find(sep.view(), pos);
+                        if (next_pos == std::wstring_view::npos) {
+                            break;
+                        }
+                        a->put(index_string(i), mjs::value{mjs::string{ s.substr(pos, next_pos-pos) }});
+                        pos = next_pos + 1;
+                    }
+                    if (pos < s.length()) {
+                        a->put(index_string(i), mjs::value{mjs::string{ s.substr(pos) }});
+                    }
+                }
+            }
+            return a;
         });
 
         make_string_function("substring", 1, [](const std::wstring_view& s, const std::vector<mjs::value>& args){
@@ -616,12 +702,116 @@ private:
         return mjs::object_ptr{c};
     }
 
+    //
+    // Array
+    //
+
+    mjs::value array_constructor(const mjs::value&, const std::vector<mjs::value>& args) {
+        if (args.size() == 1 && args[0].type() == mjs::value_type::number) {
+            return mjs::value{array_object::make(array_prototype_, mjs::to_uint32(args[0].number_value()))};
+        }
+        auto arr = array_object::make(array_prototype_, static_cast<uint32_t>(args.size()));
+        for (uint32_t i = 0; i < args.size(); ++i) {
+            arr->unchecked_put(i, args[i]);
+        }
+        return mjs::value{arr};
+    }
+
+    mjs::object_ptr make_array_object() {
+        array_prototype_ = array_object::make(object_prototype_, 0);
+
+        auto o = make_function(std::bind(&global_object::array_constructor, this, std::placeholders::_1, std::placeholders::_2), 1);
+        o->put(mjs::string{"prototype"}, mjs::value{array_prototype_}, prototype_attributes);
+
+        array_prototype_->put(mjs::string{"constructor"}, mjs::value{o});
+        array_prototype_->put(mjs::string{"toString"}, mjs::value{make_function([](const mjs::value& this_, const std::vector<mjs::value>&) {
+            assert(this_.type() == mjs::value_type::object);
+            return mjs::value{join(this_.object_value(), L",")};
+        }, 0)});
+        array_prototype_->put(mjs::string{"join"}, mjs::value{make_function([](const mjs::value& this_, const std::vector<mjs::value>& args) {
+            assert(this_.type() == mjs::value_type::object);
+            mjs::string sep{L","};
+            if (!args.empty()) {
+                sep = to_string(args.front());
+            }
+            return mjs::value{join(this_.object_value(), sep.view())};
+        }, 1)});
+        array_prototype_->put(mjs::string{"reverse"}, mjs::value{make_function([](const mjs::value& this_, const std::vector<mjs::value>&) {
+            assert(this_.type() == mjs::value_type::object);
+            const auto& o = this_.object_value();
+            const uint32_t length = to_uint32(o->get(mjs::string{L"length"}));
+            for (uint32_t k = 0; k != length / 2; ++k) {
+                const auto i1 = index_string(k);
+                const auto i2 = index_string(length - k - 1);
+                auto v1 = o->get(i1);
+                auto v2 = o->get(i2);
+                o->put(i1, v2);
+                o->put(i2, v1);
+            }
+            return this_;
+        }, 0)});
+        array_prototype_->put(mjs::string{"sort"}, mjs::value{make_function([](const mjs::value& this_, const std::vector<mjs::value>& args) {
+            assert(this_.type() == mjs::value_type::object);
+            const auto& o = this_.object_value();
+            const uint32_t length = to_uint32(o->get(mjs::string{L"length"}));
+
+            mjs::native_function_type comparefn{};
+            if (!args.empty()) {
+                if (args.front().type() == mjs::value_type::object) {
+                    comparefn = args.front().object_value()->call_function();
+                }
+                if (!comparefn) {
+                    NOT_IMPLEMENTED("Invalid compare function given to sort");
+                }
+            }
+
+            auto sort_compare = [comparefn](const mjs::value& x, const mjs::value& y) {
+                if (x.type() == mjs::value_type::undefined && y.type() == mjs::value_type::undefined) {
+                    return 0;
+                } else if (x.type() == mjs::value_type::undefined) {
+                    return 1;
+                } else if (y.type() == mjs::value_type::undefined) {
+                    return -1;
+                }
+                if (comparefn) {
+                    const auto r = to_number(comparefn(mjs::value::null, {x,y}));
+                    if (r < 0) return -1;
+                    if (r > 0) return 1;
+                    return 0;
+                } else {
+                    const auto xs = to_string(x);
+                    const auto ys = to_string(y);
+                    if (xs.view() < ys.view()) return -1;
+                    if (xs.view() > ys.view()) return 1;
+                    return 0;
+                }
+            };
+
+            std::vector<mjs::value> values(length);
+            for (uint32_t i = 0; i < length; ++i) {
+                values[i] = o->get(index_string(i));
+            }
+            std::stable_sort(values.begin(), values.end(), [&](const mjs::value& x, const mjs::value& y) {
+                return sort_compare(x, y) < 0;
+            });
+            for (uint32_t i = 0; i < length; ++i) {
+                o->put(index_string(i), values[i]);
+            }
+            return this_;
+        }, 1)});
+        return o;
+    }
+
+
+    //
+    // Global
+    //
     void popuplate_global() {
         // §15.1
         const auto attr = mjs::property_attribute::dont_enum;
         put(mjs::string{"Object"}, mjs::value{make_object_object()}, attr);
         put(mjs::string{"Function"}, mjs::value{make_function_object()}, attr);
-        // TODO: Array
+        put(mjs::string{"Array"}, mjs::value{make_array_object()}, attr);
         put(mjs::string{"String"}, mjs::value{make_string_object()}, attr);
         put(mjs::string{"Boolean"}, mjs::value{make_boolean_object()}, attr);
         put(mjs::string{"Number"}, mjs::value{make_number_object()}, attr);
@@ -1263,7 +1453,28 @@ void eval_tests() {
     test(L"'' + new Object(undefined)", value{string{L"[object Object]"}});
     test(L"o = new Object;o.x=42; new Object(o).x", value{42.0});
     // TODO: Function
-    // TODO: Array
+    // Array
+    test(L"Array.length", value{1.0});
+    test(L"Array.prototype.length", value{0.0});
+    test(L"new Array().length", value{0.0});
+    test(L"new Array(60).length", value{60.0});
+    test(L"new Array(1,2,3,4).length", value{4.0});
+    test(L"new Array(1,2,3,4)[3]", value{4.0});
+    test(L"new Array(1,2,3,4)[4]", value::undefined);
+    test(L"a=new Array(); a[5]=42; a.length", value{6.0});
+    test(L"a=new Array(); a[5]=42; a[3]=2; a.length", value{6.0});
+    test(L"a=new Array(1,2,3,4); a.length=2; a.length", value{2.0});
+    test(L"a=new Array(1,2,3,4); a.length=2; a[3]", value::undefined);
+    test(L"''+Array()", value{string{""}});
+    test(L"a=Array();a[0]=1;''+a", value{string{"1"}});
+    test(L"''+Array(1,2,3,4)", value{string{"1,2,3,4"}});
+    test(L"Array(1,2,3,4).join()", value{string{"1,2,3,4"}});
+    test(L"Array(1,2,3,4).join('')", value{string{"1234"}});
+    test(L"Array(4).join()", value{string{",,,"}});
+    test(L"Array(1,2,3,4).reverse()+''", value{string{"4,3,2,1"}});
+    test(L"''+Array('March', 'Jan', 'Feb', 'Dec').sort()", value{string{"Dec,Feb,Jan,March"}});
+    test(L"''+Array(1,30,4,21).sort()", value{string{"1,21,30,4"}});
+    test(L"function c(x,y) { return x-y; }; ''+Array(1,30,4,21).sort(c)", value{string{"1,4,21,30"}});
     // String
     test(L"String()", value{string{""}});
     test(L"String('test')", value{string{"test"}});
@@ -1291,7 +1502,11 @@ void eval_tests() {
     test(L"'testfesthest'.lastIndexOf('est',3)", value{1.});
     test(L"'testfesthest'.lastIndexOf('est',7)", value{5.});
     test(L"'testfesthest'.lastIndexOf('est', 22)", value{9.});
-    // TODO: String.split
+    test(L"''.split()+''", value{string{}});
+    test(L"'1 2 3'.split()+''", value{string{"1 2 3"}});
+    test(L"'abcd'.split('')+''", value{string{"a,b,c,d"}});
+    test(L"'1 2 3'.split('not found')+''", value{string{"1 2 3"}});
+    test(L"'1 2 3'.split(' ')+''", value{string{"1,2,3"}});
     test(L"'foo bar'.substring()", value{string{"foo bar"}});
     test(L"'foo bar'.substring(-1)", value{string{"foo bar"}});
     test(L"'foo bar'.substring(42)", value{string{""}});
@@ -1339,7 +1554,7 @@ void eval_tests() {
 int main() {
     try {
         eval_tests();
-        auto bs = mjs::parse(L"o=new Object");
+        auto bs = mjs::parse(L"new Array(1,2,3,4).valueOf()");
         auto global = global_object::make(*bs);
         eval_visitor e{global};
         print_visitor p{std::wcout};

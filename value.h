@@ -169,7 +169,7 @@ public:
     void internal_value(const value& v) { value_ = v; }
 
     // [[Get]] (PropertyName)
-    const value& get(const string& name) {
+    const value& get(const string& name) const {
         if (auto it = properties_.find(name); it != properties_.end()) {
             return it->second.val;
         }
@@ -177,7 +177,7 @@ public:
     }
  
     // [[Put]] (PropertyName, Value)
-    void put(const string& name, const value& val, property_attribute attr = property_attribute::none) {
+    virtual void put(const string& name, const value& val, property_attribute attr = property_attribute::none) {
         if (!can_put(name)) {
             return;
         }
@@ -263,6 +263,11 @@ public:
 
 protected:
     explicit object(const string& class_name, const object_ptr& prototype) : class_(class_name), prototype_(prototype){}
+
+    bool has_own_property(const string& name) const {
+        return properties_.find(name) != properties_.end();
+    }
+
 private:
     object(const object&) = delete;
 
