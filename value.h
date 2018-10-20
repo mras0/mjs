@@ -143,7 +143,9 @@ public:
         return std::make_shared<make_shared_helper>(class_name, prototype);
     }
 
-    virtual ~object() {}
+    virtual ~object() {
+        all_objects_.erase(this);
+    }
 
     // §8.6.2, Page 22: Internal Properties and Methods
 
@@ -261,15 +263,26 @@ public:
         return std::vector<string>(std::make_move_iterator(names.begin()), std::make_move_iterator(names.end()));
     }
 
+    static size_t object_count() { return all_objects_.size(); }
+
+    static void garbage_collect(const std::vector<object_ptr>& roots);
+
 protected:
-    explicit object(const string& class_name, const object_ptr& prototype) : class_(class_name), prototype_(prototype){}
+    explicit object(const string& class_name, const object_ptr& prototype) : class_(class_name), prototype_(prototype) {
+        all_objects_.insert(this);
+    }
 
     bool has_own_property(const string& name) const {
         return properties_.find(name) != properties_.end();
     }
 
+    void gc_visit(std::unordered_set<const object*>& live_objects) const;
+    void clear();
+
 private:
     object(const object&) = delete;
+    static std::unordered_set<object*> all_objects_;
+
 
     struct property {
         value val;

@@ -1384,6 +1384,15 @@ void test(const std::wstring_view& text, const mjs::value& expected) {
         pb();
         assert(false);
     }
+
+#ifndef NDEBUG
+    mjs::object::garbage_collect({});
+    if (mjs::object::object_count()) {
+        std::wcout << "Total number of objects left: " << mjs::object::object_count() <<  " while testing '" << text << "'\n";
+        assert(!"Leaks");
+    }
+#endif
+
 }
 
 void eval_tests() {
@@ -1568,4 +1577,8 @@ int main() {
         std::wcout << e.what() << "\n";
         return 1;
     }
+#ifndef NDEBUG
+    mjs::object::garbage_collect({});
+    assert(!mjs::object::object_count());
+#endif
 }

@@ -257,4 +257,43 @@ string to_string(const value& v) {
     NOT_IMPLEMENTED();
 }
 
+std::unordered_set<object*> object::all_objects_;
+
+void object::gc_visit(std::unordered_set<const object*>& live_objects) const {
+    live_objects.insert(this);
+    for (const auto& p: properties_) {
+        if (p.second.val.type() == value_type::object) {
+            p.second.val.object_value()->gc_visit(live_objects);
+        }
+    }
+}
+
+void object::garbage_collect(const std::vector<object_ptr>& roots) {
+    std::unordered_set<const object*> live_objects;
+    for (const auto& o : roots) {
+        o->gc_visit(live_objects);
+    }
+    std::vector<std::weak_ptr<object>> to_delete;
+    
+    for (auto it = all_objects_.begin(); it != all_objects_.end(); ++it) {
+        if (live_objects.find(*it) == live_objects.end()) {
+            to_delete.push_back((*it)->shared_from_this());
+        }
+    }
+    for (const auto& o: to_delete) {
+        if (auto p = o.lock()) {
+            p->clear();
+        }
+    }
+}
+
+void object::clear() {
+    prototype_.reset();
+    value_ = value::undefined;
+    construct_ = native_function_type{};
+    call_ = native_function_type{};
+    properties_.clear();
+}
+
+
 } // namespace mjs
