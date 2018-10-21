@@ -13,6 +13,31 @@
 
 namespace mjs {
 
+source_position calc_source_position(const std::wstring_view& t, uint32_t start_pos, uint32_t end_pos, const source_position& start) {
+    assert(start_pos <= t.size() && end_pos <= t.size() && start_pos <= end_pos);
+    int cr = start.line-1, lf = start.line-1;
+    int column = start.column-1;
+    constexpr int tabstop = 8;
+    for (uint32_t i = start_pos; i < end_pos; ++i) {
+        switch (t[i]) {
+        case '\n': ++lf; column = 0; break;
+        case '\r': ++cr; column = 0; break;
+        case '\t': column += tabstop - (column % tabstop); break;
+        default: ++column;
+        }
+    }
+    return {1 + std::max(cr, lf), 1 + column};
+}
+
+std::pair<source_position, source_position> extend_to_positions(const std::wstring_view& t, uint32_t start_pos, uint32_t end_pos) {
+    auto start = calc_source_position(t, 0, start_pos, {1,1});
+    auto end = calc_source_position(t, start_pos, end_pos, start);
+    if (start.line == end.line && start.column != end.column) {
+        end.column--;
+    }
+    return {start, end};
+}
+
 int operator_precedence(token_type tt) {
     switch (tt) {
         // Don't handle dot here
@@ -70,27 +95,9 @@ bool is_right_to_left(token_type tt) {
     return operator_precedence(tt) >= assignment_precedence; // HACK
 }
 
-template<typename T, typename... Args>
-expression_ptr make_expression(Args&&... args) {
-    auto e = expression_ptr{new T{std::forward<Args>(args)...}};
-#ifdef PARSER_DEBUG
-    std::wcout << "Producting: " << *e << "\n";
-#endif
-    return e;
-}
-
-template<typename T, typename... Args>
-statement_ptr make_statement(Args&&... args) {
-    auto s = statement_ptr{new T{std::forward<Args>(args)...}};
-#ifdef PARSER_DEBUG
-    std::wcout << "Producting: " << *s << "\n";
-#endif
-    return s;
-}
-
 class parser {
 public:
-    explicit parser(const std::wstring_view& str, const std::string_view& filename) : lexer_(str), filename_(filename) {}
+    explicit parser(const std::shared_ptr<source_file>& source) : source_(source), lexer_(source_->text) {}
 
     std::unique_ptr<block_statement> parse() {
         statement_list l;
@@ -98,51 +105,45 @@ public:
             try { 
                 l.push_back(parse_statement_or_function_declaration());
             } catch (const std::exception& e) {
-                const auto [start, end] = calc_token_source_position();
                 std::ostringstream oss;
-                oss << filename_ << ":" << start << "-" << end << ": " << e.what();
+                oss << source_extend{source_, token_start_, lexer_.text_position()} << ": " << e.what();
                 throw std::runtime_error(oss.str());
             }
         }
-        return std::make_unique<block_statement>(std::move(l));
+#ifdef PARSER_DEBUG
+        std::wcout << "\n\n";
+#endif
+        return std::make_unique<block_statement>(source_extend{source_, 0, lexer_.text_position()}, std::move(l));
     }
 
 private:
+    std::shared_ptr<source_file> source_;
     lexer lexer_;
-    std::string filename_;
-    size_t token_start_ = 0;
+    uint32_t token_start_ = 0;
+    uint32_t expression_start_ = 0;
+    uint32_t statement_start_ = 0;
     bool line_break_skipped_ = false;
 
-    struct source_position {
-        int line;
-        int column;
-
-        friend std::ostream& operator<<(std::ostream& os, const source_position& sp) {
-            return os << sp.line << ":" << sp.column;
-        }
-    };
-
-    source_position calc_source_position(size_t start_pos, size_t end_pos, const source_position& start = {0,0}) const {
-        const auto& t = lexer_.text();
-        assert(start_pos < t.size() && end_pos < t.size() && start_pos <= end_pos);
-        int cr = start.line-1, lf = start.line-1;
-        int column = start.column-1;
-        constexpr int tabstop = 8;
-        for (size_t i = start_pos; i < end_pos; ++i) {
-            switch (t[i]) {
-            case '\n': ++lf; column = 0; break;
-            case '\r': ++cr; column = 0; break;
-            case '\t': column += tabstop - (column % tabstop); break;
-            default: ++column;
-            }
-        }
-        return {1 + std::max(cr, lf), 1 + column};
+    template<typename T, typename... Args>
+    expression_ptr make_expression(Args&&... args) {
+        const auto tp = lexer_.text_position();
+        auto e = expression_ptr{new T{source_extend{ source_, expression_start_, tp }, std::forward<Args>(args)...}};
+        expression_start_ = tp;
+#ifdef PARSER_DEBUG
+        std::wcout << e->extend() << " Producting: " << *e << "\n";
+#endif
+        return e;
     }
 
-    std::pair<source_position, source_position> calc_token_source_position() const {
-        auto start = calc_source_position(0, token_start_);
-        auto end = calc_source_position(token_start_, lexer_.text_position(), start);
-        return {start, end};
+    template<typename T, typename... Args>
+    statement_ptr make_statement(Args&&... args) {
+        const auto tp = lexer_.text_position();
+        auto s = statement_ptr{new T{source_extend{ source_, statement_start_, tp }, std::forward<Args>(args)...}};
+        statement_start_ = tp;
+#ifdef PARSER_DEBUG
+        std::wcout << s->extend() << " Producting: " << *s << "\n";
+#endif
+        return s;
     }
 
     token_type current_token_type() const {
@@ -158,20 +159,22 @@ private:
                 break;
             }
 #ifdef PARSER_DEBUG
-            std::wcout << "Consuming token: " << lexer_.current_token() << "\n";
+            std::wcout << source_extend{source_, token_start_, lexer_.text_position()} << " Consuming token: " << lexer_.current_token() << "\n";
 #endif
         }
     }
 
     token get_token() {
-        token_start_ = lexer_.text_position();
+        const auto old_end = lexer_.text_position();
         auto t = lexer_.current_token();
         lexer_.next_token();
         line_break_skipped_ = false;
         skip_whitespace();
 #ifdef PARSER_DEBUG
-        std::wcout << "Consuming token: " << t << "\n";
+        std::wcout << source_extend{source_, token_start_, old_end} << " Consuming token: " << t << "\n";
 #endif
+
+        token_start_ = old_end;
         return t;
     }
 
@@ -488,8 +491,8 @@ private:
     }
 };
 
-std::unique_ptr<block_statement> parse(const std::wstring_view& str, const std::string_view& filename) {
-    return parser{str,filename}.parse();
+std::unique_ptr<block_statement> parse(const std::shared_ptr<source_file>& source) {
+    return parser{source}.parse();
 }
 
 } // namespace mjs

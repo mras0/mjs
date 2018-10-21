@@ -196,7 +196,7 @@ public:
     void next_token();
 
     std::wstring_view text() const { return text_; }
-    size_t text_position() const { return text_pos_; }
+    uint32_t text_position() const { return static_cast<uint32_t>(text_pos_); }
 
 private:
     std::wstring_view text_;

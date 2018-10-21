@@ -15,6 +15,45 @@ int operator_precedence(token_type tt);
 constexpr int assignment_precedence = 15;
 constexpr int comma_precedence      = 16;
 
+struct source_position {
+    int line;
+    int column;
+
+    template<typename CharT>
+    friend std::basic_ostream<CharT>& operator<<(std::basic_ostream<CharT>& os, const source_position& sp) {
+        return os << sp.line << ":" << sp.column;
+    }
+};
+
+std::pair<source_position, source_position> extend_to_positions(const std::wstring_view& t, uint32_t start, uint32_t end);
+
+
+struct source_file {
+    explicit source_file(const std::wstring_view& filename, const std::wstring_view& text) : filename(filename), text(text) {
+    }
+
+    std::wstring filename;
+    std::wstring text;
+};
+
+struct source_extend {
+    std::shared_ptr<source_file> file;
+    uint32_t start;
+    uint32_t end;
+
+    template<typename CharT>
+    friend std::basic_ostream<CharT>& operator<<(std::basic_ostream<CharT>& os, const source_extend& extend) {
+        auto [start_pos, end_pos] = extend_to_positions(extend.file->text, extend.start, extend.end);
+        if constexpr (sizeof(CharT) == 1) {
+            os << std::string(extend.file->filename.begin(), extend.file->filename.end());
+        } else {
+            os << extend.file->filename;
+        }
+        return os << ":" << start_pos << "-" << end_pos;
+    }
+};
+
+
 class syntax_node {
 public:
     virtual ~syntax_node() {}
@@ -24,7 +63,16 @@ public:
         return os;
     }
 
+    const source_extend& extend() const {
+        return extend_;
+    }
+
+protected:
+    syntax_node(const source_extend& extend) : extend_(extend) {
+    }
+
 private:
+    source_extend extend_;
     virtual void print(std::wostream& os) const = 0;
 };
 
@@ -41,6 +89,8 @@ enum class expression_type {
 class expression : public syntax_node {
 public:
     virtual expression_type type() const = 0;
+protected:
+    using syntax_node::syntax_node;
 };
 
 enum class statement_type {
@@ -62,6 +112,8 @@ enum class statement_type {
 class statement : public syntax_node {
 public:
     virtual statement_type type() const = 0;
+protected:
+    using syntax_node::syntax_node;
 };
 
 using expression_ptr = std::unique_ptr<expression>;
@@ -75,7 +127,7 @@ using statement_list = std::vector<statement_ptr>;
 
 class identifier_expression : public expression {
 public:
-    explicit identifier_expression(const string& id) : id_(id) {}
+    explicit identifier_expression(const source_extend& extend, const string& id) : expression(extend), id_(id) {}
 
     expression_type type() const override { return expression_type::identifier; }
 
@@ -91,7 +143,7 @@ private:
 
 class literal_expression : public expression {
 public:
-    explicit literal_expression(const token& t) : t_(t) {
+    explicit literal_expression(const source_extend& extend, const token& t) : expression(extend), t_(t) {
         assert(is_literal(t.type()));
     }
 
@@ -109,7 +161,7 @@ private:
 
 class call_expression : public expression {
 public:
-    explicit call_expression(expression_ptr&& member, expression_list&& arguments) : member_(std::move(member)), arguments_(std::move(arguments)) {
+    explicit call_expression(const source_extend& extend, expression_ptr&& member, expression_list&& arguments) : expression(extend), member_(std::move(member)), arguments_(std::move(arguments)) {
         assert(member_);
     }
 
@@ -136,7 +188,7 @@ private:
 
 class prefix_expression : public expression {
 public:
-    explicit prefix_expression(token_type op, expression_ptr&& e) : op_(op), e_(std::move(e)) {
+    explicit prefix_expression(const source_extend& extend, token_type op, expression_ptr&& e) : expression(extend), op_(op), e_(std::move(e)) {
         assert(e_);
     }
 
@@ -156,7 +208,7 @@ private:
 
 class postfix_expression : public expression {
 public:
-    explicit postfix_expression(token_type op, expression_ptr&& e) : op_(op), e_(std::move(e)) {
+    explicit postfix_expression(const source_extend& extend, token_type op, expression_ptr&& e) : expression(extend), op_(op), e_(std::move(e)) {
         assert(e_);
     }
 
@@ -176,7 +228,7 @@ private:
 
 class binary_expression : public expression {
 public:
-    explicit binary_expression(token_type op, expression_ptr&& lhs, expression_ptr&& rhs) : op_(op), lhs_(std::move(lhs)), rhs_(std::move(rhs)) {
+    explicit binary_expression(const source_extend& extend, token_type op, expression_ptr&& lhs, expression_ptr&& rhs) : expression(extend), op_(op), lhs_(std::move(lhs)), rhs_(std::move(rhs)) {
         assert(lhs_);
         assert(rhs_);
     }
@@ -199,7 +251,7 @@ private:
 
 class conditional_expression : public expression {
 public:
-    explicit conditional_expression(expression_ptr&& cond, expression_ptr&& lhs, expression_ptr&& rhs) : cond_(std::move(cond)), lhs_(std::move(lhs)), rhs_(std::move(rhs)) {
+    explicit conditional_expression(const source_extend& extend, expression_ptr&& cond, expression_ptr&& lhs, expression_ptr&& rhs) : expression(extend), cond_(std::move(cond)), lhs_(std::move(lhs)), rhs_(std::move(rhs)) {
         assert(lhs_);
         assert(rhs_);
     }
@@ -241,7 +293,7 @@ auto accept(const expression& e, Visitor& v) {
 
 class block_statement : public statement {
 public:
-    explicit block_statement(statement_list&& l) : l_(std::move(l)) {}
+    explicit block_statement(const source_extend& extend, statement_list&& l) : statement(extend), l_(std::move(l)) {}
 
     statement_type type() const override { return statement_type::block; }
 
@@ -294,7 +346,7 @@ class variable_statement : public statement {
 public:
     statement_type type() const override { return statement_type::variable; }
 
-    explicit variable_statement(declaration::list&& l) : l_(std::move(l)) {}
+    explicit variable_statement(const source_extend& extend, declaration::list&& l) : statement(extend), l_(std::move(l)) {}
 
     const declaration::list& l() const { return l_; }
 
@@ -313,7 +365,7 @@ private:
 
 class empty_statement : public statement {
 public:
-    explicit empty_statement() {
+    explicit empty_statement(const source_extend& extend) : statement(extend) {
     }
 
     statement_type type() const override { return statement_type::empty; }
@@ -326,7 +378,7 @@ private:
 
 class expression_statement : public statement {
 public:
-    explicit expression_statement(expression_ptr&& e) : e_(std::move(e)) {
+    explicit expression_statement(const source_extend& extend, expression_ptr&& e) : statement(extend), e_(std::move(e)) {
         assert(e_);
     }
 
@@ -344,7 +396,7 @@ private:
 
 class if_statement : public statement {
 public:
-    explicit if_statement(expression_ptr&& cond, statement_ptr&& if_s, statement_ptr&& else_s) : cond_(std::move(cond)), if_s_(std::move(if_s)), else_s_(std::move(else_s)) {
+    explicit if_statement(const source_extend& extend, expression_ptr&& cond, statement_ptr&& if_s, statement_ptr&& else_s) : statement(extend), cond_(std::move(cond)), if_s_(std::move(if_s)), else_s_(std::move(else_s)) {
         assert(cond_);
         assert(if_s_);
     }
@@ -369,7 +421,7 @@ private:
 
 class while_statement : public statement {
 public:
-    explicit while_statement(expression_ptr&& cond, statement_ptr&& s) : cond_(std::move(cond)), s_(std::move(s)) {
+    explicit while_statement(const source_extend& extend, expression_ptr&& cond, statement_ptr&& s) : statement(extend), cond_(std::move(cond)), s_(std::move(s)) {
         assert(cond_);
         assert(s_);
     }
@@ -390,7 +442,7 @@ private:
 
 class for_statement : public statement {
 public:
-    explicit for_statement(statement_ptr&& init, expression_ptr&& cond, expression_ptr&& iter, statement_ptr&& s) : init_(std::move(init)), cond_(std::move(cond)), iter_(std::move(iter)), s_(std::move(s)) {
+    explicit for_statement(const source_extend& extend, statement_ptr&& init, expression_ptr&& cond, expression_ptr&& iter, statement_ptr&& s) : statement(extend), init_(std::move(init)), cond_(std::move(cond)), iter_(std::move(iter)), s_(std::move(s)) {
         assert(!init_ || init_->type() == statement_type::expression || init_->type() == statement_type::variable);
         assert(s_);
     }
@@ -424,7 +476,7 @@ private:
 
 class continue_statement : public statement {
 public:
-    explicit continue_statement() {}
+    explicit continue_statement(const source_extend& extend) : statement(extend) {}
     statement_type type() const override { return statement_type::continue_; }
 private:
     void print(std::wostream& os) const override {
@@ -434,7 +486,7 @@ private:
 
 class break_statement : public statement {
 public:
-    explicit break_statement() {}
+    explicit break_statement(const source_extend& extend) : statement(extend) {}
     statement_type type() const override { return statement_type::break_; }
 private:
     void print(std::wostream& os) const override {
@@ -444,7 +496,7 @@ private:
 
 class return_statement : public statement {
 public:
-    explicit return_statement(expression_ptr&& e) : e_(std::move(e)) {}
+    explicit return_statement(const source_extend& extend, expression_ptr&& e) : statement(extend), e_(std::move(e)) {}
 
     statement_type type() const override { return statement_type::return_; }
 
@@ -464,7 +516,7 @@ private:
 
 class function_definition : public statement {
 public:
-    explicit function_definition(const string& id, std::vector<string>&& params, statement_ptr&& block) : id_(id), params_(std::move(params)), block_(std::move(block)) {
+    explicit function_definition(const source_extend& extend, const string& id, std::vector<string>&& params, statement_ptr&& block) : statement(extend), id_(id), params_(std::move(params)), block_(std::move(block)) {
         assert(block_ && block_->type() == statement_type::block);
     }
 
@@ -514,8 +566,7 @@ auto accept(const statement& s, Visitor& v) {
 // Parser
 //
 
-std::unique_ptr<block_statement> parse(const std::wstring_view& str, const std::string_view& filename);
-inline std::unique_ptr<block_statement> parse(const mjs::string& str, const std::string_view& filename) { return parse(str.view(), filename); }
+std::unique_ptr<block_statement> parse(const std::shared_ptr<source_file>& source);
 
 } // namespace mjs
 

@@ -913,8 +913,8 @@ private:
             } else if (args.front().type() != mjs::value_type::string) {
                 return args.front();
             }
-            auto bs = mjs::parse(args.front().string_value().view(), "eval");
-            (void)bs;
+            //auto bs = mjs::parse(args.front().string_value().view(), "eval");
+            //(void)bs;
             throw std::runtime_error("TODO: Handle eval");
         }, 1)}, attr);
         put(mjs::string{"isNaN"}, mjs::value{make_function(
@@ -963,6 +963,23 @@ std::wostream& operator<<(std::wostream& os, const completion& c) {
     return os << c.type << " " << c.result;
 }
 
+class eval_exception : public std::runtime_error {
+public:
+    explicit eval_exception(const std::vector<mjs::source_extend>& stack_trace, const std::wstring_view& msg) : std::runtime_error(get_repr(stack_trace, msg)) {
+    }
+
+private:
+    static std::string get_repr(const std::vector<mjs::source_extend>& stack_trace, const std::wstring_view& msg) {
+        std::ostringstream oss;
+        oss << std::string(msg.begin(), msg.end());
+        for (const auto& e: stack_trace) {
+            assert(e.file);
+            oss << '\n' << e;
+        }
+        return oss.str();
+    }
+};
+
 class eval_visitor {
 public:
     explicit eval_visitor(const std::shared_ptr<global_object>& global) : global_(global) {
@@ -997,13 +1014,13 @@ public:
         if (mval.type() != mjs::value_type::object) {
             std::wostringstream woss;
             woss << e.member() << " is not a function";
-            throw make_runtime_error(woss.str());
+            throw eval_exception(stack_trace(e.extend()), woss.str());
         }
         auto c = mval.object_value()->call_function();
         if (!c) {
             std::wostringstream woss;
             woss << e.member() << " is not callable";
-            throw make_runtime_error(woss.str());
+            throw eval_exception(stack_trace(e.extend()), woss.str());
         }
         auto this_ = mjs::value::null;
         if (member.type() == mjs::value_type::reference) {
@@ -1012,8 +1029,10 @@ public:
             }
         }
 
-        // TODO: scope etc.
-        return c(this_, args);
+        scopes_->call_site = e.extend();
+        auto res = c(this_, args);
+        scopes_->call_site = mjs::source_extend{nullptr,0,0};
+        return res;
     }
 
     mjs::value operator()(const mjs::prefix_expression& e) {
@@ -1401,6 +1420,7 @@ private:
 
         mjs::object_ptr activation;
         scope_ptr prev;
+        mjs::source_extend call_site;
     };
     class auto_scope {
     public:
@@ -1417,6 +1437,16 @@ private:
     };
     scope_ptr                      scopes_;
     std::shared_ptr<global_object> global_;
+
+    std::vector<mjs::source_extend> stack_trace(const mjs::source_extend& current_extend) const {
+        std::vector<mjs::source_extend> t;
+        t.push_back(current_extend);
+        for (const scope* p = scopes_.get(); p != nullptr; p = p->prev.get()) {
+            if (!p->call_site.file) continue;
+            t.push_back(p->call_site);
+        }
+        return t;
+    }
 
     std::vector<mjs::value> eval_argument_list(const mjs::expression_list& es) {
         std::vector<mjs::value> args;
@@ -1440,22 +1470,26 @@ private:
         if (o.type() != mjs::value_type::object) {
             std::wostringstream woss;
             woss << e << " is not an object";
-            throw make_runtime_error(woss.str());
+            throw eval_exception(stack_trace(e.extend()), woss.str());
         }
         auto c = o.object_value()->construct_function();
         if (!c) {
             std::wostringstream woss;
             woss << e << " is not constructable";
-            throw make_runtime_error(woss.str());
+            throw eval_exception(stack_trace(e.extend()), woss.str());
         }
-        return c(mjs::value{}, args);
+
+        scopes_->call_site = e.extend();
+        auto res = c(mjs::value::undefined, args);
+        scopes_->call_site = mjs::source_extend{nullptr,0,0};
+        return res;
     }
 };
 
 void test(const std::wstring_view& text, const mjs::value& expected) {
-    decltype(mjs::parse(text, "test")) bs;
+    decltype(mjs::parse(nullptr)) bs;
     try {
-        bs = mjs::parse(text, "test");
+        bs = mjs::parse(std::make_shared<mjs::source_file>(L"test", text));
     } catch (const std::exception& e) {
         std::wcout << "Parse failed for \"" << text << "\": " << e.what() <<  "\n";
         assert(false);
@@ -1676,18 +1710,18 @@ void eval_tests() {
 
 #include <fstream>
 #include <streambuf>
-mjs::string read_ascii_file(const char* filename) {
+#include <cstring>
+std::shared_ptr<mjs::source_file> read_ascii_file(const char* filename) {
     std::ifstream in(filename);
     if (!in) throw std::runtime_error("Could not open " + std::string(filename));
-    return mjs::string{std::wstring((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>())};
+    return std::make_shared<mjs::source_file>(std::wstring(filename, filename+std::strlen(filename)), std::wstring((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>()));
 }
 
 int main() {
     try {
         eval_tests();
-        const char* filename = "../js-performance-test.js";
-        auto text = read_ascii_file(filename);
-        auto bs = mjs::parse(text, filename);
+        auto source = read_ascii_file("../js-performance-test.js");
+        auto bs = mjs::parse(source);
         auto global = global_object::make(*bs);
         eval_visitor e{global};
         print_visitor p{std::wcout};
