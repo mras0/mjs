@@ -514,7 +514,8 @@ auto accept(const statement& s, Visitor& v) {
 // Parser
 //
 
-std::unique_ptr<block_statement> parse(const std::wstring_view& str);
+std::unique_ptr<block_statement> parse(const std::wstring_view& str, const std::string_view& filename);
+inline std::unique_ptr<block_statement> parse(const mjs::string& str, const std::string_view& filename) { return parse(str.view(), filename); }
 
 } // namespace mjs
 

@@ -180,11 +180,11 @@ public:
  
     // [[Put]] (PropertyName, Value)
     virtual void put(const string& name, const value& val, property_attribute attr = property_attribute::none) {
-        if (!can_put(name)) {
-            return;
-        }
         if (auto it = properties_.find(name); it != properties_.end()) {
-            it->second.val = val;
+            // CanPut?
+            if (!it->second.has_attribute(property_attribute::read_only)) {
+                it->second.val = val;
+            }
         } else {
             properties_[name] = property{val, attr};
         }

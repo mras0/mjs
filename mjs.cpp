@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <chrono>
 
 #include "value.h"
 #include "parser.h"
@@ -275,7 +276,13 @@ private:
 };
 
 mjs::string index_string(uint32_t index) {
-    return mjs::string{std::to_wstring(index)};
+    wchar_t buffer[10], *p = &buffer[10];
+    *--p = '\0';
+    do {
+        *--p = '0' + index % 10;
+        index /= 10;
+    } while (index);
+    return mjs::string{p};
 }
 
 class array_object : public mjs::object {
@@ -336,6 +343,27 @@ mjs::string join(const mjs::object_ptr& o, const std::wstring_view& sep) {
     return mjs::string{s};
 }
 
+struct duration_printer {
+    template<typename CharT>
+    friend std::basic_ostream<CharT>& operator<<(std::basic_ostream<CharT>& os, const duration_printer& dp) {
+        const auto s = dp.d.count();
+        constexpr auto ms = 1e3;
+        constexpr auto us = 1e6;
+        constexpr auto ns = 1e9;
+        if (s < 1./us) return os << ns*s << "ns";
+        if (s < 1./ms) return os << us*s << "us";
+        if (s < 1) return os << ms*s << "ms";
+        return os << s << "s";
+    }
+
+    std::chrono::duration<double> d;
+};
+
+template<typename Duration>
+auto show_duration(Duration d) {
+    return duration_printer{std::chrono::duration_cast<std::chrono::duration<double>>(d)};
+}
+
 class global_object : public mjs::object {
 public:
     static std::shared_ptr<global_object> make(const mjs::block_statement& bs) {
@@ -383,8 +411,8 @@ public:
         auto as = mjs::object::make(mjs::string{"Object"}, object_prototype_); // TODO: See §10.1.8
         as->put(mjs::string{"callee"}, mjs::value{callee}, mjs::property_attribute::dont_enum);
         as->put(mjs::string{"length"}, mjs::value{static_cast<double>(args.size())}, mjs::property_attribute::dont_enum);
-        for (size_t i = 0; i < args.size(); ++i) {
-            as->put(mjs::to_string(mjs::value{static_cast<double>(i)}), args[i], mjs::property_attribute::dont_enum);
+        for (uint32_t i = 0; i < args.size(); ++i) {
+            as->put(index_string(i), args[i], mjs::property_attribute::dont_enum);
         }
         return as;
     }
@@ -809,6 +837,59 @@ private:
         return o;
     }
 
+    //
+    // Console
+    //
+    auto make_console_object() {
+        const auto attr = mjs::property_attribute::dont_enum;
+        auto console = mjs::object::make(mjs::string{"Object"}, object_prototype_);
+
+        using timer_clock = std::chrono::steady_clock;
+
+        auto timers = std::make_shared<std::unordered_map<std::wstring, timer_clock::time_point>>();
+        console->put(mjs::string{"log"}, mjs::value{make_function(
+            [](const mjs::value&, const std::vector<mjs::value>& args) {
+            for (const auto& a: args) {
+                if (a.type() == mjs::value_type::string) {
+                    std::wcout << a.string_value();
+                } else {
+                    mjs::debug_print(std::wcout, a, 4);
+                }
+                std::wcout << ' ';
+            }
+            std::wcout << '\n';
+            return mjs::value::undefined; 
+        }, 1)}, attr);
+        console->put(mjs::string{"time"}, mjs::value{make_function(
+            [timers](const mjs::value&, const std::vector<mjs::value>& args) {
+            if (args.empty()) {
+                throw std::runtime_error("Missing argument to console.time()");
+            }
+            auto label = to_string(args.front());
+            (*timers)[label.str()] = timer_clock::now();
+            return mjs::value::undefined; 
+        }, 1)}, attr);
+        console->put(mjs::string{"timeEnd"}, mjs::value{make_function(
+            [timers](const mjs::value&, const std::vector<mjs::value>& args) {
+            const auto end_time = timer_clock::now();
+            if (args.empty()) {
+                throw std::runtime_error("Missing argument to console.timeEnd()");
+            }
+            auto label = to_string(args.front());
+            auto it = timers->find(label.str());
+            if (it == timers->end()) {
+                std::wostringstream woss;
+                woss << "Timer not found: " << label;
+                throw make_runtime_error(woss.str());
+            }
+            std::wcout << "timeEnd " << label << ": " << show_duration(end_time - it->second) << "\n";
+            timers->erase(it);
+            return mjs::value::undefined; 
+        }, 1)}, attr);
+
+        return console;
+    }
+
 
     //
     // Global
@@ -832,7 +913,7 @@ private:
             } else if (args.front().type() != mjs::value_type::string) {
                 return args.front();
             }
-            auto bs = mjs::parse(args.front().string_value().view());
+            auto bs = mjs::parse(args.front().string_value().view(), "eval");
             (void)bs;
             throw std::runtime_error("TODO: Handle eval");
         }, 1)}, attr);
@@ -852,17 +933,7 @@ private:
             return mjs::value::undefined; 
         }, 1)}, attr);
 
-        auto console = mjs::object::make(mjs::string{"Object"}, object_prototype_);
-        console->put(mjs::string{"log"}, mjs::value{make_function(
-            [](const mjs::value&, const std::vector<mjs::value>& args) {
-            for (const auto& a: args) {
-                mjs::debug_print(std::wcout, a, 4);
-                std::wcout << '\n';
-            }
-
-            return mjs::value::undefined; 
-        }, 1)}, attr);
-        put(mjs::string{"console"}, mjs::value{console}, attr);
+        put(mjs::string{"console"}, mjs::value{make_console_object()}, attr);
     }
 };
 
@@ -1382,9 +1453,9 @@ private:
 };
 
 void test(const std::wstring_view& text, const mjs::value& expected) {
-    decltype(mjs::parse(text)) bs;
+    decltype(mjs::parse(text, "test")) bs;
     try {
-        bs = mjs::parse(text);
+        bs = mjs::parse(text, "test");
     } catch (const std::exception& e) {
         std::wcout << "Parse failed for \"" << text << "\": " << e.what() <<  "\n";
         assert(false);
@@ -1433,7 +1504,7 @@ void eval_tests() {
     test(L"'te\"st'", value{string{"te\"st"}});
     test(L"\"te'st\"", value{string{"te'st"}});
     test(L"/*42*/60", value{60.0});
-    test(L"12//\n+34", value{34.0});
+    test(L"x=12//\n+34;x", value{46.0});
     test(L"-7.5 % 2", value{-1.5});
     test(L"1+2*3", value{7.});
     test(L"x = 42; 'test ' + 2 * (6 - 4 + 1) + ' ' + x", value{string{"test 6 42"}});
@@ -1601,30 +1672,34 @@ void eval_tests() {
     test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; s.foo", value::undefined);
     test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; s.prototype.prop", value::undefined);
     test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; s.prototype.foo", value{string{"bar"}});
+}
 
+#include <fstream>
+#include <streambuf>
+mjs::string read_ascii_file(const char* filename) {
+    std::ifstream in(filename);
+    if (!in) throw std::runtime_error("Could not open " + std::string(filename));
+    return mjs::string{std::wstring((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>())};
 }
 
 int main() {
     try {
         eval_tests();
-        const wchar_t* text = LR"(
-function s(){} s.prototype.foo = "bar"; var si = new s(); si.prop = "some value";
-console.log("si.prop:      " + si.prop);
-//console.log("si.foo:       " + si.foo);
-console.log("s.prop:           " + s.prop);
-console.log("s.foo:            " + s.foo);
-/*console.log("s.prototype.prop: " + s.prototype.prop);
-console.log("s.prototype.foo:  " + s.prototype.foo); */
-)";
-        auto bs = mjs::parse(text);
+        const char* filename = "../js-performance-test.js";
+        auto text = read_ascii_file(filename);
+        auto bs = mjs::parse(text, filename);
         auto global = global_object::make(*bs);
         eval_visitor e{global};
         print_visitor p{std::wcout};
         for (const auto& s: bs->l()) {
-            std::wcout << "> ";
-            accept(*s, p);
-            std::wcout << "\n";
-            std::wcout << accept(*s, e).result << "\n";
+            if constexpr (false) {
+                std::wcout << "> ";
+                accept(*s, p);
+                std::wcout << "\n";
+                std::wcout << accept(*s, e).result << "\n";
+            } else {
+                (void)accept(*s, e);
+            }
         }
 
     } catch (const std::exception& e) {

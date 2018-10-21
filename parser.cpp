@@ -1,5 +1,6 @@
 #include "parser.h"
 #include <sstream>
+#include <algorithm>
 
 //#define PARSER_DEBUG
 
@@ -89,41 +90,84 @@ statement_ptr make_statement(Args&&... args) {
 
 class parser {
 public:
-    explicit parser(const std::wstring_view& str) : lexer_(str) {}
+    explicit parser(const std::wstring_view& str, const std::string_view& filename) : lexer_(str), filename_(filename) {}
 
     std::unique_ptr<block_statement> parse() {
         statement_list l;
         while (lexer_.current_token()) {
-            l.push_back(parse_statement_or_function_declaration());
+            try { 
+                l.push_back(parse_statement_or_function_declaration());
+            } catch (const std::exception& e) {
+                const auto [start, end] = calc_token_source_position();
+                std::ostringstream oss;
+                oss << filename_ << ":" << start << "-" << end << ": " << e.what();
+                throw std::runtime_error(oss.str());
+            }
         }
         return std::make_unique<block_statement>(std::move(l));
     }
 
 private:
     lexer lexer_;
+    std::string filename_;
+    size_t token_start_ = 0;
+    bool line_break_skipped_ = false;
+
+    struct source_position {
+        int line;
+        int column;
+
+        friend std::ostream& operator<<(std::ostream& os, const source_position& sp) {
+            return os << sp.line << ":" << sp.column;
+        }
+    };
+
+    source_position calc_source_position(size_t start_pos, size_t end_pos, const source_position& start = {0,0}) const {
+        const auto& t = lexer_.text();
+        assert(start_pos < t.size() && end_pos < t.size() && start_pos <= end_pos);
+        int cr = start.line-1, lf = start.line-1;
+        int column = start.column-1;
+        constexpr int tabstop = 8;
+        for (size_t i = start_pos; i < end_pos; ++i) {
+            switch (t[i]) {
+            case '\n': ++lf; column = 0; break;
+            case '\r': ++cr; column = 0; break;
+            case '\t': column += tabstop - (column % tabstop); break;
+            default: ++column;
+            }
+        }
+        return {1 + std::max(cr, lf), 1 + column};
+    }
+
+    std::pair<source_position, source_position> calc_token_source_position() const {
+        auto start = calc_source_position(0, token_start_);
+        auto end = calc_source_position(token_start_, lexer_.text_position(), start);
+        return {start, end};
+    }
 
     token_type current_token_type() const {
         return lexer_.current_token().type();
     }
 
     void skip_whitespace() {
-        while (current_token_type() == token_type::whitespace) {
-            lexer_.next_token();
-        }
-    }
-
-    void skip_line_terminators() {
-        while (current_token_type() == token_type::line_terminator || current_token_type() == token_type::whitespace) {
+        for (;; lexer_.next_token()) {
+            if (current_token_type() == token_type::whitespace) {
+            } else if (current_token_type() == token_type::line_terminator) {
+                line_break_skipped_ = true;
+            } else {
+                break;
+            }
 #ifdef PARSER_DEBUG
-            if (current_token_type() == token_type::line_terminator) std::wcout << "Consuming token: " << lexer_.current_token() << "\n";
+            std::wcout << "Consuming token: " << lexer_.current_token() << "\n";
 #endif
-            lexer_.next_token();
         }
     }
 
     token get_token() {
+        token_start_ = lexer_.text_position();
         auto t = lexer_.current_token();
         lexer_.next_token();
+        line_break_skipped_ = false;
         skip_whitespace();
 #ifdef PARSER_DEBUG
         std::wcout << "Consuming token: " << t << "\n";
@@ -170,7 +214,12 @@ private:
 
     expression_ptr parse_postfix_expression() {
         auto lhs = parse_left_hand_side_expression();
+        // TODO: no line break before
+#ifndef  NDEBUG
+        const bool was_line_break_skipped = line_break_skipped_;
+#endif // ! NDEBUG
         if (auto t = current_token_type(); accept(token_type::plusplus) || accept(token_type::minusminus)) {
+            assert(!was_line_break_skipped);
             return make_expression<postfix_expression>(t, std::move(lhs));
         }
         return lhs;        
@@ -354,7 +403,6 @@ private:
         //  BreakStatement
         //  ReturnStatement
         
-        skip_line_terminators();
         if (current_token_type() == token_type::lbrace) {
             return parse_block();
         } else if (accept(token_type::var_)) {
@@ -400,6 +448,7 @@ private:
         } else if (accept(token_type::break_)) {
             return make_statement<break_statement>();
         } else if (accept(token_type::return_)) {
+            assert(!line_break_skipped_);
             // TODO: no line break before
             expression_ptr e{};
             if (current_token_type() != token_type::semicolon) {
@@ -426,10 +475,9 @@ private:
     }
 
     statement_ptr parse_statement_or_function_declaration() {
-        skip_line_terminators();
+        skip_whitespace();
         auto s = current_token_type() == token_type::function_ ? parse_function() : parse_statement();
         accept(token_type::semicolon);
-        skip_line_terminators();
         return s;
     }
 
@@ -440,8 +488,8 @@ private:
     }
 };
 
-std::unique_ptr<block_statement> parse(const std::wstring_view& str) {
-    return parser{str}.parse();
+std::unique_ptr<block_statement> parse(const std::wstring_view& str, const std::string_view& filename) {
+    return parser{str,filename}.parse();
 }
 
 } // namespace mjs

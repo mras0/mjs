@@ -357,24 +357,36 @@ void lexer::next_token() {
             bool escape = false;
             std::wstring s;
             for ( ;; ++token_end) {
-                const auto qch = text_[token_end];
                 if (token_end >= text_.size()) {
                     throw std::runtime_error("Unterminated string");
-                } else if (is_line_terminator(qch)) {
+                }
+                const auto qch = text_[token_end];
+                if (is_line_terminator(qch)) {
                     throw std::runtime_error("Line temrinator in string");
                 }
                 if (escape) {
-                    std::ostringstream oss;
-                    oss << "Unahdled escape sequence: \\" << qch;
-                    throw std::runtime_error(oss.str());
-                    //escape = !escape;
+                    escape = !escape;
+                    switch (qch) {
+                    case '\'': s.push_back('\''); break;
+                    case '\"': s.push_back('\"'); break;
+                    case '\\': s.push_back('\\'); break;
+                    case 'b': s.push_back('\b'); break;
+                    case 'f': s.push_back('\f'); break;
+                    case 'n': s.push_back('\n'); break;
+                    case 'r': s.push_back('\r'); break;
+                    case 't': s.push_back('\t'); break;
+                    default:
+                        std::ostringstream oss;
+                        oss << "Unahdled escape sequence: \\" << (char)qch;
+                        throw std::runtime_error(oss.str());
+                    }
                 } else if (qch == '\\') {
                     escape = true;
                 } else if (qch == ch) {
                     ++token_end;
                     break;
                 } else {
-                    s.push_back(static_cast<unsigned char>(qch));
+                    s.push_back(qch);
                 }
             }
             current_token_ = token{token_type::string_literal, string{std::move(s)}};
