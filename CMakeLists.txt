@@ -22,9 +22,19 @@ if (WIN32)
     add_definitions("-DWIN32 -D_WIN32 -DUNICODE -D_UNICODE")
 endif()
 
-add_library(mjs_lib STATIC string.cpp string.h value.cpp value.h lexer.cpp lexer.h parser.cpp parser.h global_object.cpp global_object.h)
+add_library(mjs_lib STATIC string.cpp string.h value.cpp value.h lexer.cpp lexer.h parser.cpp parser.h global_object.cpp global_object.h interpreter.cpp interpreter.h printer.cpp printer.h)
 
 add_executable(${PROJECT_NAME} mjs.cpp)
 target_link_libraries(${PROJECT_NAME} mjs_lib)
-add_executable(value_test value_test.cpp)
-target_link_libraries(value_test mjs_lib)
+
+enable_testing()
+add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --force-new-ctest-process --output-on-failure --build-config "$<CONFIGURATION>")
+
+macro(mjs_add_test name)
+    add_executable(${name} ${name}.cpp)
+    target_link_libraries(${name} mjs_lib)
+    add_test(${name} ${name})
+endmacro()
+
+mjs_add_test(value_test)
+mjs_add_test(interpreter_test)

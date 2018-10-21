@@ -23,11 +23,6 @@ protected:
 
 extern string index_string(uint32_t index);
 
-[[noreturn]] void throw_runtime_error(const std::wstring_view& s, const char* file, int line);
-
-#define NOT_IMPLEMENTED(o) do { std::wostringstream woss; woss << "Not implemented: " << o; ::mjs::throw_runtime_error(woss.str(), __FILE__, __LINE__); } while (0) 
-
-
 } // namespace mjs
 
 #endif

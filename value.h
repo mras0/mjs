@@ -177,7 +177,7 @@ public:
         }
         return prototype_ ? prototype_->get(name) : value::undefined;
     }
- 
+
     // [[Put]] (PropertyName, Value)
     virtual void put(const string& name, const value& val, property_attribute attr = property_attribute::none) {
         if (auto it = properties_.find(name); it != properties_.end()) {
@@ -245,7 +245,7 @@ public:
             }
             return v;
         }
-        
+
         throw std::runtime_error("default_value() not implemented");
     }
 
@@ -304,7 +304,7 @@ private:
         for (const auto& p: properties_) {
             if (!p.second.has_attribute(property_attribute::dont_enum)) {
                 names.insert(p.first);
-            }                
+            }
         }
         if (prototype_) {
             prototype_->add_property_names(names);
@@ -328,6 +328,14 @@ string to_string(double n);
 string to_string(const value& v);
 
 void debug_print(std::wostream& os, const value& v, int indent_incr, int max_nest = INT_MAX, int indent = 0);
+
+[[noreturn]] void throw_runtime_error(const std::string_view& s, const char* file, int line);
+[[noreturn]] void throw_runtime_error(const std::wstring_view& s, const char* file, int line);
+
+#define THROW_RUNTIME_ERROR(msg) ::mjs::throw_runtime_error(msg, __FILE__, __LINE__)
+#define NOT_IMPLEMENTED(o) do { std::wostringstream woss; woss << "Not implemented: " << o; THROW_RUNTIME_ERROR(woss.str()); } while (0)
+
+
 
 } // namespace mjs
 

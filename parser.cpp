@@ -102,7 +102,7 @@ public:
     std::unique_ptr<block_statement> parse() {
         statement_list l;
         while (lexer_.current_token()) {
-            try { 
+            try {
                 l.push_back(parse_statement_or_function_declaration());
             } catch (const std::exception& e) {
                 std::ostringstream oss;
@@ -225,7 +225,7 @@ private:
             assert(!was_line_break_skipped);
             return make_expression<postfix_expression>(t, std::move(lhs));
         }
-        return lhs;        
+        return lhs;
     }
 
     expression_ptr parse_unary_expression() {
@@ -405,7 +405,7 @@ private:
         //  ContinueStatement
         //  BreakStatement
         //  ReturnStatement
-        
+
         if (current_token_type() == token_type::lbrace) {
             return parse_block();
         } else if (accept(token_type::var_)) {

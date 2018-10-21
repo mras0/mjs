@@ -240,7 +240,7 @@ std::pair<token_type, int> get_punctuation(std::wstring_view v) {
                     return p{token_type::rshiftshiftequal, 4};
                 } else {
                     return p{token_type::rshiftshift, 3};
-                }                
+                }
             } else if (v.length() > 2 && v[2] == '=') {
                 return p{token_type::rshiftequal, 3};
             } else {
@@ -277,7 +277,7 @@ std::pair<token_type, int> get_punctuation(std::wstring_view v) {
         } else {
             return p{ token_type::plus, 1};
         }
-    case '-': 
+    case '-':
         if (v.length() > 1 && v[1] == '-') {
             return p{ token_type::minusminus, 2};
         } else if (v.length() > 1 && v[1] == '=') {
@@ -330,7 +330,7 @@ std::pair<token, size_t> skip_comment(const std::wstring_view& text, size_t pos)
             }
         }
         return {token{token_type::whitespace}, pos};
-    } else {        
+    } else {
         for (bool last_was_asterisk = false, line_terminator_seen = false; pos < text.size(); ++pos) {
             if (text[pos] == '/' && last_was_asterisk) {
                 return {token{line_terminator_seen ? token_type::line_terminator : token_type::whitespace}, ++pos};

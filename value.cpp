@@ -5,8 +5,6 @@
 #include <cmath>
 #include <cstring>
 
-#define NOT_IMPLEMENTED() do { assert(false); throw std::runtime_error("Not implemented"); } while (0)
-
 namespace mjs {
 
 const value value::undefined{value_type::undefined};
@@ -27,7 +25,7 @@ const char* string_value(value_type t) {
     case value_type::reference: return "reference";
     case value_type::native_function: return "native_function";
     }
-    NOT_IMPLEMENTED();
+    NOT_IMPLEMENTED((int)t);
 }
 
 //
@@ -61,7 +59,7 @@ value& value::operator=(const value& rhs) {
         case value_type::object:    new (&o_) object_ptr{rhs.o_}; break;
         case value_type::reference: new (&r_) reference{rhs.r_}; break;
         case value_type::native_function: new (&f_) native_function_type{rhs.f_}; break;
-        default: NOT_IMPLEMENTED();
+        default: NOT_IMPLEMENTED(rhs.type_);
         }
         type_ = rhs.type_;
     }
@@ -78,7 +76,7 @@ value& value::operator=(value&& rhs) {
     case value_type::object:    new (&o_) object_ptr{std::move(rhs.o_)}; break;
     case value_type::reference: new (&r_) reference{std::move(rhs.r_)}; break;
     case value_type::native_function: new (&f_) native_function_type{std::move(rhs.f_)}; break;
-    default: NOT_IMPLEMENTED();
+    default: NOT_IMPLEMENTED(rhs.type_);
     }
     type_ = rhs.type_;
     rhs.type_ = value_type::undefined;
@@ -95,7 +93,7 @@ void value::destroy() {
     case value_type::object: o_.~shared_ptr(); break;
     case value_type::reference: r_.~reference(); break;
     case value_type::native_function: f_.~function(); break;
-    default: NOT_IMPLEMENTED();
+    default: NOT_IMPLEMENTED(type_);
     }
     type_ = value_type::undefined;
 }
@@ -126,7 +124,7 @@ bool operator==(const value& l, const value& r) {
     case value_type::reference: break;
     case value_type::native_function: break;
     }
-    NOT_IMPLEMENTED();
+    NOT_IMPLEMENTED(l.type());
 }
 
 [[nodiscard]] bool put_value(const value& ref, const value& val) {
@@ -157,7 +155,7 @@ bool to_boolean(const value& v) {
     case value_type::reference: break;
     case value_type::native_function: break;
     }
-    NOT_IMPLEMENTED();
+    NOT_IMPLEMENTED(v.type());
 }
 
 double to_number(const value& v) {
@@ -171,7 +169,7 @@ double to_number(const value& v) {
     case value_type::reference: break;
     case value_type::native_function: break;
     }
-    NOT_IMPLEMENTED();
+    NOT_IMPLEMENTED(v.type());
 }
 
 double to_integer_inner(double n) {
@@ -254,7 +252,7 @@ string to_string(const value& v) {
     case value_type::reference: break;
     case value_type::native_function: break;
     }
-    NOT_IMPLEMENTED();
+    NOT_IMPLEMENTED(v.type());
 }
 
 std::unordered_set<object*> object::all_objects_;
@@ -274,7 +272,7 @@ void object::garbage_collect(const std::vector<object_ptr>& roots) {
         o->gc_visit(live_objects);
     }
     std::vector<std::weak_ptr<object>> to_delete;
-    
+
     for (auto it = all_objects_.begin(); it != all_objects_.end(); ++it) {
         if (live_objects.find(*it) == live_objects.end()) {
             to_delete.push_back((*it)->shared_from_this());
@@ -340,5 +338,16 @@ void object::debug_print(std::wostream& os, int indent_incr, int max_nest, int i
     }
     os << std::wstring(indent, ' ') << "}\n";
 }
+
+[[noreturn]] void throw_runtime_error(const std::string_view& s, const char* file, int line) {
+    std::ostringstream oss;
+    oss << file << ":" << line << ": " << s;
+    throw std::runtime_error(oss.str());
+}
+
+[[noreturn]] void throw_runtime_error(const std::wstring_view& s, const char* file, int line) {
+    throw_runtime_error(std::string(s.begin(), s.end()), file, line);
+}
+
 
 } // namespace mjs

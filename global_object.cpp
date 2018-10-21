@@ -18,18 +18,6 @@ string index_string(uint32_t index) {
     return string{p};
 }
 
-#define THROW_RUNTIME_ERROR(msg)  throw_runtime_error(msg, __FILE__, __LINE__)
-
-[[noreturn]] void throw_runtime_error(const std::string_view& s, const char* file, int line) {
-    std::ostringstream oss;
-    oss << file << ":" << line << ": " << s;
-    throw std::runtime_error(oss.str());
-}
-
-[[noreturn]] void throw_runtime_error(const std::wstring_view& s, const char* file, int line) {
-    throw_runtime_error(std::string(s.begin(), s.end()), file, line);
-}
-
 class array_object : public object {
 public:
     static std::shared_ptr<array_object> make(const object_ptr& prototype, uint32_t length) {
@@ -567,7 +555,7 @@ private:
                 std::wcout << ' ';
             }
             std::wcout << '\n';
-            return value::undefined; 
+            return value::undefined;
         }, 1)}, attr);
         console->put(string{"time"}, value{make_function(
             [timers](const value&, const std::vector<value>& args) {
@@ -576,7 +564,7 @@ private:
             }
             auto label = to_string(args.front());
             (*timers)[label.str()] = timer_clock::now();
-            return value::undefined; 
+            return value::undefined;
         }, 1)}, attr);
         console->put(string{"timeEnd"}, value{make_function(
             [timers](const value&, const std::vector<value>& args) {
@@ -593,7 +581,7 @@ private:
             }
             std::wcout << "timeEnd " << label << ": " << show_duration(end_time - it->second) << "\n";
             timers->erase(it);
-            return value::undefined; 
+            return value::undefined;
         }, 1)}, attr);
 
         return console;
@@ -629,7 +617,7 @@ private:
             std::wcout << "ALERT";
             if (!args.empty()) std::wcout << ": " << args[0];
             std::wcout << "\n";
-            return value::undefined; 
+            return value::undefined;
         }, 1)}, attr);
 
         put(string{"console"}, value{make_console_object()}, attr);
