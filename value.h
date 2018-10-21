@@ -135,7 +135,7 @@ inline value get_value(value&& v) {
 
 class object : public std::enable_shared_from_this<object> {
 public:
-    static object_ptr make(const string& class_name, const object_ptr& prototype = nullptr) {
+    static object_ptr make(const string& class_name, const object_ptr& prototype) {
         struct make_shared_helper : object {
             make_shared_helper(const string& class_name, const object_ptr& prototype) : object(class_name, prototype) {}
         };
@@ -267,6 +267,8 @@ public:
 
     static void garbage_collect(const std::vector<object_ptr>& roots);
 
+    virtual void debug_print(std::wostream& os, int indent_incr, int max_nest = INT_MAX, int indent = 0) const;
+
 protected:
     explicit object(const string& class_name, const object_ptr& prototype) : class_(class_name), prototype_(prototype) {
         all_objects_.insert(this);
@@ -282,7 +284,6 @@ protected:
 private:
     object(const object&) = delete;
     static std::unordered_set<object*> all_objects_;
-
 
     struct property {
         value val;
@@ -325,8 +326,8 @@ uint16_t to_uint16(double n);
 uint16_t to_uint16(const value& v);
 string to_string(double n);
 string to_string(const value& v);
-// TODO: §9.9 ToObject
 
+void debug_print(std::wostream& os, const value& v, int indent_incr, int max_nest = INT_MAX, int indent = 0);
 
 } // namespace mjs
 

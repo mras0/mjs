@@ -295,5 +295,50 @@ void object::clear() {
     properties_.clear();
 }
 
+void debug_print(std::wostream& os, const value& v, int indent_incr, int max_nest, int indent) {
+    switch (v.type()) {
+    case value_type::object:
+        if (!v.object_value()) {
+            os << "[Object null]";
+            return;
+        }
+        v.object_value()->debug_print(os, indent_incr, max_nest, indent);
+        break;
+    default:
+        os << "[" << v.type() << " " <<  v << "]";
+    }
+}
+
+void object::debug_print(std::wostream& os, int indent_incr, int max_nest, int indent) const {
+    if (indent / indent_incr > 4 || max_nest <= 0) {
+        os << "[Object " << class_ << "]";
+        return;
+    }
+    auto indent_string = std::wstring(indent + indent_incr, ' ');
+    auto print_prop = [&](const auto& name, const auto& val, bool internal) {
+        os << indent_string << name << ": ";
+        if constexpr (std::is_same_v<const string&, decltype(val)>) {
+            (void)internal;
+            os << val;
+        } else {
+            mjs::debug_print(os, mjs::value{val}, indent_incr, internal ? 1 : max_nest - 1, indent + indent_incr);
+        }
+        os << "\n";
+    };
+    os << "{\n";
+    for (const auto& p : properties_) {
+        if (p.first.view() == L"constructor") {
+            print_prop(p.first, p.second.val, true);
+        } else {
+            print_prop(p.first, p.second.val, false);
+        }
+    }
+    print_prop("[[Class]]", class_, true);
+    print_prop("[[Prototype]]", prototype_, true);
+    if (value_.type() != value_type::undefined) {
+        print_prop("[[Value]]", value_, true);
+    }
+    os << std::wstring(indent, ' ') << "}\n";
+}
 
 } // namespace mjs

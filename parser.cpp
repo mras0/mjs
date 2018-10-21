@@ -1,6 +1,12 @@
 #include "parser.h"
 #include <sstream>
 
+//#define PARSER_DEBUG
+
+#ifdef PARSER_DEBUG
+#include <iostream>
+#endif
+
 #define UNHANDLED() unhandled(__FUNCTION__, __LINE__)
 #define EXPECT(tt) expect(tt, __FUNCTION__, __LINE__)
 
@@ -66,13 +72,19 @@ bool is_right_to_left(token_type tt) {
 template<typename T, typename... Args>
 expression_ptr make_expression(Args&&... args) {
     auto e = expression_ptr{new T{std::forward<Args>(args)...}};
+#ifdef PARSER_DEBUG
+    std::wcout << "Producting: " << *e << "\n";
+#endif
     return e;
 }
 
 template<typename T, typename... Args>
 statement_ptr make_statement(Args&&... args) {
-    auto e = statement_ptr{new T{std::forward<Args>(args)...}};
-    return e;
+    auto s = statement_ptr{new T{std::forward<Args>(args)...}};
+#ifdef PARSER_DEBUG
+    std::wcout << "Producting: " << *s << "\n";
+#endif
+    return s;
 }
 
 class parser {
@@ -81,7 +93,6 @@ public:
 
     std::unique_ptr<block_statement> parse() {
         statement_list l;
-        skip_whitespace();
         while (lexer_.current_token()) {
             l.push_back(parse_statement_or_function_declaration());
         }
@@ -101,10 +112,22 @@ private:
         }
     }
 
+    void skip_line_terminators() {
+        while (current_token_type() == token_type::line_terminator || current_token_type() == token_type::whitespace) {
+#ifdef PARSER_DEBUG
+            if (current_token_type() == token_type::line_terminator) std::wcout << "Consuming token: " << lexer_.current_token() << "\n";
+#endif
+            lexer_.next_token();
+        }
+    }
+
     token get_token() {
         auto t = lexer_.current_token();
         lexer_.next_token();
         skip_whitespace();
+#ifdef PARSER_DEBUG
+        std::wcout << "Consuming token: " << t << "\n";
+#endif
         return t;
     }
 
@@ -133,6 +156,8 @@ private:
         //  ( Expression )
         if (auto id = accept(token_type::identifier)) {
             return make_expression<identifier_expression>(id.text());
+        } else if (accept(token_type::this_)) {
+            return make_expression<identifier_expression>(mjs::string{"this"});
         } else if (accept(token_type::lparen)) {
             auto e = parse_expression();
             EXPECT(token_type::rparen);
@@ -144,7 +169,6 @@ private:
     }
 
     expression_ptr parse_postfix_expression() {
-        // TODO: no line break before
         auto lhs = parse_left_hand_side_expression();
         if (auto t = current_token_type(); accept(token_type::plusplus) || accept(token_type::minusminus)) {
             return make_expression<postfix_expression>(t, std::move(lhs));
@@ -329,6 +353,8 @@ private:
         //  ContinueStatement
         //  BreakStatement
         //  ReturnStatement
+        
+        skip_line_terminators();
         if (current_token_type() == token_type::lbrace) {
             return parse_block();
         } else if (accept(token_type::var_)) {
@@ -374,6 +400,7 @@ private:
         } else if (accept(token_type::break_)) {
             return make_statement<break_statement>();
         } else if (accept(token_type::return_)) {
+            // TODO: no line break before
             expression_ptr e{};
             if (current_token_type() != token_type::semicolon) {
                 e = parse_expression();
@@ -399,8 +426,10 @@ private:
     }
 
     statement_ptr parse_statement_or_function_declaration() {
+        skip_line_terminators();
         auto s = current_token_type() == token_type::function_ ? parse_function() : parse_statement();
         accept(token_type::semicolon);
+        skip_line_terminators();
         return s;
     }
 

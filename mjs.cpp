@@ -351,18 +351,25 @@ public:
         return global;
     }
 
+    const mjs::object_ptr& object_prototype() const { return object_prototype_; }
+
     auto make_raw_function() {
         auto o = mjs::object::make(mjs::string{"Function"}, function_prototype_);
-        o->put(mjs::string{"prototype"}, mjs::value{function_prototype_});
+        o->put(mjs::string{"prototype"}, mjs::value{mjs::object::make(mjs::string{"Object"}, object_prototype_)}, mjs::property_attribute::dont_enum);
         return o;
     }
 
     static auto put_function(const mjs::object_ptr& o, const mjs::native_function_type& f, int named_args) {
         assert(o->class_name().str() == L"Function");
         assert(!o->call_function());
+        assert(o->get(mjs::string{"prototype"}).type() == mjs::value_type::object);
         o->put(mjs::string{"length"}, mjs::value{static_cast<double>(named_args)}, mjs::property_attribute::read_only | mjs::property_attribute::dont_delete | mjs::property_attribute::dont_enum);
+        o->put(mjs::string{"arguments"}, mjs::value::null, mjs::property_attribute::read_only | mjs::property_attribute::dont_delete | mjs::property_attribute::dont_enum);
         o->call_function(f);
         o->construct_function(f);
+        auto& p = o->get(mjs::string{"prototype"}).object_value();
+        p->put(mjs::string{"constructor"}, mjs::value{o}, mjs::property_attribute::dont_enum);
+        return o;
     }
 
     auto make_function(const mjs::native_function_type& f, int named_args) {
@@ -844,6 +851,18 @@ private:
             std::wcout << "\n";
             return mjs::value::undefined; 
         }, 1)}, attr);
+
+        auto console = mjs::object::make(mjs::string{"Object"}, object_prototype_);
+        console->put(mjs::string{"log"}, mjs::value{make_function(
+            [](const mjs::value&, const std::vector<mjs::value>& args) {
+            for (const auto& a: args) {
+                mjs::debug_print(std::wcout, a, 4);
+                std::wcout << '\n';
+            }
+
+            return mjs::value::undefined; 
+        }, 1)}, attr);
+        put(mjs::string{"console"}, mjs::value{console}, attr);
     }
 };
 
@@ -1260,6 +1279,7 @@ public:
     //completion operator()(const mjs::with_statement&) {}
 
     completion operator()(const mjs::function_definition& s) {
+        // §15.3.2.1
         auto prev_scope = scopes_;
         auto callee = global_->make_raw_function();
         auto func = [&s, this, prev_scope, callee, ids = hoisting_visitor::scan(s.block())](const mjs::value& this_, const std::vector<mjs::value>& args) {
@@ -1276,7 +1296,16 @@ public:
             }
             return accept(s.block(), *this).result;
         };
-        global_->put_function(callee, func, static_cast<int>(s.params().size()));
+        auto f = global_->put_function(callee, func, static_cast<int>(s.params().size()));
+        f->construct_function([this, f, name = s.id()](const mjs::value& unsused_this_, const std::vector<mjs::value>& args) {
+            assert(unsused_this_.type() == mjs::value_type::undefined); (void)unsused_this_;
+            assert(!name.view().empty());
+            auto p = f->get(mjs::string("prototype"));
+            auto o = mjs::value{mjs::object::make(name, p.type() == mjs::value_type::object ? p.object_value() : global_->object_prototype())};
+            auto r = f->call_function()(o, args);
+            return r.type() == mjs::value_type::object ? r : mjs::value{o};
+        });        
+
         prev_scope->activation->put(s.id(), mjs::value{callee});
         return completion{};
     }
@@ -1558,12 +1587,33 @@ void eval_tests() {
     test(L"true + true", value{2.0});
     test(L"!!('0' && Object(null))", value{true});
 
+    test(L"function X() { this.val = 42; }; new X().val", value{42.0});
+    test(L"function A() { this.n=1; }; function B() { this.n=2;} function g() { return this.n; } A.prototype.foo = g; new A().foo()", value{1.});
+    test(L"function A() { this.n=1; }; function B() { this.n=2;} function g() { return this.n; } A.prototype.foo = g; new B().foo", value::undefined);
+    test(L"function f() { this.a = 1; this.b = 2; } var o = new f(); f.prototype.b = 3; f.prototype.c = 4; '' + new Array(o.a,o.b,o.c,o.d)", value{string{"1,2,4,"}});
+    test(L"var o = new Object(); o.a = 2; function m(){return this.a+1; }; o.m = m; o.m()", value{3.});
+
+    test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; si.prop", value{string{"some value"}});
+    test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; si.foo", value{string{"bar"}});
+    test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; s.prop", value::undefined);
+    test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; s.foo", value::undefined);
+    test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; s.prototype.prop", value::undefined);
+    test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; s.prototype.foo", value{string{"bar"}});
+
 }
 
 int main() {
     try {
         eval_tests();
-        auto bs = mjs::parse(L"new Array(1,2,3,4).valueOf()");
+        const wchar_t* text = LR"(
+function s(){} s.prototype.foo = "bar"; var si = new s(); si.prop = "some value";
+console.log("si.prop:      " + si.prop);
+console.log("si.foo:       " + si.foo);
+console.log("s.prop:           " + s.prop);
+console.log("s.foo:            " + s.foo);
+console.log("s.prototype.prop: " + s.prototype.prop);
+console.log("s.prototype.foo:  " + s.prototype.foo);)";
+        auto bs = mjs::parse(text);
         auto global = global_object::make(*bs);
         eval_visitor e{global};
         print_visitor p{std::wcout};
@@ -1573,6 +1623,7 @@ int main() {
             std::wcout << "\n";
             std::wcout << accept(*s, e).result << "\n";
         }
+
     } catch (const std::exception& e) {
         std::wcout << e.what() << "\n";
         return 1;
