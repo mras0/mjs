@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cmath>
+#include <sstream>
 
 #include "interpreter.h"
 #include "parser.h"
@@ -51,6 +52,9 @@ void eval_tests() {
     test(L"null", value::null);
     test(L"false", value{false});
     test(L"true", value{true});
+    test(L"123", value{123.});
+    test(L"0123", value{83.});
+    test(L"0x123", value{291.});
     test(L"'te\"st'", value{string{"te\"st"}});
     test(L"\"te'st\"", value{string{"te'st"}});
     test(L"/*42*/60", value{60.0});
@@ -222,19 +226,189 @@ void eval_tests() {
     test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; s.foo", value::undefined);
     test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; s.prototype.prop", value::undefined);
     test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; s.prototype.foo", value{string{"bar"}});
-
-    test(L"eval()", value::undefined);
-    test(L"eval(42)", value{42.});
-    test(L"eval(true)", value{true});
-    test(L"eval(new String('123')).length", value{3.});
-    test(L"eval('1+2*3')", value{7.});
-    test(L"x42=50; eval('x'+42+'=13'); x42", value{13.});
 }
 
+std::string_view trim(const std::string_view& s) {
+    size_t pos = 0, len = s.length();
+    while (pos < s.length() && isblank(s[pos]))
+        ++pos, --len;
+    while (len && isblank(s[pos+len-1]))
+        --len;
+    return s.substr(pos, len);
+}
+
+value parse_value(const std::string& s) {
+    std::istringstream iss{s};
+    std::string type;
+    if (iss >> type) {
+        while (iss.rdbuf()->in_avail() && isblank(iss.peek()))
+            iss.get();
+
+        if (type == "undefined") {
+            assert(!iss.rdbuf()->in_avail());
+            return value::undefined;
+        } else if (type == "null") {
+            assert(!iss.rdbuf()->in_avail());
+            return value::null;
+        } else if (type == "boolean") {
+            std::string val;
+            if ((iss >> val) && (val == "true" || val == "false")) {
+                assert(!iss.rdbuf()->in_avail());
+                return mjs::value{val == "true"};
+            }
+        }
+        if (type == "number" && iss.rdbuf()->in_avail()) {
+            if (isalpha(iss.peek())) {
+                std::string name;
+                if (iss >> name) {
+                    assert(!iss.rdbuf()->in_avail());
+                    for (auto& c: name) c = static_cast<char>(tolower(c));
+                    if (name == "infinity") return mjs::value{INFINITY};
+                    if (name == "nan") return mjs::value{NAN};
+                }
+            } else {
+                double val;
+                if (iss >> val) {
+                    assert(!iss.rdbuf()->in_avail());
+                    return value{val};
+                }
+            }
+        }
+        if (type == "string" && iss.get() == '\'') {
+            std::wstring res;
+            while (iss.rdbuf()->in_avail()) {
+                const auto ch = static_cast<uint16_t>(iss.get());
+                if (ch == '\'') {
+                    assert(!iss.rdbuf()->in_avail());
+                    return value{mjs::string{res}};
+                }
+                res.push_back(ch);
+            }
+        }
+    }
+    throw std::runtime_error("Invalid test spec value \"" + s + "\"");
+}
+
+void run_test_spec(const std::string_view& test_spec) {   
+    constexpr const char delim[] = "//$";
+    constexpr const int delim_len = sizeof(delim)-1;
+
+    // TODO: Actually parse complete code and use for initializing the interpreter
+    interpreter i{ block_statement{source_extend{}, statement_list{}} };
+    for (size_t pos = 0, next_pos; pos < test_spec.length(); pos = next_pos + 1) {
+        size_t delim_pos = test_spec.find(delim, pos);
+        if (delim_pos == std::string_view::npos) {
+            break;
+        }
+        next_pos = test_spec.find("\n", delim_pos);
+        if (next_pos == std::string_view::npos) {
+            throw std::runtime_error("Invalid test spec.");
+        }
+
+        const auto code = trim(test_spec.substr(pos, delim_pos - pos));
+        const auto wcode = std::wstring(code.begin(), code.end());
+        delim_pos += delim_len;
+        const auto res = parse_value(std::string(trim(test_spec.substr(delim_pos, next_pos - delim_pos))));
+
+
+        auto source = std::make_shared<source_file>(L"run_test_spec", wcode);
+        auto bs = parse(source);
+        completion ret{};
+        for (const auto& s: bs->l()) {
+            ret = i.eval(*s);
+            if (ret) {
+                std::wostringstream oss;
+                oss << wcode << " failed: " << ret;
+                THROW_RUNTIME_ERROR(oss.str());
+            }
+        }
+        if (ret.result != res) {
+            std::wostringstream oss;
+            oss << "Got " << ret.result << " expecting " <<  res << " while evaluating " << wcode;
+            THROW_RUNTIME_ERROR(oss.str());
+        }
+    }
+}
+
+void test_global_functions() {
+    // Values
+    run_test_spec(R"(
+NaN //$ number NaN
+Infinity //$ number Infinity
+)");
+
+    // eval
+    run_test_spec(R"(
+eval() //$ undefined
+eval(42) //$ number 42
+eval(true) //$ boolean true
+eval(new String('123')).length //$ number 3
+eval('1+2*3') //$ number 7
+x42=50; eval('x'+42+'=13'); x42 //$ number 13
+)");
+
+    // parseInt
+    run_test_spec(R"(
+parseInt('0'); //$ number 0 
+parseInt(42); //$ number 42
+parseInt('10', 2); //$ number 2
+parseInt('123'); //$ number 123
+parseInt(' \t123', 10); //$ number 123
+parseInt(' 0123'); //$ number 83
+parseInt(' 123', 8); //$ number 83
+parseInt(' 0x123'); //$ number 291
+parseInt(' 123', 16); //$ number 291
+parseInt(' 123', 37); //$ number NaN
+parseInt(' 123', 1); //$ number NaN
+parseInt(' x', 1); //$ number NaN
+)");
+
+    // parseFloat
+    run_test_spec(R"(
+parseFloat('0'); //$ number 0 
+parseFloat(42); //$ number 42
+parseFloat(' 42.25x'); //$ number 42.25
+parseFloat('h'); //$ number NaN
+)");
+
+    // escape / unescape
+    run_test_spec(R"(
+escape() //$ string 'undefined'
+escape('') //$ string ''
+escape('test') //$ string 'test'
+escape('42') //$ string '42'
+escape('(hel lo)') //$ string '%28hel%20lo%29'
+escape('\u1234') //$ string '%u1234'
+escape('\u0029') //$ string '%29'
+
+unescape('') //$ string ''
+unescape('test') //$ string 'test'
+unescape('%28%29') //$ string '()'
+unescape('%u1234').charCodeAt(0) //$ number 4660
+
+)");
+
+    // isNaN / isFinite
+    run_test_spec(R"(
+isNaN(NaN) //$ boolean true
+isNaN(Infinity) //$ boolean false
+isNaN(-Infinity) //$ boolean false
+isNaN(42) //$ boolean false
+isFinite(NaN) //$ boolean false
+isFinite(Infinity) //$ boolean false
+isFinite(-Infinity) //$ boolean false
+isFinite(42) //$ boolean true
+isFinite(Number.MAX_VALUE) //$ boolean true
+)");
+}
 
 int main() {
     try {
         eval_tests();
+        run_test_spec(R"(x=0; x=x+1 //$ number 1
+x++; x //$ number 2
+)");
+        test_global_functions();
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';
         return 1;

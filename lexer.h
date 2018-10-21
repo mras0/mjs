@@ -101,6 +101,10 @@ extern token_type without_assignment(token_type t);
 
 const char* op_text(token_type tt);
 
+extern unsigned get_hex_value(int ch);
+unsigned get_hex_value2(const wchar_t* s);
+unsigned get_hex_value4(const wchar_t* s);
+
 class token {
 public:
     explicit token(token_type type) : type_(type) {

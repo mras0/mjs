@@ -348,6 +348,22 @@ lexer::lexer(const std::wstring_view& text) : text_(text), current_token_{eof_to
     next_token();
 }
 
+unsigned get_hex_value(int ch) {
+    if (ch >= '0' && ch <= '9') return ch - '0';
+    if (ch >= 'A' && ch <= 'F') return ch - 'A' + 10;
+    if (ch >= 'a' && ch <= 'f') return ch - 'a' + 10;
+    throw std::runtime_error("Invalid hex digit: " + std::string(1, (char)ch));
+}
+
+unsigned get_hex_value2(const wchar_t* s) {
+    return get_hex_value(s[0])<<4 | get_hex_value(s[1]);
+}
+
+unsigned get_hex_value4(const wchar_t* s) {
+    return get_hex_value(s[0])<<12 | get_hex_value(s[1])<<8 | get_hex_value(s[2])<<4 | get_hex_value(s[3]);
+}
+
+
 void lexer::next_token() {
     if (text_pos_ < text_.size()) {
         const int ch = text_[text_pos_];
@@ -375,6 +391,14 @@ void lexer::next_token() {
                     case 'n': s.push_back('\n'); break;
                     case 'r': s.push_back('\r'); break;
                     case 't': s.push_back('\t'); break;
+                    case 'u': case 'U':
+                        ++token_end;
+                        if (token_end + 4 >= text_.size()) {
+                            throw std::runtime_error("Invalid unicode escape sequence");
+                        }
+                        s.push_back(static_cast<wchar_t>(get_hex_value4(&text_[token_end])));
+                        token_end += 3; // Incremented in loop
+                        break;
                     default:
                         std::ostringstream oss;
                         oss << "Unahdled escape sequence: \\" << (char)qch;
@@ -411,27 +435,47 @@ void lexer::next_token() {
 #undef X
             else current_token_  = token{token_type::identifier, string{id}};
         } else if (is_digit(ch) || (ch == '.' && token_end < text_.size() && is_digit(text_[token_end]))) {
-            // TODO: Handle HexIntegerLiteral and exponent/decimal point
-            bool ndot = ch == '.';
-            bool ne = false;
-            for (; token_end < text_.size(); ++token_end) {
-                const int ch2 = text_[token_end];
-                if (is_digit(ch2)) {
-                } else if (ch2 == '.' && !ndot) {
-                    ndot = true;
-                } else if ((ch2 == 'e' || ch2 == 'E') && !ne) {
-                    ne = true;
+            if (ch == '0') {
+                double v = 0;
+                if (token_end < text_.size() && tolower(text_[token_end]) == 'x') {
+                    ++token_end;
+                    for (; token_end < text_.size(); ++token_end) {
+                        const auto ch2 = text_[token_end];
+                        if (!isdigit(ch2) && !isalpha(ch2)) break;
+                        v = v * 16 + get_hex_value(ch2);
+                    }
                 } else {
-                    break;
+                    for (; token_end < text_.size(); ++token_end) {
+                        const auto ch2 = text_[token_end];
+                        if (!isdigit(ch2)) break;
+                        if (ch2 > '7') throw std::runtime_error("Invalid octal digit: " + std::string(1, (char)ch));
+                        v = v * 8 + ch2 - '0';
+                    }
                 }
+                current_token_  = token{v};
+            } else {
+                bool ndot = ch == '.';
+                bool ne = false;
+                for (; token_end < text_.size(); ++token_end) {
+                    const int ch2 = text_[token_end];
+                    if (is_digit(ch2)) {
+                    } else if (ch2 == '.' && !ndot) {
+                        ndot = true;
+                    } else if ((ch2 == 'e' || ch2 == 'E') && !ne) {
+                        ne = true;
+                    } else {
+                        break;
+                    }
+                }
+
+                std::string s{text_.begin() + text_pos_, text_.begin() + token_end};
+                size_t len;
+                const double v = std::stod(s, &len);
+                if (len != s.length()) {
+                    throw std::runtime_error("Invalid string literal " + s);
+                }
+                current_token_  = token{v};
             }
-            std::string s{text_.begin() + text_pos_, text_.begin() + token_end};
-            size_t len;
-            const double v = std::stod(s, &len);
-            if (len != s.length()) {
-                throw std::runtime_error("Invalid string literal " + s);
-            }
-            current_token_  = token{v};
         } else if (std::strchr("!%&()*+,-./:;<=>?[]^{|}~", ch)) {
             if (ch == '/' && token_end < text_.size() && (text_[token_end] == '/' || text_[token_end] == '*')) {
                 std::tie(current_token_, token_end)  = skip_comment(text_, token_end);

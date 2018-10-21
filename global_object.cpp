@@ -1,4 +1,5 @@
 #include "global_object.h"
+#include "lexer.h" // get_hex_value2/4
 #include <sstream>
 #include <chrono>
 #include <algorithm>
@@ -16,6 +17,111 @@ string index_string(uint32_t index) {
         index /= 10;
     } while (index);
     return string{p};
+}
+
+std::wstring_view ltrim(std::wstring_view s) {
+    size_t start_pos = 0;
+    while (start_pos < s.length() && isblank(s[start_pos]))
+        ++start_pos;
+    return s.substr(start_pos);
+}
+
+double parse_int(std::wstring_view s, int radix) {
+    s = ltrim(s);
+    int sign = 1;
+    if (!s.empty() && (s[0] == '+' || s[0] == '-')) {
+        if (s[0] == '-') sign = -1;
+        s = s.substr(1);
+    }
+    // Result(5) = s
+    if (radix != 0) {
+        if (radix < 2 || radix > 36) {
+            return NAN;
+        }
+        if (radix == 16 && s.length() >= 2 && s[0] == '0' && tolower(s[1]) == 'x') {
+            s = s.substr(2);
+        }
+    }
+    if (radix == 0) {
+        if (s.empty() || s[0] != '0') {
+            radix = 10;
+        } else {
+            if (s.size() >= 2 && tolower(s[1]) == 'x') {
+                radix = 16;
+                s = s.substr(2);
+            } else {
+                radix = 8;
+            }
+        }
+    }
+
+    double value = NAN;
+
+    for (size_t i = 0; i < s.length(); ++i) {
+        if (!isdigit(s[i]) && !isalpha(s[i])) {
+            break;
+        }
+        const int val = s[i]>'9' ? 10+tolower(s[i])-'a' : s[i]-'0';
+        if (val >= radix) {
+            break;
+        }
+        if (std::isnan(value)) value = 0;
+        value = value*radix + val;
+    }
+
+    return sign * value;
+}
+
+double parse_float(std::wstring_view s) {
+    std::wistringstream wiss{std::wstring{ltrim(s)}};
+    double val;
+    return wiss >> val ? val : NAN;
+}
+
+std::wstring escape(std::wstring_view s) {
+    std::wstring res;
+    for (uint16_t ch: s) {
+        if ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '@' || ch == '*' || ch == '_' || ch == '+' || ch == '-' || ch == '.' || ch == '/') {
+            res.push_back(ch);
+        } else {
+            const char* hexchars = "0123456789abcdef";
+            if (ch > 255) {
+                res.push_back('%');
+                res.push_back('u');
+                res.push_back(hexchars[(ch>>12)&0xf]);
+                res.push_back(hexchars[(ch>>8)&0xf]);
+                res.push_back(hexchars[(ch>>4)&0xf]);
+                res.push_back(hexchars[ch&0xf]);
+            } else {
+                res.push_back('%');
+                res.push_back(hexchars[(ch>>4)&0xf]);
+                res.push_back(hexchars[ch&0xf]);
+            }
+        }
+    }
+    return res;
+}
+
+std::wstring unescape(std::wstring_view s) {
+    std::wstring res;
+    for (size_t i = 0; i < s.length(); ++i) {
+        if (s[i] != '%') {
+            res.push_back(s[i]);
+            continue;
+        }
+        ++i;
+        if (i + 2 > s.length() || (s[i] == 'u' && i + 5 > s.length())) {
+            throw std::runtime_error("Invalid string in unescape");
+        }
+        if (s[i] == 'u') {
+            res.push_back(static_cast<wchar_t>(get_hex_value4(&s[i+1])));
+            i += 4;
+        } else {
+            res.push_back(static_cast<wchar_t>(get_hex_value2(&s[i])));
+            i += 1;
+        }
+    }
+    return res;
 }
 
 class array_object : public object {
@@ -604,6 +710,27 @@ private:
         put(string{"NaN"}, value{NAN}, attr);
         put(string{"Infinity"}, value{INFINITY}, attr);
         // Note: eval is added by the eval visitor
+        put(string{"parseInt"}, value{make_function(
+            [](const value&, const std::vector<value>& args) {
+            const auto input = to_string(get_arg(args, 0));
+            int radix = to_int32(get_arg(args, 1));
+            return value{parse_int(input.view(), radix)};
+        }, 2)}, attr);
+        put(string{"parseFloat"}, value{make_function(
+            [](const value&, const std::vector<value>& args) {
+            const auto input = to_string(get_arg(args, 0));
+            return value{parse_float(input.view())};
+        }, 1)}, attr);
+        put(string{"escape"}, value{make_function(
+            [](const value&, const std::vector<value>& args) {
+            const auto input = to_string(get_arg(args, 0));
+            return value{string{escape(input.view())}};
+        }, 1)}, attr);
+        put(string{"unescape"}, value{make_function(
+            [](const value&, const std::vector<value>& args) {
+            const auto input = to_string(get_arg(args, 0));
+            return value{string{unescape(input.view())}};
+        }, 1)}, attr);
         put(string{"isNaN"}, value{make_function(
             [](const value&, const std::vector<value>& args) {
             return value(std::isnan(to_number(args.empty() ? value::undefined : args.front())));
