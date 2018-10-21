@@ -435,7 +435,7 @@ void lexer::next_token() {
 #undef X
             else current_token_  = token{token_type::identifier, string{id}};
         } else if (is_digit(ch) || (ch == '.' && token_end < text_.size() && is_digit(text_[token_end]))) {
-            if (ch == '0') {
+            if (ch == '0' && !(token_end < text_.size() && text_[token_end] == '.')) {
                 double v = 0;
                 if (token_end < text_.size() && tolower(text_[token_end]) == 'x') {
                     ++token_end;

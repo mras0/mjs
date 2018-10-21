@@ -693,6 +693,71 @@ private:
         return console;
     }
 
+    //
+    // Math
+    //
+    auto make_math_object() {
+        const auto attr = property_attribute::dont_enum | property_attribute::dont_delete | property_attribute::read_only;
+        auto math = object::make(string{"Object"}, object_prototype_);
+
+        math->put(string{"E"},       value{2.7182818284590452354}, attr);
+        math->put(string{"LN10"},    value{2.302585092994046}, attr);
+        math->put(string{"LN2"},     value{0.6931471805599453}, attr);
+        math->put(string{"LOG2E"},   value{1.4426950408889634}, attr);
+        math->put(string{"LOG10E"},  value{0.4342944819032518}, attr);
+        math->put(string{"PI"},      value{3.14159265358979323846}, attr);
+        math->put(string{"SQRT1_2"}, value{0.7071067811865476}, attr);
+        math->put(string{"SQRT2"},   value{1.4142135623730951}, attr);
+
+
+        auto make_math_function1 = [&](const char* name, auto f) {
+            math->put(string{name}, value{make_function([f](const value&, const std::vector<value>& args){
+                return mjs::value{f(to_number(get_arg(args, 0)))};
+            }, 1)}, attr);
+        };
+        auto make_math_function2 = [&](const char* name, auto f) {
+            math->put(string{name}, value{make_function([f](const value&, const std::vector<value>& args){
+                return mjs::value{f(to_number(get_arg(args, 0)), to_number(get_arg(args, 1)))};
+            }, 2)}, attr);
+        };
+
+#define MATH_IMPL_1(name) make_math_function1(#name, [](double x) { return std::name(x); })
+#define MATH_IMPL_2(name) make_math_function2(#name, [](double x, double y) { return std::name(x, y); })
+
+        MATH_IMPL_1(abs);
+        MATH_IMPL_1(acos);
+        MATH_IMPL_1(asin);
+        MATH_IMPL_1(atan);
+        MATH_IMPL_2(atan2);
+        MATH_IMPL_1(ceil);
+        MATH_IMPL_1(cos);
+        MATH_IMPL_1(exp);
+        MATH_IMPL_1(floor);
+        MATH_IMPL_1(log);
+        MATH_IMPL_2(pow);
+        MATH_IMPL_1(sin);
+        MATH_IMPL_1(sqrt);
+        MATH_IMPL_1(tan);
+
+        make_math_function2("min", [](double x, double y) {
+            return y >= x ? x: y;
+        });
+        make_math_function2("max", [](double x, double y) {
+            return y < x ? x: y;
+        });
+        make_math_function1("round", [](double x) {
+            if (x >= 0 && x < 0.5) return +0.0;
+            if (x < 0 && x >= -0.5) return -0.0;
+            return std::floor(x+0.5);
+        });
+
+        math->put(string{"random"}, value{make_function([](const value&, const std::vector<value>&){
+            return mjs::value{static_cast<double>(rand()) / (1+RAND_MAX)};
+        }, 0)}, attr);
+
+        return math;
+    }
+
 
     //
     // Global
@@ -706,6 +771,7 @@ private:
         put(string{"String"}, value{make_string_object()}, attr);
         put(string{"Boolean"}, value{make_boolean_object()}, attr);
         put(string{"Number"}, value{make_number_object()}, attr);
+        put(string{"Math"}, value{make_math_object()}, attr);
 
         put(string{"NaN"}, value{NAN}, attr);
         put(string{"Infinity"}, value{INFINITY}, attr);

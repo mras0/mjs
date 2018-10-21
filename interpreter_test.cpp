@@ -402,6 +402,54 @@ isFinite(Number.MAX_VALUE) //$ boolean true
 )");
 }
 
+void test_math_functions() {
+    run_test_spec(R"(
+Math.E;                 //$ number 2.7182818284590452354
+Math.LN10;              //$ number 2.302585092994046
+Math.LN2;               //$ number 0.6931471805599453
+Math.LOG2E;             //$ number 1.4426950408889634
+Math.LOG10E;            //$ number 0.4342944819032518
+Math.PI;                //$ number 3.14159265358979323846
+Math.SQRT1_2;           //$ number 0.7071067811865476
+Math.SQRT2;             //$ number 1.4142135623730951
+
+Math.abs(NaN);          //$ number NaN
+Math.abs(-0);           //$ number 0
+Math.abs(-Infinity);    //$ number Infinity
+Math.abs(Infinity);     //$ number Infinity
+Math.abs(42);           //$ number 42
+Math.abs(-42);          //$ number 42
+
+Math.acos(1);           //$ number 0
+Math.asin(0);           //$ number 0
+Math.atan(0);           //$ number 0
+Math.atan2(0,1)         //$ number 0
+Math.ceil(42.32)        //$ number 43
+Math.ceil(-42.32)       //$ number -42
+Math.cos(0);            //$ number 1
+Math.exp(0);            //$ number 1
+Math.floor(42.32);      //$ number 42
+Math.floor(-42.32);     //$ number -43
+Math.log(1);            //$ number 0
+Math.max(1,2);          //$ number 2
+Math.min(1,2);          //$ number 1
+Math.pow(2,3);          //$ number 8
+Math.round(0.4);        //$ number 0
+Math.round(0.5);        //$ number 1
+Math.round(-0.5);       //$ number 0
+Math.round(-0.6);       //$ number -1
+Math.round(3.5);        //$ number 4
+Math.round(-3.5);       //$ number -3
+Math.sin(0);            //$ number 0
+Math.sqrt(4);           //$ number 2
+Math.tan(0);            //$ number 0
+)");
+
+    // random not tested
+
+    // TODO: Test many of the functions more thouroughly, they are (probably) not following the specification in corner cases
+}
+
 int main() {
     try {
         eval_tests();
@@ -409,6 +457,7 @@ int main() {
 x++; x //$ number 2
 )");
         test_global_functions();
+        test_math_functions();
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';
         return 1;

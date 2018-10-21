@@ -117,7 +117,7 @@ bool operator==(const value& l, const value& r) {
     case value_type::boolean:   return l.boolean_value() == r.boolean_value();
     case value_type::number: {
         const double lv = l.number_value(), rv = r.number_value();
-        return std::memcmp(&lv, &rv, sizeof(lv)) == 0;
+        return lv == rv || (std::isnan(lv) && std::isnan(rv));
     }
     case value_type::string:    return l.string_value().view() == r.string_value().view();
     case value_type::object:    return l.object_value() == r.object_value();
