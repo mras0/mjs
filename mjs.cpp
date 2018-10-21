@@ -366,17 +366,12 @@ auto show_duration(Duration d) {
 
 class global_object : public mjs::object {
 public:
-    static std::shared_ptr<global_object> make(const mjs::block_statement& bs) {
+    static std::shared_ptr<global_object> make() {
         struct make_shared_helper : global_object {
             make_shared_helper(){}
         };
 
-        auto global = std::make_shared<make_shared_helper>();
-        for (const auto& id: hoisting_visitor::scan(bs)) {
-            global->put(id, mjs::value::undefined);
-        }
-
-        return global;
+        return std::make_shared<make_shared_helper>();
     }
 
     const mjs::object_ptr& object_prototype() const { return object_prototype_; }
@@ -404,17 +399,6 @@ public:
         auto o = make_raw_function();
         put_function(o, f, named_args);
         return o;
-    }
-
-    auto make_arguments_array(const std::vector<mjs::value>& args, const mjs::object_ptr& callee) {
-        assert(callee->class_name().str() == L"Function");
-        auto as = mjs::object::make(mjs::string{"Object"}, object_prototype_); // TODO: See §10.1.8
-        as->put(mjs::string{"callee"}, mjs::value{callee}, mjs::property_attribute::dont_enum);
-        as->put(mjs::string{"length"}, mjs::value{static_cast<double>(args.size())}, mjs::property_attribute::dont_enum);
-        for (uint32_t i = 0; i < args.size(); ++i) {
-            as->put(index_string(i), args[i], mjs::property_attribute::dont_enum);
-        }
-        return as;
     }
 
     mjs::object_ptr to_object(const mjs::value& v) {
@@ -906,17 +890,7 @@ private:
 
         put(mjs::string{"NaN"}, mjs::value{NAN}, attr);
         put(mjs::string{"Infinity"}, mjs::value{INFINITY}, attr);
-        put(mjs::string{"eval"}, mjs::value{make_function(
-            [](const mjs::value&, const std::vector<mjs::value>& args) {
-            if (args.empty()) {
-                return mjs::value::undefined; 
-            } else if (args.front().type() != mjs::value_type::string) {
-                return args.front();
-            }
-            //auto bs = mjs::parse(args.front().string_value().view(), "eval");
-            //(void)bs;
-            throw std::runtime_error("TODO: Handle eval");
-        }, 1)}, attr);
+        // Note: eval is added by the eval visitor
         put(mjs::string{"isNaN"}, mjs::value{make_function(
             [](const mjs::value&, const std::vector<mjs::value>& args) {
             return mjs::value(std::isnan(to_number(args.empty() ? mjs::value::undefined : args.front())));
@@ -980,13 +954,37 @@ private:
     }
 };
 
-class eval_visitor {
+class interpreter {
 public:
-    explicit eval_visitor(const std::shared_ptr<global_object>& global) : global_(global) {
-        scopes_.reset(new scope{global, nullptr});
+    explicit interpreter(const mjs::block_statement& program) : global_(global_object::make()) {
+        assert(!global_->has_property(mjs::string{"eval"}));
+        global_->put(mjs::string{"eval"}, mjs::value{global_->make_function(
+            [this](const mjs::value&, const std::vector<mjs::value>& args) {
+            if (args.empty()) {
+                return mjs::value::undefined; 
+            } else if (args.front().type() != mjs::value_type::string) {
+                return args.front();
+            }
+            auto bs = mjs::parse(std::make_shared<mjs::source_file>(L"eval", args.front().string_value().view()));
+            completion ret;
+            for (const auto& s: bs->l()) {
+                ret = accept(*s, *this);
+                if (ret) {
+                    return mjs::value::undefined;
+                }
+            }
+            assert(!ret);
+            return ret.result;
+        }, 1)}, mjs::property_attribute::dont_enum);
+
+        for (const auto& id: hoisting_visitor::scan(program)) {
+            global_->put(id, mjs::value::undefined);
+        }
+
+        scopes_.reset(new scope{global_, nullptr});
     }
 
-    ~eval_visitor() {
+    ~interpreter() {
         assert(scopes_ && !scopes_->prev);
     }
 
@@ -1373,13 +1371,23 @@ public:
         auto prev_scope = scopes_;
         auto callee = global_->make_raw_function();
         auto func = [&s, this, prev_scope, callee, ids = hoisting_visitor::scan(s.block())](const mjs::value& this_, const std::vector<mjs::value>& args) {
-            auto_scope as{*this, prev_scope};
+            // Arguments array
+            auto as = mjs::object::make(mjs::string{"Object"}, global_->object_prototype()); 
+            as->put(mjs::string{"callee"}, mjs::value{callee}, mjs::property_attribute::dont_enum);
+            as->put(mjs::string{"length"}, mjs::value{static_cast<double>(args.size())}, mjs::property_attribute::dont_enum);
+            for (uint32_t i = 0; i < args.size(); ++i) {
+                as->put(index_string(i), args[i], mjs::property_attribute::dont_enum);
+            }
+
+            // Scope
+            auto_scope auto_scope_{*this, prev_scope};
             auto& scope = scopes_->activation;
             scope->put(mjs::string{"this"}, this_, mjs::property_attribute::dont_delete | mjs::property_attribute::dont_enum | mjs::property_attribute::read_only);
-            scope->put(mjs::string{"arguments"}, mjs::value{global_->make_arguments_array(args, callee)}, mjs::property_attribute::dont_delete);
+            scope->put(mjs::string{"arguments"}, mjs::value{as}, mjs::property_attribute::dont_delete);
             for (size_t i = 0; i < std::min(args.size(), s.params().size()); ++i) {
                 scope->put(s.params()[i], args[i]);
             }
+            // Variables
             for (const auto& id: ids) {
                 assert(!scope->has_property(id)); // TODO: Handle this..
                 scope->put(id, mjs::value::undefined);
@@ -1424,7 +1432,7 @@ private:
     };
     class auto_scope {
     public:
-        explicit auto_scope(eval_visitor& parent, const scope_ptr& prev) : parent(parent), old_scopes(parent.scopes_) {
+        explicit auto_scope(interpreter& parent, const scope_ptr& prev) : parent(parent), old_scopes(parent.scopes_) {
             auto activation = mjs::object::make(mjs::string{"Activation"}, nullptr); // TODO
             parent.scopes_.reset(new scope{activation, prev});
         }
@@ -1432,7 +1440,7 @@ private:
             parent.scopes_ = old_scopes;
         }
 
-        eval_visitor& parent;
+        interpreter& parent;
         scope_ptr old_scopes;
     };
     scope_ptr                      scopes_;
@@ -1502,8 +1510,7 @@ void test(const std::wstring_view& text, const mjs::value& expected) {
         }
     };
     try {
-        auto global = global_object::make(*bs);
-        eval_visitor ev{global};
+        interpreter ev{*bs};
         mjs::value res{};
         for (const auto& s: bs->l()) {
             res = accept(*s, ev).result;
@@ -1706,6 +1713,13 @@ void eval_tests() {
     test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; s.foo", value::undefined);
     test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; s.prototype.prop", value::undefined);
     test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; s.prototype.foo", value{string{"bar"}});
+
+    test(L"eval()", value::undefined);
+    test(L"eval(42)", value{42.});
+    test(L"eval(true)", value{true});
+    test(L"eval(new String('123')).length", value{3.});
+    test(L"eval('1+2*3')", value{7.});
+    test(L"x42=50; eval('x'+42+'=13'); x42", value{13.});
 }
 
 #include <fstream>
@@ -1722,8 +1736,7 @@ int main() {
         eval_tests();
         auto source = read_ascii_file("../js-performance-test.js");
         auto bs = mjs::parse(source);
-        auto global = global_object::make(*bs);
-        eval_visitor e{global};
+        interpreter e{*bs};
         print_visitor p{std::wcout};
         for (const auto& s: bs->l()) {
             if constexpr (false) {
