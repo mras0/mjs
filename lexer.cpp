@@ -2,6 +2,7 @@
 #include <ostream>
 #include <sstream>
 #include <cstring>
+#include <tuple>
 
 #define RESERVED_WORDS(X) \
     X(undefined)          \
@@ -317,6 +318,32 @@ std::pair<token_type, int> get_punctuation(std::wstring_view v) {
     throw std::runtime_error(oss.str());
 }
 
+std::pair<token, size_t> skip_comment(const std::wstring_view& text, size_t pos) {
+    assert(pos < text.size());
+    assert(text[pos] == '/' || text[pos] == '*');
+    const bool is_single_line = text[pos++] == '/';
+    if (is_single_line) {
+        for (; pos < text.size(); ++pos) {
+            if (is_line_terminator(text[pos])) {
+                // Don't consume line terminator
+                break;
+            }
+        }
+        return {token{token_type::whitespace}, pos};
+    } else {        
+        for (bool last_was_asterisk = false, line_terminator_seen = false; pos < text.size(); ++pos) {
+            if (text[pos] == '/' && last_was_asterisk) {
+                return {token{line_terminator_seen ? token_type::line_terminator : token_type::whitespace}, ++pos};
+            }
+            last_was_asterisk = text[pos] == '*';
+            if (is_line_terminator(text[pos])) {
+                line_terminator_seen = true;
+            }
+        }
+        throw std::runtime_error("Unterminated multi-line comment");
+    }
+}
+
 lexer::lexer(const std::wstring_view& text) : text_(text), current_token_{eof_token} {
     next_token();
 }
@@ -394,9 +421,13 @@ void lexer::next_token() {
             }
             current_token_  = token{v};
         } else if (std::strchr("!%&()*+,-./:;<=>?[]^{|}~", ch)) {
-            auto [tok, len] = get_punctuation(std::wstring_view{&text_[text_pos_], text_.size() - text_pos_});
-            token_end = text_pos_ + len;
-            current_token_ = token{tok};
+            if (ch == '/' && token_end < text_.size() && (text_[token_end] == '/' || text_[token_end] == '*')) {
+                std::tie(current_token_, token_end)  = skip_comment(text_, token_end);
+            } else {
+                auto [tok, len] = get_punctuation(std::wstring_view{&text_[text_pos_], text_.size() - text_pos_});
+                token_end = text_pos_ + len;
+                current_token_ = token{tok};
+            }
         } else {
             std::ostringstream oss;
             oss << "Unhandled character in " << __FUNCTION__ << ": " << ch << " 0x" << std::hex << (int)ch << "\n";

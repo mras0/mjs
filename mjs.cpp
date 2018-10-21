@@ -1432,6 +1432,8 @@ void eval_tests() {
     test(L"true", value{true});
     test(L"'te\"st'", value{string{"te\"st"}});
     test(L"\"te'st\"", value{string{"te'st"}});
+    test(L"/*42*/60", value{60.0});
+    test(L"12//\n+34", value{34.0});
     test(L"-7.5 % 2", value{-1.5});
     test(L"1+2*3", value{7.});
     test(L"x = 42; 'test ' + 2 * (6 - 4 + 1) + ' ' + x", value{string{"test 6 42"}});
@@ -1608,11 +1610,12 @@ int main() {
         const wchar_t* text = LR"(
 function s(){} s.prototype.foo = "bar"; var si = new s(); si.prop = "some value";
 console.log("si.prop:      " + si.prop);
-console.log("si.foo:       " + si.foo);
+//console.log("si.foo:       " + si.foo);
 console.log("s.prop:           " + s.prop);
 console.log("s.foo:            " + s.foo);
-console.log("s.prototype.prop: " + s.prototype.prop);
-console.log("s.prototype.foo:  " + s.prototype.foo);)";
+/*console.log("s.prototype.prop: " + s.prototype.prop);
+console.log("s.prototype.foo:  " + s.prototype.foo); */
+)";
         auto bs = mjs::parse(text);
         auto global = global_object::make(*bs);
         eval_visitor e{global};
