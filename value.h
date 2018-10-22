@@ -333,7 +333,7 @@ void debug_print(std::wostream& os, const value& v, int indent_incr, int max_nes
 [[noreturn]] void throw_runtime_error(const std::wstring_view& s, const char* file, int line);
 
 #define THROW_RUNTIME_ERROR(msg) ::mjs::throw_runtime_error(msg, __FILE__, __LINE__)
-#define NOT_IMPLEMENTED(o) do { std::wostringstream woss; woss << "Not implemented: " << o; THROW_RUNTIME_ERROR(woss.str()); } while (0)
+#define NOT_IMPLEMENTED(o) do { std::wostringstream _woss; _woss << "Not implemented: " << o; THROW_RUNTIME_ERROR(_woss.str()); } while (0)
 
 
 

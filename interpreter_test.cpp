@@ -293,8 +293,7 @@ void run_test_spec(const std::string_view& test_spec) {
     constexpr const char delim[] = "//$";
     constexpr const int delim_len = sizeof(delim)-1;
 
-    // TODO: Actually parse complete code and use for initializing the interpreter
-    interpreter i{ block_statement{source_extend{}, statement_list{}} };
+    interpreter i{ *parse(std::make_shared<source_file>(L"run_test_spec", std::wstring(test_spec.begin(), test_spec.end()))) };
     for (size_t pos = 0, next_pos; pos < test_spec.length(); pos = next_pos + 1) {
         size_t delim_pos = test_spec.find(delim, pos);
         if (delim_pos == std::string_view::npos) {
@@ -450,6 +449,16 @@ Math.tan(0);            //$ number 0
     // TODO: Test many of the functions more thouroughly, they are (probably) not following the specification in corner cases
 }
 
+void test_date_functions() {
+    std::wcout << "Warning: Date not tested.\n";
+//    run_test_spec(R"(
+//new Date(1234).valueOf(); //$ number 1234
+//new Date(1234).getTime(); //$ number 1234
+//var d = new Date(Date.UTC(2000,0,1));
+//d.getTime(); //$ number 946684800000
+//)");
+}
+
 int main() {
     try {
         eval_tests();
@@ -458,6 +467,7 @@ x++; x //$ number 2
 )");
         test_global_functions();
         test_math_functions();
+        test_date_functions();
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';
         return 1;

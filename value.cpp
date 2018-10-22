@@ -221,24 +221,110 @@ uint16_t to_uint16(const value& v) {
     return to_uint16(to_number(v));
 }
 
-string to_string(double n) {
-    if (std::isnan(n)) {
+double blah(double n, int incr) {
+    uint64_t i;
+    memcpy(&i, &n, sizeof(double));
+    i += incr;
+    memcpy(&n, &i, sizeof(double));
+    return n;
+}
+
+#if 0
+printf("Converting %.17g\n", m);
+printf("%s\n", foo(blah(m, -1)).c_str());
+printf("%s\n", foo(blah(m, 0)).c_str());
+printf("%s\n", foo(blah(m, 1)).c_str());
+
+std::string foo(double m) {
+    std::ostringstream oss;
+    oss.precision(17);
+    char buffer[_CVTBUFSIZE + 1];
+    int decimal_point, sign;
+    _ecvt_s(buffer, m, 22, &decimal_point, &sign);
+    assert(sign == 0);
+    oss.width(40);
+    oss  << std::defaultfloat << m << " -> '" << buffer << "' decimal_point " << decimal_point;
+    return oss.str();
+}
+#endif
+
+string do_format_double(double m, int k) {
+    assert(k >= 1);             // k is the number of decimal digits in the representation
+    int n;                      // n is the position of the decimal point in s
+    int sign;                   // sign is set if the value is negative (never true since to_string handles that)
+#ifdef _MSC_VER
+    char s[_CVTBUFSIZE + 1];    // s is the decimal representation of the number
+    _ecvt_s(s, m, k, &n, &sign);
+#else
+    const char* s = ecvt(m, k, &n, &sign);
+#endif
+    assert(sign == 0);
+
+    std::wostringstream woss;
+    if (k <= n && n <= 21) {
+        // 6. If k <= n <= 21, return the string consisting of the k digits of the decimal
+        // representation of s (in order, with no leading zeroes), followed by n - k
+        // occurences of the character ‘0’
+        woss << s << std::wstring(n-k, '0');
+    } else if (0 < n && n <= 21) {
+        // 7. If 0 < n <= 21, return the string consisting of the most significant n digits
+        // of the decimal representation of s, followed by a decimal point ‘.’, followed
+        // by the remaining k - n digits of the decimal representation of s.
+        woss << std::wstring(s, s + n) << '.' << std::wstring(s + n, s + std::strlen(s));
+    } else if (-6 < n && n <= 0) {
+        // 8. If -6 < n <= 0, return the string consisting of the character ‘0’, followed
+        // by a decimal point ‘.’, followed by -n occurences of the character ‘0’, followed
+        // by the k digits of the decimal representation of s.
+        woss << "0." << std::wstring(-n, '0') << s;
+    } else if (k == 1) {
+        // 9.  Otherwise, if k = 1, return the string consisting of the single digit of s,
+        // followed by lowercase character ‘e’, followed by a plus sign ‘+’ or minus sign
+        // ‘-’ according to whether n - 1 is positive or negative, followed by the decimal
+        // representation of the integer abs(n - 1) (with no leading zeros).
+        woss << s << 'e' << (n-1>=0?'+':'-') << std::abs(n-1);
+    } else {
+        // 10. Return the string consisting of the most significant digit of the decimal
+        // representation of s, followed by a decimal point ‘.’, followed by the remaining
+        // k - 1 digits of the decimal representation of s , followed by the lowercase character
+        // ‘e’, followed by a plus sign ‘+’ or minus sign ‘-’ according to whether n - 1 is positive
+        // or negative, followed by the decimal representation of the integer abs(n - 1)
+        // (with no leading zeros)
+        woss << s[0] << '.' << s+1 << 'e' << (n-1>=0?'+':'-') << std::abs(n-1);
+    }
+    return string{woss.str()};
+}
+
+string to_string(double m) {
+    // Handle special cases
+    if (std::isnan(m)) {
         return string{"NaN"};
     }
-    if (n == 0) {
+    if (m == 0) {
         return string{"0"};
     }
-    if (n < 0) {
-        return string{"-"} + to_string(-n);
+    if (m < 0) {
+        return string{"-"} + to_string(-m);
     }
-    if (std::isinf(n)) {
+    if (std::isinf(m)) {
         return string{"Infinity"};
     }
 
-    // TODO: Implement algorithm in 9.8.1 ToString Applied to the Number Type
-    std::wostringstream woss;
-    woss << n;
-    return string{woss.str()};
+    assert(std::isfinite(m) && m > 0);
+
+    // 9.8.1 ToString Applied to the Number Type    
+
+    // Use really slow method to determine shortest representation of m
+    for (int k = 1; k <= 17; ++k) {
+        std::ostringstream woss;
+        woss.precision(k);
+        woss << std::defaultfloat << m;
+        if (double t; std::istringstream{woss.str()} >> t && t == m) {
+            return do_format_double(m, k);
+        }
+    }
+    // More than 17 digits should never happen
+    assert(false);
+    NOT_IMPLEMENTED(m);
 }
 
 string to_string(const value& v) {

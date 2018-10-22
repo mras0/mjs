@@ -4,7 +4,8 @@
 #include <chrono>
 #include <algorithm>
 #include <cmath>
-
+#include <ctime>
+#include <cstring>
 #include <iostream>
 
 namespace mjs {
@@ -203,6 +204,106 @@ auto show_duration(Duration d) {
     return duration_printer{std::chrono::duration_cast<std::chrono::duration<double>>(d)};
 }
 
+value get_arg(const std::vector<value>& args, int index) {
+    return index < static_cast<int>(args.size()) ? args[index] : value::undefined;
+}
+
+struct date_helper {
+    static constexpr const int hours_per_day = 24;
+    static constexpr const int minutes_per_hour = 60;
+    static constexpr const int seconds_per_minute = 60;
+    static constexpr const int ms_per_second = 1000;
+    static constexpr const int ms_per_minute = ms_per_second * seconds_per_minute;
+    static constexpr const int ms_per_hour = ms_per_minute * minutes_per_hour;
+    static constexpr const int ms_per_day = ms_per_hour * hours_per_day;
+    static_assert(ms_per_day == 86'400'000);
+
+    static double current_time_utc() {
+        return std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::system_clock::now().time_since_epoch()).count();
+    }
+
+    static int64_t day(int64_t t) {
+        return t/ms_per_day;
+    }
+
+    static int64_t time_within_day(int64_t t) {
+        return ((t % ms_per_day) + ms_per_day) % ms_per_day;
+    }
+
+    static int days_in_year(int y) {
+        if (y % 4)  return 365;
+        if (y % 100) return 366;
+        return y % 400 ? 365 : 366;
+    }
+
+    static int64_t day_from_year(int y) {
+        return 365*(y-1970) + (y-1969)/4 - (y-1901)/100 + (y-1601)/400;
+    }
+
+    static int64_t time_from_year(int y) {
+        return ms_per_day * day_from_year(y);
+    }
+
+    static double make_time(double hour, double min, double sec, double ms) {
+        if (!std::isfinite(hour) || !std::isfinite(min) || !std::isfinite(sec) || !std::isfinite(ms)) {
+            return NAN;
+        }
+        return to_integer(hour) * ms_per_hour + to_integer(min) * ms_per_minute + to_integer(sec) * ms_per_second + to_integer(ms);
+    }
+
+    static double make_day(double year, double month, double day) {
+        if (!std::isfinite(year) || !std::isfinite(month) || !std::isfinite(day)) {
+            return NAN;
+        }
+        const auto y = static_cast<int32_t>(year) + static_cast<int32_t>(month)/12;
+        const auto m = static_cast<int32_t>(month) % 12;
+        const auto d = static_cast<int32_t>(day);
+        // non-standard :/
+        std::tm tm;
+        std::memset(&tm, 0, sizeof(tm));
+        tm.tm_year = y - 1900;
+        tm.tm_mon = m;
+        tm.tm_mday = d;
+        return static_cast<double>(_mkgmtime(&tm)) / 86400;
+    }
+
+    static double make_date(double day, double time) {
+        if (!std::isfinite(day) || !std::isfinite(time)) {
+            return NAN;
+        }
+        return day * ms_per_day + time;
+    }
+
+    static double time_clip(double t) {
+        return std::isfinite(t) && std::abs(t) <= 8.64e15 ? t : NAN;
+    }
+
+    static double utc(double t) {
+        // TODO: subtract local time adjustment
+        return t;
+    }
+
+    static double time_from_args(const std::vector<value>& args) {
+        assert(args.size() >= 3);
+        double year = to_number(args[0]);
+        if (double iyear = to_integer(year); !std::isnan(year) && iyear >= 0 && iyear <= 99) {
+            year = iyear + 1900;
+        }
+        const double month   = to_number(args[1]);
+        const double day     = to_number(args[2]);
+        const double hours   = args.size() > 3 ? to_number(args[3]) : 0;
+        const double minutes = args.size() > 4 ? to_number(args[4]) : 0;
+        const double seconds = args.size() > 5 ? to_number(args[5]) : 0;
+        const double ms      = args.size() > 6 ? to_number(args[6]) : 0;
+        return date_helper::make_date(date_helper::make_day(year, month, day), date_helper::make_time(hours, minutes, seconds, ms));
+    }
+
+    static string to_string(double t) {
+        std::wostringstream woss;
+        woss << "[Date: " << t << "]";
+        return string{woss.str()};
+    }
+};
 
 class global_object_impl : public global_object {
 public:
@@ -252,11 +353,13 @@ private:
     object_ptr string_prototype_;
     object_ptr boolean_prototype_;
     object_ptr number_prototype_;
+    object_ptr date_prototype_;
 
     static constexpr auto prototype_attributes = property_attribute::dont_enum | property_attribute::dont_delete | property_attribute::read_only;
 
+    // FIXME: Is this sufficient to guard against clever users?
     static void validate_type(const value& v, const wchar_t* expected_type) {
-        if (v.type() == value_type::object && v.object_value()->class_name().view() == expected_type) {
+        if (v.type() == value_type::object && v.object_value()->class_name().view() == expected_type && v.object_value()->internal_value() .type() != value_type::undefined) {
             return;
         }
         std::wostringstream woss;
@@ -407,10 +510,6 @@ private:
         o->internal_value(value{val});
         o->put(string{"length"}, value{static_cast<double>(val.view().length())}, prototype_attributes);
         return o;
-    }
-
-    static value get_arg(const std::vector<value>& args, int index) {
-        return index < static_cast<int>(args.size()) ? args[index] : value::undefined;
     }
 
     object_ptr make_string_object() {
@@ -712,12 +811,12 @@ private:
 
         auto make_math_function1 = [&](const char* name, auto f) {
             math->put(string{name}, value{make_function([f](const value&, const std::vector<value>& args){
-                return mjs::value{f(to_number(get_arg(args, 0)))};
+                return value{f(to_number(get_arg(args, 0)))};
             }, 1)}, attr);
         };
         auto make_math_function2 = [&](const char* name, auto f) {
             math->put(string{name}, value{make_function([f](const value&, const std::vector<value>& args){
-                return mjs::value{f(to_number(get_arg(args, 0)), to_number(get_arg(args, 1)))};
+                return value{f(to_number(get_arg(args, 0)), to_number(get_arg(args, 1)))};
             }, 2)}, attr);
         };
 
@@ -752,12 +851,73 @@ private:
         });
 
         math->put(string{"random"}, value{make_function([](const value&, const std::vector<value>&){
-            return mjs::value{static_cast<double>(rand()) / (1+RAND_MAX)};
+            return value{static_cast<double>(rand()) / (1+RAND_MAX)};
         }, 0)}, attr);
 
         return math;
     }
 
+    //
+    // Date
+    //
+
+    auto new_date(double val) {
+        auto o = object::make(string{"Date"}, date_prototype_);
+        o->internal_value(value{val});
+        return o;
+    }
+
+    auto make_date_object() {
+        //const auto attr = property_attribute::dont_enum | property_attribute::dont_delete | property_attribute::read_only;
+
+        date_prototype_ = object::make(string{"Date"}, object_prototype_);
+        date_prototype_->internal_value(value{NAN});
+
+        auto c = make_function([this](const value&, const std::vector<value>& args) {
+            if (args.empty()) {
+                return value{new_date(date_helper::current_time_utc())};
+            } else if (args.size() == 1) {
+                auto v = to_primitive(args[0]);
+                if (v.type() == value_type::string) {
+                    // return Date.parse(v)
+                    NOT_IMPLEMENTED("new Date(string)");
+                }
+                return value{new_date(to_number(v))};
+            } else if (args.size() == 2) {
+                NOT_IMPLEMENTED("new Date(value)");
+            }
+            return value{date_helper::time_clip(date_helper::utc(date_helper::time_from_args(args)))};
+        }, 7);
+        c->call_function([this](const value&, const std::vector<value>&) {
+            // Equivalent to (new Date()).toString()
+            return value{to_string(value{new_date(date_helper::current_time_utc())})};
+        });
+        c->put(string{"prototype"}, value{date_prototype_}, prototype_attributes);
+        c->put(string{"parse"}, value{make_function([](const value&, const std::vector<value>& args) {
+            NOT_IMPLEMENTED(get_arg(args, 0));
+            return value::undefined;
+        }, 1)});
+        c->put(string{"UTC"}, value{make_function([](const value&, const std::vector<value>& args) {
+            if (args.size() < 3) {
+                NOT_IMPLEMENTED("Date.UTC() with less than 3 arguments");
+            }
+            return value{date_helper::time_clip(date_helper::time_from_args(args))};
+        }, 7)});
+
+        date_prototype_->put(string{L"constructor"}, value{c});
+        // TODO: Date.parse(string)
+        auto make_date_function = [&](const char* name, auto f) {
+            date_prototype_->put(string{name}, value{make_function([f](const value& this_, const std::vector<value>&) {
+                validate_type(this_, L"Date");
+                return value{f(this_.object_value()->internal_value().number_value())};
+            }, 0)});
+        };
+        make_date_function("toString", [](double t) { return date_helper::to_string(t); });
+        make_date_function("valueOf", [](double t) { return t; });
+        make_date_function("getTime", [](double t) { return t; });
+
+        return c;
+    }
 
     //
     // Global
@@ -772,6 +932,7 @@ private:
         put(string{"Boolean"}, value{make_boolean_object()}, attr);
         put(string{"Number"}, value{make_number_object()}, attr);
         put(string{"Math"}, value{make_math_object()}, attr);
+        put(string{"Date"}, value{make_date_object()}, attr);
 
         put(string{"NaN"}, value{NAN}, attr);
         put(string{"Infinity"}, value{INFINITY}, attr);

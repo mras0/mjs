@@ -455,14 +455,21 @@ void lexer::next_token() {
                 current_token_  = token{v};
             } else {
                 bool ndot = ch == '.';
-                bool ne = false;
+                bool ne = false, last_was_e = false;
+                bool es = false;
                 for (; token_end < text_.size(); ++token_end) {
                     const int ch2 = text_[token_end];
                     if (is_digit(ch2)) {
+                        last_was_e = false;
                     } else if (ch2 == '.' && !ndot) {
+                        last_was_e = false;
                         ndot = true;
                     } else if ((ch2 == 'e' || ch2 == 'E') && !ne) {
+                        last_was_e = true;
                         ne = true;
+                    } else if (!es && last_was_e && (ch2 == '+' || ch2 == '-')) {
+                        es = true;
+                        last_was_e = false;
                     } else {
                         break;
                     }

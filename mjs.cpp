@@ -21,13 +21,27 @@ std::shared_ptr<mjs::source_file> read_ascii_file(const char* filename) {
     return std::make_shared<mjs::source_file>(std::wstring(filename, filename+std::strlen(filename)), std::wstring((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>()));
 }
 
+std::shared_ptr<mjs::source_file> make_source(const char* filename) {
+    return std::make_shared<mjs::source_file>(std::wstring(L"inline code"), std::wstring(filename, filename+std::strlen(filename)));
+}
+
 int main() {
     try {
-        auto source = read_ascii_file("../js-performance-test.js");
+        //auto source = read_ascii_file("../js-performance-test.js");
+
+        auto source = make_source(R"(
+new Date(1234).valueOf(); //$ number 1234
+new Date(1234).getTime(); //$ number 1234
+var t = Date.UTC(2000,0,1); t //$number 946684800000
+var d = new Date(t);
+d.valueOf(); //$ number 946684800000
+d.getTime(); //$ number 946684800000
+)");
+
         auto bs = mjs::parse(source);
         mjs::interpreter i{*bs};
         for (const auto& s: bs->l()) {
-            if constexpr (false) {
+            if constexpr (true) {
                 std::wcout << "> ";
                 print(std::wcout, *s);
                 std::wcout << "\n";

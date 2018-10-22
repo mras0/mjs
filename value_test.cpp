@@ -138,3 +138,15 @@ TEST_CASE("Type Converions") {
     REQUIRE(to_string(value{string{"test"}}) == string{"test"});
     // TODO: Object
 }
+
+TEST_CASE("NumberToString") {
+    REQUIRE(to_string(0.005                    ) == string{"0.005"});
+    REQUIRE(to_string(0.000005                 ) == string{"0.000005"});
+    REQUIRE(to_string((0.000005+1e-10)         ) == string{"0.000005000100000000001"});
+    REQUIRE(to_string(0.0000005                ) == string{"5e-7"});
+    REQUIRE(to_string(1234.0                   ) == string{"1234"});
+    REQUIRE(to_string(1e20                     ) == string{"100000000000000000000"});
+    REQUIRE(to_string(1e21                     ) == string{"1e+21"});
+    REQUIRE(to_string(1.7976931348623157e+308  ) == string{"1.7976931348623157e+308"});
+    REQUIRE(to_string(5e-324                   ) == string{"5e-324"});
+}
