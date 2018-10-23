@@ -15,6 +15,7 @@
 #include <fstream>
 #include <streambuf>
 #include <cstring>
+
 std::shared_ptr<mjs::source_file> read_ascii_file(const char* filename) {
     std::ifstream in(filename);
     if (!in) throw std::runtime_error("Could not open " + std::string(filename));
@@ -27,16 +28,8 @@ std::shared_ptr<mjs::source_file> make_source(const char* filename) {
 
 int main() {
     try {
-        //auto source = read_ascii_file("../js-performance-test.js");
-
-        auto source = make_source(R"(
-new Date(1234).valueOf(); //$ number 1234
-new Date(1234).getTime(); //$ number 1234
-var t = Date.UTC(2000,0,1); t //$number 946684800000
-var d = new Date(t);
-d.valueOf(); //$ number 946684800000
-d.getTime(); //$ number 946684800000
-)");
+        auto source = read_ascii_file("../js-performance-test.js");
+        //auto source = make_source(R"()");
 
         auto bs = mjs::parse(source);
         mjs::interpreter i{*bs};

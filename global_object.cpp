@@ -208,6 +208,7 @@ value get_arg(const std::vector<value>& args, int index) {
     return index < static_cast<int>(args.size()) ? args[index] : value::undefined;
 }
 
+// TODO: Optimize and use rules from 15.9.1 to elimiate c++ standard library calls
 struct date_helper {
     static constexpr const int hours_per_day = 24;
     static constexpr const int minutes_per_hour = 60;
@@ -222,15 +223,15 @@ struct date_helper {
         return std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::system_clock::now().time_since_epoch()).count();
     }
 
-    static int64_t day(int64_t t) {
-        return t/ms_per_day;
+    static int64_t day(double t) {
+        return static_cast<int64_t>(t/ms_per_day);
     }
 
     static int64_t time_within_day(int64_t t) {
         return ((t % ms_per_day) + ms_per_day) % ms_per_day;
     }
 
-    static int days_in_year(int y) {
+    static int days_in_year(int64_t y) {
         if (y % 4)  return 365;
         if (y % 100) return 366;
         return y % 400 ? 365 : 366;
@@ -242,6 +243,47 @@ struct date_helper {
 
     static int64_t time_from_year(int y) {
         return ms_per_day * day_from_year(y);
+    }
+
+    static bool in_leap_year(double t) {
+        return days_in_year(year_from_time(t)) == 366;
+    }
+
+    static std::tm tm_from_time(double t) {
+        const std::time_t tt = static_cast<std::time_t>(t / ms_per_second);
+        return *gmtime(&tt);
+    }
+
+    static int64_t year_from_time(double t) {
+        return tm_from_time(t).tm_year + 1900;
+    }
+
+    static int64_t month_from_time(double t) {
+        return tm_from_time(t).tm_mon;
+    }
+
+    static int64_t date_from_time(double t) {
+        return tm_from_time(t).tm_mday;
+    }
+
+    static int64_t week_day(double t) {
+        return (day(t) + 4) % 7;
+    }
+
+    static int64_t hour_from_time(double t) {
+        return static_cast<int64_t>(t / ms_per_hour) % hours_per_day;
+    }
+
+    static int64_t min_from_time(double t) {
+        return static_cast<int64_t>(t / ms_per_minute) % minutes_per_hour;
+    }
+
+    static int64_t sec_from_time(double t) {
+        return static_cast<int64_t>(t / ms_per_second) % seconds_per_minute;
+    }
+
+    static int64_t ms_from_time(double t) {
+        return static_cast<int64_t>(t) % ms_per_second;
     }
 
     static double make_time(double hour, double min, double sec, double ms) {
@@ -278,11 +320,6 @@ struct date_helper {
         return std::isfinite(t) && std::abs(t) <= 8.64e15 ? t : NAN;
     }
 
-    static double utc(double t) {
-        // TODO: subtract local time adjustment
-        return t;
-    }
-
     static double time_from_args(const std::vector<value>& args) {
         assert(args.size() >= 3);
         double year = to_number(args[0]);
@@ -303,7 +340,37 @@ struct date_helper {
         woss << "[Date: " << t << "]";
         return string{woss.str()};
     }
+
+    static double utc(double t) {
+        // TODO: subtract local time adjustment
+        return t;
+    }
+    static double local_time(double t) {
+        // TODO: add local time adjustment
+        return t;
+    }
 };
+
+class date_object : public object {
+public:
+    static std::shared_ptr<date_object> make(const object_ptr& prototype, double val) {
+        struct make_shared_helper : date_object {
+            make_shared_helper(const object_ptr& prototype, double val) : date_object(prototype, val) {}
+        };
+        return std::make_shared<make_shared_helper>(prototype, val);
+    }
+
+    virtual value default_value(value_type hint) {
+        // When hint is undefined, assume Number unless it's a Date object in which case assume String
+        return object::default_value(hint == value_type::undefined ? value_type::string : hint);
+    }
+
+private:
+    explicit date_object(const object_ptr& prototype, double val) : object{string{"Date"}, prototype} {
+        internal_value(value{val});
+    }
+};
+
 
 class global_object_impl : public global_object {
 public:
@@ -862,9 +929,7 @@ private:
     //
 
     auto new_date(double val) {
-        auto o = object::make(string{"Date"}, date_prototype_);
-        o->internal_value(value{val});
-        return o;
+        return date_object::make(date_prototype_, val);
     }
 
     auto make_date_object() {
@@ -906,15 +971,99 @@ private:
 
         date_prototype_->put(string{L"constructor"}, value{c});
         // TODO: Date.parse(string)
-        auto make_date_function = [&](const char* name, auto f) {
+
+        auto make_date_getter = [&](const char* name, auto f) {
             date_prototype_->put(string{name}, value{make_function([f](const value& this_, const std::vector<value>&) {
                 validate_type(this_, L"Date");
-                return value{f(this_.object_value()->internal_value().number_value())};
+                const double t = this_.object_value()->internal_value().number_value();
+                if (std::isnan(t)) {
+                    return value{t};
+                }
+                return value{static_cast<double>(f(t))};
             }, 0)});
         };
-        make_date_function("toString", [](double t) { return date_helper::to_string(t); });
-        make_date_function("valueOf", [](double t) { return t; });
-        make_date_function("getTime", [](double t) { return t; });
+        make_date_getter("valueOf", [](double t) { return t; });
+        make_date_getter("getTime", [](double t) { return t; });
+        make_date_getter("getYear", [](double t) {
+            return date_helper::year_from_time(date_helper::local_time(t)) - 1900;
+        });
+        make_date_getter("getFullYear", [](double t) {
+            return date_helper::year_from_time(date_helper::local_time(t));
+        });
+        make_date_getter("getUTCFullYear", [](double t) {
+            return date_helper::year_from_time(t);
+        });
+        make_date_getter("getMonth", [](double t) {
+            return date_helper::month_from_time(date_helper::local_time(t));
+        });
+        make_date_getter("getUTCMonth", [](double t) {
+            return date_helper::month_from_time(t);
+        });
+        make_date_getter("getDate", [](double t) {
+            return date_helper::date_from_time(date_helper::local_time(t));
+        });
+        make_date_getter("getUTCDate", [](double t) {
+            return date_helper::date_from_time(t);
+        });
+        make_date_getter("getDay", [](double t) {
+            return date_helper::week_day(date_helper::local_time(t));
+        });
+        make_date_getter("getUTCDay", [](double t) {
+            return date_helper::week_day(t);
+        });
+        make_date_getter("getHours", [](double t) {
+            return date_helper::hour_from_time(date_helper::local_time(t));
+        });
+        make_date_getter("getUTCHours", [](double t) {
+            return date_helper::hour_from_time(t);
+        });
+        make_date_getter("getMinutes", [](double t) {
+            return date_helper::min_from_time(date_helper::local_time(t));
+        });
+        make_date_getter("getUTCMinutes", [](double t) {
+            return date_helper::min_from_time(t);
+        });
+        make_date_getter("getSeconds", [](double t) {
+            return date_helper::sec_from_time(date_helper::local_time(t));
+        });
+        make_date_getter("getUTCSeconds", [](double t) {
+            return date_helper::sec_from_time(t);
+        });
+        make_date_getter("getMilliseconds", [](double t) {
+            return date_helper::ms_from_time(date_helper::local_time(t));
+        });
+        make_date_getter("getUTCMilliseconds", [](double t) {
+            return date_helper::ms_from_time(t);
+        });
+        make_date_getter("getTimezoneOffset", [](double t) {
+            return (t - date_helper::local_time(t)) / date_helper::ms_per_minute;
+        });
+
+        auto make_date_mutator = [&](const char* name, auto f) {
+            date_prototype_->put(string{name}, value{make_function([f](const value& this_, const std::vector<value>& args) {
+                validate_type(this_, L"Date");
+                auto& obj = *this_.object_value();
+                f(obj, args);
+                return obj.internal_value();
+            }, 0)});
+        };
+
+        // setTime(time)
+        make_date_mutator("setTime", [](object& d, const std::vector<value>& args) {
+            d.internal_value(value{to_number(get_arg(args, 0))});
+        });
+
+        // setMilliseconds(ms)
+        // setUTCMilliseconds(ms)
+        // ...
+
+        date_prototype_->put(string{"toString"}, value{make_function([](const value& this_, const std::vector<value>&) {
+            validate_type(this_, L"Date");
+            return value{date_helper::to_string(this_.object_value()->internal_value().number_value())};
+        }, 0)});
+        // TODO: toLocaleString()
+        // TODO: toUTCString()
+        // TODO: toGMTString = toUTCString
 
         return c;
     }

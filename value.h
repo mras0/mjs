@@ -221,10 +221,9 @@ public:
     }
 
     // [[DefaultValue]] (Hint)
-    value default_value(value_type hint) {
+    virtual value default_value(value_type hint) {
         if (hint == value_type::undefined) {
             // When hint is undefined, assume Number unless it's a Date object in which case assume String
-            assert(class_name().str() != L"Date");
             hint = value_type::number;
         }
 

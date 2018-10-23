@@ -450,13 +450,45 @@ Math.tan(0);            //$ number 0
 }
 
 void test_date_functions() {
-    std::wcout << "Warning: Date not tested.\n";
-//    run_test_spec(R"(
-//new Date(1234).valueOf(); //$ number 1234
-//new Date(1234).getTime(); //$ number 1234
-//var d = new Date(Date.UTC(2000,0,1));
-//d.getTime(); //$ number 946684800000
-//)");
+    // TODO: Test local time
+    // TODO: Test mutators
+    // TODO: Test to*String()
+    // TODO: Test NaN Dates
+
+    run_test_spec(R"(
+new Date(1234).valueOf(); //$ number 1234
+new Date(1234).getTime(); //$ number 1234
+var t = Date.UTC(2000,0,1); t //$number 946684800000
+var d = new Date(t);
+d.valueOf(); //$ number 946684800000
+d.getTime(); //$ number 946684800000
+var t2 = Date.UTC(2000,0,1,12,34,56,7890); t2 //$ number 946730103890
+var d2 = new Date(t2);
+d2.getUTCFullYear(); //$ number 2000
+d2.getUTCMonth(); //$ number 0
+d2.getUTCDate(); //$ number 1
+d2.getUTCDay(); //$ number 6
+d2.getUTCHours(); //$ number 12
+d2.getUTCMinutes(); //$ number 35
+d2.getUTCSeconds(); //$ number 3
+d2.getUTCMilliseconds(); //$ number 890
+
+var t3 = Date.UTC(2000,0,1,12,34,56,789); t3 //$ number 946730096789
+var d3 = new Date(t3);
+d3.getUTCFullYear(); //$ number 2000
+d3.getUTCMonth(); //$ number 0
+d3.getUTCDate(); //$ number 1
+d3.getUTCDay(); //$ number 6
+d3.getUTCHours(); //$ number 12
+d3.getUTCMinutes(); //$ number 34
+d3.getUTCSeconds(); //$ number 56
+d3.getUTCMilliseconds(); //$ number 789
+
+d3.setTime(5678); d3.getTime() //$ number 5678
+
+//TODO: Use getTimezoneOffset() to create a local time 
+
+)");
 }
 
 int main() {
