@@ -3,9 +3,9 @@
 #include <cstring>
 #include <sstream>
 
-#include "interpreter.h"
-#include "parser.h"
-#include "printer.h"
+#include <mjs/interpreter.h>
+#include <mjs/parser.h>
+#include <mjs/printer.h>
 
 using namespace mjs;
 
@@ -141,6 +141,10 @@ void eval_tests() {
     test(L"''+Array('March', 'Jan', 'Feb', 'Dec').sort()", value{string{"Dec,Feb,Jan,March"}});
     test(L"''+Array(1,30,4,21).sort()", value{string{"1,21,30,4"}});
     test(L"function c(x,y) { return x-y; }; ''+Array(1,30,4,21).sort(c)", value{string{"1,4,21,30"}});
+    test(L"new Array(1).toString()", value{string{}});
+    test(L"new Array(1,2).toString()", value{string{"1,2"}});
+    test(L"+new Array(1)", value{0.});
+    test(L"+new Array(1,2)", value{NAN});
     // String
     test(L"String()", value{string{""}});
     test(L"String('test')", value{string{"test"}});
@@ -546,6 +550,10 @@ x++; x //$ number 2
 
 int main() {
     try {
+        // TODO: Move elsewhere
+        test(L"Number('1.2')", value{1.2});
+        test(L"Number('1,2')", value{NAN});
+
         eval_tests();
         test_global_functions();
         test_math_functions();

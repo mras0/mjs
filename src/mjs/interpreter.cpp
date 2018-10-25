@@ -135,6 +135,12 @@ public:
 
     ~impl() {
         assert(scopes_ && !scopes_->prev);
+#ifndef NDEBUG
+        scopes_.reset();
+        global_.reset();
+        mjs::object::garbage_collect({});
+        assert(!mjs::object::object_count());
+#endif
     }
 
     value eval(const expression& e) {

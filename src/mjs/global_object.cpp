@@ -959,7 +959,7 @@ private:
         });
         c->put(string{"prototype"}, value{date_prototype_}, prototype_attributes);
         c->put(string{"parse"}, value{make_function([](const value&, const std::vector<value>& args) {
-            NOT_IMPLEMENTED(get_arg(args, 0));
+            if (1) NOT_IMPLEMENTED(get_arg(args, 0));
             return value::undefined;
         }, 1)});
         c->put(string{"UTC"}, value{make_function([](const value&, const std::vector<value>& args) {

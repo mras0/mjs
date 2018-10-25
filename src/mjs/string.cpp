@@ -23,7 +23,7 @@ double to_number(const string& s) {
     if (s.view().empty()) return 0;
     std::wistringstream wis{s.str()};
     double d;
-    return wis >> d ? d : NAN;
+    return (wis >> d) && !wis.rdbuf()->in_avail() ? d : NAN;
 }
 
 } // namespace mjs
