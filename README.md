@@ -20,6 +20,7 @@ later. It has currently been tested with the following compilers:
 
 * Visual C++ 2017 15.8.8
 * GCC 7.1.0 (x64 distribution From [Stephan T. Lavavej](https://nuwen.net/mingw.html)) on Windows
+* GCC 8.2.0 (on x64 Linux)
 
 To run the tests build the "check" target.
 

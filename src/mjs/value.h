@@ -6,6 +6,7 @@
 #include <string_view>
 #include <cassert>
 #include <stdint.h>
+#include <climits>
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>

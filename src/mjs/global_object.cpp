@@ -8,6 +8,11 @@
 #include <cstring>
 #include <iostream>
 
+// TODO: Get rid of this stuff alltogether
+#ifndef _WIN32
+#define _mkgmtime timegm
+#endif
+
 namespace mjs {
 
 string index_string(uint32_t index) {
@@ -918,7 +923,7 @@ private:
         });
 
         math->put(string{"random"}, value{make_function([](const value&, const std::vector<value>&){
-            return value{static_cast<double>(rand()) / (1+RAND_MAX)};
+            return value{static_cast<double>(rand()) / (1.+RAND_MAX)};
         }, 0)}, attr);
 
         return math;
