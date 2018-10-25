@@ -100,6 +100,10 @@ public:
     explicit parser(const std::shared_ptr<source_file>& source) : source_(source), lexer_(source_->text) {}
 
     std::unique_ptr<block_statement> parse() {
+
+#ifdef PARSER_DEBUG
+        std::wcout << "\nParsing '" << source_->text << "'\n\n";
+#endif
         statement_list l;
         while (lexer_.current_token()) {
             try {
@@ -123,6 +127,7 @@ private:
     uint32_t expression_start_ = 0;
     uint32_t statement_start_ = 0;
     bool line_break_skipped_ = false;
+    bool last_token_was_rbrace_ = false;
 
     template<typename T, typename... Args>
     expression_ptr make_expression(Args&&... args) {
@@ -175,6 +180,7 @@ private:
 #endif
 
         token_start_ = old_end;
+        last_token_was_rbrace_ = t.type() == token_type::rbrace;
         return t;
     }
 
@@ -217,12 +223,11 @@ private:
 
     expression_ptr parse_postfix_expression() {
         auto lhs = parse_left_hand_side_expression();
-        // TODO: no line break before
-#ifndef  NDEBUG
-        const bool was_line_break_skipped = line_break_skipped_;
-#endif // ! NDEBUG
+        // no line break before
+        if (line_break_skipped_) {
+            return lhs;
+        }
         if (auto t = current_token_type(); accept(token_type::plusplus) || accept(token_type::minusminus)) {
-            assert(!was_line_break_skipped);
             return make_expression<postfix_expression>(t, std::move(lhs));
         }
         return lhs;
@@ -451,11 +456,12 @@ private:
         } else if (accept(token_type::break_)) {
             return make_statement<break_statement>();
         } else if (accept(token_type::return_)) {
-            assert(!line_break_skipped_);
-            // TODO: no line break before
+            // no line break before
             expression_ptr e{};
-            if (current_token_type() != token_type::semicolon) {
-                e = parse_expression();
+            if (!line_break_skipped_) {
+                if (current_token_type() != token_type::semicolon) {
+                    e = parse_expression();
+                }
             }
             return make_statement<return_statement>(std::move(e));
         } else {
@@ -479,8 +485,21 @@ private:
 
     statement_ptr parse_statement_or_function_declaration() {
         skip_whitespace();
-        auto s = current_token_type() == token_type::function_ ? parse_function() : parse_statement();
-        accept(token_type::semicolon);
+        statement_ptr s;
+        if (current_token_type() == token_type::function_) {
+            s = parse_function();
+            accept(token_type::semicolon); // Optional semi-colon
+        } else {
+            s = parse_statement();
+            //
+            // Automatic semi-colon insertion
+            //
+            if (!line_break_skipped_ && !last_token_was_rbrace_ && current_token_type() != token_type::eof) {
+                EXPECT(token_type::semicolon);
+            } else {
+                accept(token_type::semicolon);
+            }
+        }
         return s;
     }
 

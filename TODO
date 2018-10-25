@@ -1,0 +1,24 @@
+* Create REPL mode in mjs
+* Lexer
+    - Make sure everything is handled
+* Parser
+    - for in / with statements
+* Better GC
+    - And test current GC with live objects
+* Use wstring_view for token text (it's kept alive by the source_file)
+* Finish global object
+    - Date
+        - mutators
+        - time zone adjustments
+        - to/from string
+    - Function
+        - toString
+        - etc.
+* Optimize NumberToString()
+* Create parse_test (and move test_semicolon_insertion from interpreter test)
+* Create example(s)
+    - Embedding mjs (I.e. adding user-defined classes)
+* Make it easy to evaluate javascript expressions (e.g. String('12') + 34)
+* Optimize nested functions (they only need to be processed once (?))
+* AST optimizations (constant propagation etc.)
+* Optimize Array(), etc.

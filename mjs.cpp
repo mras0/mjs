@@ -28,8 +28,17 @@ std::shared_ptr<mjs::source_file> make_source(const char* filename) {
 
 int main() {
     try {
-        auto source = read_ascii_file("../js-performance-test.js");
-        //auto source = make_source(R"()");
+        //auto source = read_ascii_file("../js-performance-test.js");
+        auto source = make_source(R"(
+function test() {
+    return 
+    42
+}
+
+test()
+
+
+)");
 
         auto bs = mjs::parse(source);
         mjs::interpreter i{*bs};

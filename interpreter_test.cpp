@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cmath>
+#include <cstring>
 #include <sstream>
 
 #include "interpreter.h"
@@ -491,15 +492,65 @@ d3.setTime(5678); d3.getTime() //$ number 5678
 )");
 }
 
+// TODO: Create seperate parse_test
+void test_semicolon_insertion() {
+    struct parse_failure {};
+
+    auto test_parse_fails = [](const char* text) {
+        try {
+            parse(std::make_shared<source_file>(L"test", std::wstring(text, text+std::strlen(text))));
+        } catch (const std::exception& e) {
+            // std::wcerr << "\n'" << text << "' ---->\n" << e.what() << "\n\n";
+            (void)e;
+            return;
+        }
+        throw std::runtime_error(std::string("Unexpected parse success for '") + text + "'");
+    };
+
+    // TODO: Check other examples:
+    test_parse_fails(R"({ 1 2 } 3)");
+    test_parse_fails(R"({ 1
+2 } 3)");
+    test(LR"({ 1
+;2 ;} 3;)", value{3.}); // Valid
+    test_parse_fails(R"(for (a; b
+))");
+     
+    test(LR"(function f(a, b) { return
+        a+b;}
+        f(1,2))", value::undefined);
+
+    run_test_spec(R"(
+a=1;b=2;c=3;
+a = b
+++c
+; a //$ number 2
+; b //$ number 2
+; c //$ number 4
+)");
+
+    test_parse_fails(R"(if (a > b)
+else c = d;)");
+
+    run_test_spec(R"(
+function c(n) { return n+1; }
+a=1;b=2;d=4;e=5;
+a = b + c
+(d + e).toString()      //$ string '210'
+)");
+
+    run_test_spec(R"(x=0; x=x+1 //$ number 1
+x++; x //$ number 2
+)");
+}
+
 int main() {
     try {
         eval_tests();
-        run_test_spec(R"(x=0; x=x+1 //$ number 1
-x++; x //$ number 2
-)");
         test_global_functions();
         test_math_functions();
         test_date_functions();
+        test_semicolon_insertion();
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';
         return 1;
