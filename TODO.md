@@ -15,9 +15,6 @@
         - mutators
         - time zone adjustments
         - to/from string
-    - Function
-        - constructor
-        - etc.
     - Probably other missing stuff and non-compliant implementations...
 * Optimize `NumberToString()`
 * Create example(s)

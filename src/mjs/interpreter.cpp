@@ -130,6 +130,28 @@ public:
             return ret.result;
         }, 1);
 
+        global_object::put_function(global_->get(string{"Function"}).object_value(), [this](const value&, const std::vector<value>& args) {
+            std::wstring body{}, p{};
+            if (args.empty()) {
+            } else if (args.size() == 1) {
+                body = to_string(args.front()).str();
+            } else {
+                p = to_string(args.front()).str();
+                for (size_t k = 1; k < args.size() - 1; ++k) {
+                    p += ',';
+                    p += to_string(args[k]).str();
+                }
+                body = to_string(args.back()).str();
+            }
+
+            auto bs = parse(std::make_shared<source_file>(L"Function definition", L"function anonymous(" + p + L") {\n" + body + L"\n}"));
+            if (bs->l().size() != 1 || bs->l().front()->type() != statement_type::function_definition) {
+                NOT_IMPLEMENTED("Invalid function definition: " << bs->extend().source_view());
+            }
+
+            return value{create_function(static_cast<const function_definition&>(*bs->l().front()), scope_ptr{new scope{global_, nullptr}})};
+        }, global_object::native_function_body("Function"), 1);
+
         for (const auto& id: hoisting_visitor::scan(program)) {
             global_->put(id, value::undefined);
         }
@@ -604,45 +626,7 @@ public:
     }
 
     completion operator()(const function_definition& s) {
-        // §15.3.2.1
-        auto prev_scope = scopes_;
-        auto callee = global_->make_raw_function();
-        auto func = [&s, this, prev_scope, callee, ids = hoisting_visitor::scan(s.block())](const value& this_, const std::vector<value>& args) {
-            // Arguments array
-            auto as = object::make(string{"Object"}, global_->object_prototype());
-            as->put(string{"callee"}, value{callee}, property_attribute::dont_enum);
-            as->put(string{"length"}, value{static_cast<double>(args.size())}, property_attribute::dont_enum);
-            for (uint32_t i = 0; i < args.size(); ++i) {
-                as->put(index_string(i), args[i], property_attribute::dont_enum);
-            }
-
-            // Scope
-            auto_scope auto_scope_{*this, prev_scope};
-            auto& scope = scopes_->activation;
-            scope->put(string{"this"}, this_, property_attribute::dont_delete | property_attribute::dont_enum | property_attribute::read_only);
-            scope->put(string{"arguments"}, value{as}, property_attribute::dont_delete);
-            for (size_t i = 0; i < std::min(args.size(), s.params().size()); ++i) {
-                scope->put(s.params()[i], args[i]);
-            }
-            // Variables
-            for (const auto& id: ids) {
-                assert(!scope->has_property(id)); // TODO: Handle this..
-                scope->put(id, value::undefined);
-            }
-            return eval(s.block()).result;
-        };
-        global_->put_function(callee, func, string{std::wstring{L"function "} + s.id().str() + std::wstring{s.body_extend().source_view()}}, static_cast<int>(s.params().size()));
-
-        callee->construct_function([this, callee, name = s.id()](const value& unsused_this_, const std::vector<value>& args) {
-            assert(unsused_this_.type() == value_type::undefined); (void)unsused_this_;
-            assert(!name.view().empty());
-            auto p = callee->get(string("prototype"));
-            auto o = value{object::make(name, p.type() == value_type::object ? p.object_value() : global_->object_prototype())};
-            auto r = callee->call_function()(o, args);
-            return r.type() == value_type::object ? r : value{o};
-        });
-
-        prev_scope->activation->put(s.id(), value{callee});
+        scopes_->activation->put(s.id(), value{create_function(s, scopes_)});
         return completion{};
     }
 
@@ -730,6 +714,51 @@ private:
         auto res = c(value::undefined, args);
         scopes_->call_site = source_extend{nullptr,0,0};
         return res;
+    }
+
+    object_ptr create_function(const string& id, const std::shared_ptr<block_statement>& block, const std::vector<string>& param_names, const std::wstring& body_text, const scope_ptr& prev_scope) {
+        // §15.3.2.1
+        auto callee = global_->make_raw_function();
+        auto func = [this, block, param_names, prev_scope, callee, ids = hoisting_visitor::scan(*block)](const value& this_, const std::vector<value>& args) {
+            // Arguments array
+            auto as = object::make(string{"Object"}, global_->object_prototype());
+            as->put(string{"callee"}, value{callee}, property_attribute::dont_enum);
+            as->put(string{"length"}, value{static_cast<double>(args.size())}, property_attribute::dont_enum);
+            for (uint32_t i = 0; i < args.size(); ++i) {
+                as->put(index_string(i), args[i], property_attribute::dont_enum);
+            }
+
+            // Scope
+            auto_scope auto_scope_{*this, prev_scope};
+            auto& scope = scopes_->activation;
+            scope->put(string{"this"}, this_, property_attribute::dont_delete | property_attribute::dont_enum | property_attribute::read_only);
+            scope->put(string{"arguments"}, value{as}, property_attribute::dont_delete);
+            for (size_t i = 0; i < std::min(args.size(), param_names.size()); ++i) {
+                scope->put(param_names[i], args[i]);
+            }
+            // Variables
+            for (const auto& id: ids) {
+                assert(!scope->has_property(id)); // TODO: Handle this..
+                scope->put(id, value::undefined);
+            }
+            return eval(*block).result;
+        };
+        global_->put_function(callee, func, string{std::wstring{L"function "} + id.str() + body_text}, static_cast<int>(param_names.size()));
+
+        callee->construct_function([this, callee, id](const value& unsused_this_, const std::vector<value>& args) {
+            assert(unsused_this_.type() == value_type::undefined); (void)unsused_this_;
+            assert(!id.view().empty());
+            auto p = callee->get(string("prototype"));
+            auto o = value{object::make(id, p.type() == value_type::object ? p.object_value() : global_->object_prototype())};
+            auto r = callee->call_function()(o, args);
+            return r.type() == value_type::object ? r : value{o};
+        });
+
+        return callee;
+    }
+
+    object_ptr create_function(const function_definition& s, const scope_ptr& prev_scope) {
+        return create_function(s.id(), s.block_ptr(), s.params(), std::wstring{s.body_extend().source_view()}, prev_scope);
     }
 };
 

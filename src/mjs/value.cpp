@@ -381,16 +381,43 @@ void object::clear() {
 
 void debug_print(std::wostream& os, const value& v, int indent_incr, int max_nest, int indent) {
     switch (v.type()) {
-    case value_type::object:
-        if (!v.object_value()) {
-            os << "[Object null]";
-            return;
+    case value_type::undefined: [[fallthrough]];
+    case value_type::null:
+        os << v.type();
+        break;
+    case value_type::boolean: [[fallthrough]];
+    case value_type::number:
+        os << to_string(v);
+        break;
+    case value_type::string:
+        os << "'";
+        for (const auto& ch: v.string_value().view()) {
+            switch (ch) {
+            case '\'': os << "\\'"; break;
+            case '\\': os << "\\\\"; break;
+            case '\b': os << "\\b"; break;
+            case '\f': os << "\\f"; break;
+            case '\n': os << "\\n"; break;
+            case '\r': os << "\\r"; break;
+            case '\t': os << "\\t"; break;
+            default:
+                os << ch;
+            }
         }
+        os << "'";
+        break;
+    case value_type::object:
         v.object_value()->debug_print(os, indent_incr, max_nest, indent);
         break;
     default:
         os << "[" << v.type() << " " <<  v << "]";
     }
+}
+
+std::wstring debug_string(const value& v) {
+    std::wostringstream woss;
+    debug_print(woss, v, 4, 0);
+    return woss.str();
 }
 
 void object::debug_print(std::wostream& os, int indent_incr, int max_nest, int indent) const {

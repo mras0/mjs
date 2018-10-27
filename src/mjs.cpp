@@ -43,17 +43,15 @@ int main(int argc, char* argv[]) {
         }
 
         mjs::interpreter i{*mjs::parse(make_source(L""))};
-        // Keep previous statements alive in case any of them contained functions
-        std::vector<std::unique_ptr<mjs::block_statement>> previous_blocks;
         for (;;) {
             std::wcout << "> " << std::flush;
             std::wstring line;
             if (!getline(std::wcin, line)) {
                 break;
             }
-            previous_blocks.push_back(mjs::parse(make_source(line)));
             mjs::value res{};
-            for (const auto& s: previous_blocks.back()->l()) {
+            auto bs = mjs::parse(make_source(line));
+            for (const auto& s: bs->l()) {
                 res = i.eval(*s).result;
             }
             mjs::debug_print(std::wcout, res, 2);

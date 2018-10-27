@@ -564,8 +564,9 @@ private:
 
 class function_definition : public statement {
 public:
-    explicit function_definition(const source_extend& extend, const source_extend& body_extend, const string& id, std::vector<string>&& params, statement_ptr&& block) : statement(extend), body_extend_(body_extend), id_(id), params_(std::move(params)), block_(std::move(block)) {
-        assert(block_ && block_->type() == statement_type::block);
+    explicit function_definition(const source_extend& extend, const source_extend& body_extend, const string& id, std::vector<string>&& params, statement_ptr&& block) : statement(extend), body_extend_(body_extend), id_(id), params_(std::move(params)) {
+        assert(block && block->type() == statement_type::block);
+        block_.reset(static_cast<block_statement*>(block.release()));
     }
 
     statement_type type() const override { return statement_type::function_definition; }
@@ -573,13 +574,14 @@ public:
     const source_extend& body_extend() const { return body_extend_; }
     const string& id() const { return id_; }
     const std::vector<string>& params() const { return params_; }
-    const block_statement& block() const { return static_cast<const block_statement&>(*block_); }
+    const block_statement& block() const { return *block_; }
+    const std::shared_ptr<block_statement>& block_ptr() const { return block_; }
 
 private:
     source_extend body_extend_;
     string id_;
     std::vector<string> params_;
-    statement_ptr block_;
+    std::shared_ptr<block_statement> block_;
 
     void print(std::wostream& os) const override {
         os << "function_definition{" << id_ << ", [";

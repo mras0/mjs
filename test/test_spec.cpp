@@ -69,13 +69,26 @@ value parse_value(const std::string& s) {
         }
         if (type == "string" && iss.get() == '\'') {
             std::wstring res;
+            bool escape = false;
             while (iss.rdbuf()->in_avail()) {
                 const auto ch = static_cast<uint16_t>(iss.get());
-                if (ch == '\'') {
+                if (escape)  {
+                    switch (ch) {
+                    case '\\': [[fallthrough]];
+                    case '\'': res.push_back(ch); break;
+                    case 'n': res.push_back('\n'); break;
+                    default:
+                        NOT_IMPLEMENTED("Unhandled escape sequence \\" << (char)ch);
+                    }
+                    escape = false;
+                } else if (ch == '\\') {
+                    escape = true;
+                } else if (ch == '\'') {
                     assert(!iss.rdbuf()->in_avail());
                     return value{mjs::string{res}};
+                } else {
+                    res.push_back(ch);
                 }
-                res.push_back(ch);
             }
         }
     }
@@ -145,7 +158,7 @@ private:
             }
             if (last_result_.result != specs_[index_].expected) {
                 std::wostringstream oss;
-                oss << "Got " << last_result_.result << " expecting " <<  specs_[index_].expected << " while evaluating " << source_->filename;
+                oss << "Expecting " << debug_string(specs_[index_].expected) << " got " <<  debug_string(last_result_.result) << " while evaluating " << source_->filename;
                 THROW_RUNTIME_ERROR(oss.str());
             }
             ++index_;

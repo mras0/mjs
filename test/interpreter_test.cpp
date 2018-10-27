@@ -33,7 +33,7 @@ void test(const std::wstring_view& text, const value& expected) {
             res = i.eval(*s).result;
         }
         if (res != expected) {
-            std::wcout << "Test failed: " << text << " expecting " << expected.type() << " " << expected << " got " << res.type() << " " << res << "\n";
+            std::wcout << "Test failed: " << text << " expecting " << debug_string(expected) << " got " << debug_string(res) << "\n";
             pb();
             THROW_RUNTIME_ERROR("Test failed");
         }
@@ -192,7 +192,65 @@ with(42) {
     test(L"'' + new Object(null)", value{string{L"[object Object]"}});
     test(L"'' + new Object(undefined)", value{string{L"[object Object]"}});
     test(L"o = new Object;o.x=42; new Object(o).x", value{42.0});
-    // TODO: Function constructor
+
+    // Function. Note: toString() rendering isn't specified (exactly)
+    RUN_TEST_SPEC(R"(
+f=new Function();
+f.toString(); //$ string 'function anonymous() {\n\n}'
+f(); //$ undefined
+
+g=Function('return 42');
+g.toString(); //$ string 'function anonymous() {\nreturn 42\n}'
+g(); //$ number 42
+
+g=Function('x','return x+1;');
+g.toString(); //$ string 'function anonymous(x) {\nreturn x+1;\n}'
+g(2); //$ number 3
+
+var o = new Object();
+o.x = 42;
+Function('return o.x')();
+)");
+    RUN_TEST_SPEC(R"(f=Function('a','b','c','return a+b+c');
+        f(1,2,3); //$ number 6
+        f.toString(); //$ string 'function anonymous(a,b,c) {\nreturn a+b+c\n}'
+)");
+    RUN_TEST_SPEC(R"(f=new Function('a','b','c','return a+b+c');
+        f(1,2,3); //$ number 6
+        f.toString(); //$ string 'function anonymous(a,b,c) {\nreturn a+b+c\n}'
+)");
+    RUN_TEST_SPEC(R"(
+g = 0;
+
+function f() {
+    var o = new Object();
+    var g = 12;
+    g; //$ number 12
+    o.foo = Function('y','++g; return g+y');
+    return o;
+}
+
+var o = f();
+o.foo(42); //$number 43
+o.foo(42); //$number 44
+
+A = new Function('x','this.x=x');
+a = new A(42);
+a.x; //$ number 42
+
+a=Function('a', 'b', 'c', 'return a+b+c');
+a.toString(); //$ string 'function anonymous(a,b,c) {\nreturn a+b+c\n}'
+a.length; //$ number 3
+b=Function('a, b, c', 'return a+b+c');
+b.toString(); //$ string 'function anonymous(a, b, c) {\nreturn a+b+c\n}'
+b.length; //$ number 3
+c=Function('a,b', ' c', ' return     a+b+ c ');
+c.toString(); //$ string 'function anonymous(a,b, c) {\n return     a+b+ c \n}'
+c.length; //$ number 3
+
+f=Function('x','return x?arguments.callee(x-1)*x:1');
+f(5) //$ number 120
+)");
     test(L"function  f ( x   ,\ny )  { return x + y;  }; f.toString()", value{string{"function f( x   ,\ny )  { return x + y;  }"}});
     test(L"a=parseInt;a.toString()", value{string{"function parseInt() { [native code] }"}});
     // Array

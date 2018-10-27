@@ -440,14 +440,9 @@ private:
         return o;
     }
 
-    value function_constructor(const value&, const std::vector<value>&) {
-        NOT_IMPLEMENTED("function constructor not implemented");
-    }
-
     object_ptr make_function_object() {
-        auto o = make_function(std::bind(&global_object_impl::function_constructor, this, std::placeholders::_1, std::placeholders::_2), native_function_body("Function"), 1);
+        auto o = make_raw_function(); // Note: function constructor is added by interpreter
         o->put(string{"prototype"}, value{function_prototype_}, prototype_attributes);
-        o->put(string{"length"}, value{1.0}, default_attributes);
 
         // §15.3.4
         function_prototype_->call_function([](const value&, const std::vector<value>&) {

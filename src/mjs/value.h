@@ -326,6 +326,7 @@ string to_string(double n);
 string to_string(const value& v);
 
 void debug_print(std::wostream& os, const value& v, int indent_incr, int max_nest = INT_MAX, int indent = 0);
+std::wstring debug_string(const value& v);
 
 [[noreturn]] void throw_runtime_error(const std::string_view& s, const char* file, int line);
 [[noreturn]] void throw_runtime_error(const std::wstring_view& s, const char* file, int line);
