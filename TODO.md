@@ -16,7 +16,7 @@
         - time zone adjustments
         - to/from string
     - Function
-        - `toString`
+        - constructor
         - etc.
     - Probably other missing stuff and non-compliant implementations...
 * Optimize `NumberToString()`

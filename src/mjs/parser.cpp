@@ -518,6 +518,7 @@ private:
         RECORD_STATEMENT_START;
         EXPECT(token_type::function_);
         auto id = EXPECT(token_type::identifier).text();
+        const auto body_start = lexer_.text_position() - 1;
         EXPECT(token_type::lparen);
         std::vector<string> params;
         if (!accept(token_type::rparen)) {
@@ -526,7 +527,9 @@ private:
             } while (accept(token_type::comma));
             EXPECT(token_type::rparen);
         }
-        return make_statement<function_definition>(id, std::move(params), parse_block());
+        auto block = parse_block();
+        const auto body_end = block->extend().end;
+        return make_statement<function_definition>(source_extend{source_, body_start, body_end}, id, std::move(params), std::move(block));
     }
 
     statement_ptr parse_statement_or_function_declaration() {

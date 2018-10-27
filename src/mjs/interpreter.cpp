@@ -111,8 +111,8 @@ class interpreter::impl {
 public:
     explicit impl(const block_statement& program, const on_statement_executed_type& on_statement_executed) : global_(global_object::make()), on_statement_executed_(on_statement_executed) {
         assert(!global_->has_property(string{"eval"}));
-        global_->put(string{"eval"}, value{global_->make_function(
-            [this](const value&, const std::vector<value>& args) {
+
+        global_->put_native_function(global_, "eval", [this](const value&, const std::vector<value>& args) {
             if (args.empty()) {
                 return value::undefined;
             } else if (args.front().type() != value_type::string) {
@@ -128,7 +128,7 @@ public:
             }
             assert(!ret);
             return ret.result;
-        }, 1)}, property_attribute::dont_enum);
+        }, 1);
 
         for (const auto& id: hoisting_visitor::scan(program)) {
             global_->put(id, value::undefined);
@@ -630,7 +630,8 @@ public:
             }
             return eval(s.block()).result;
         };
-        global_->put_function(callee, func, static_cast<int>(s.params().size()));
+        global_->put_function(callee, func, string{std::wstring{L"function "} + s.id().str() + std::wstring{s.body_extend().source_view()}}, static_cast<int>(s.params().size()));
+
         callee->construct_function([this, callee, name = s.id()](const value& unsused_this_, const std::vector<value>& args) {
             assert(unsused_this_.type() == value_type::undefined); (void)unsused_this_;
             assert(!name.view().empty());

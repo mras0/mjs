@@ -38,7 +38,7 @@ void test(const std::wstring_view& text, const value& expected) {
             THROW_RUNTIME_ERROR("Test failed");
         }
     } catch (const std::exception& e) {
-        std::wcout << "Test failed: " << text << " uexpected exception throw: " << e.what() << "\n";
+        std::wcout << "Test failed: " << text << " uexpected exception thrown: " << e.what() << "\n";
         pb();
         throw;
     }
@@ -191,7 +191,9 @@ with(42) {
     test(L"'' + new Object(null)", value{string{L"[object Object]"}});
     test(L"'' + new Object(undefined)", value{string{L"[object Object]"}});
     test(L"o = new Object;o.x=42; new Object(o).x", value{42.0});
-    // TODO: Function
+    // TODO: Function constructor
+    test(L"function  f ( x   ,\ny )  { return x + y;  }; f.toString()", value{string{"function f( x   ,\ny )  { return x + y;  }"}});
+    test(L"a=parseInt;a.toString()", value{string{"function parseInt() { [native code] }"}});
     // Array
     test(L"Array.length", value{1.0});
     test(L"Array.prototype.length", value{0.0});

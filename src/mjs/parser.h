@@ -41,6 +41,10 @@ struct source_extend {
     uint32_t start;
     uint32_t end;
 
+    std::wstring_view source_view() const {
+        return std::wstring_view(file->text.c_str() + start, end - start);
+    }
+
     template<typename CharT>
     friend std::basic_ostream<CharT>& operator<<(std::basic_ostream<CharT>& os, const source_extend& extend) {
         auto [start_pos, end_pos] = extend_to_positions(extend.file->text, extend.start, extend.end);
@@ -560,17 +564,19 @@ private:
 
 class function_definition : public statement {
 public:
-    explicit function_definition(const source_extend& extend, const string& id, std::vector<string>&& params, statement_ptr&& block) : statement(extend), id_(id), params_(std::move(params)), block_(std::move(block)) {
+    explicit function_definition(const source_extend& extend, const source_extend& body_extend, const string& id, std::vector<string>&& params, statement_ptr&& block) : statement(extend), body_extend_(body_extend), id_(id), params_(std::move(params)), block_(std::move(block)) {
         assert(block_ && block_->type() == statement_type::block);
     }
 
     statement_type type() const override { return statement_type::function_definition; }
 
+    const source_extend& body_extend() const { return body_extend_; }
     const string& id() const { return id_; }
     const std::vector<string>& params() const { return params_; }
     const block_statement& block() const { return static_cast<const block_statement&>(*block_); }
 
 private:
+    source_extend body_extend_;
     string id_;
     std::vector<string> params_;
     statement_ptr block_;
