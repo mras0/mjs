@@ -109,9 +109,45 @@ void eval_tests() {
     test(L"x=2; y=0; while(1) { if(x) {x = x - 1; y = y + 2; continue; y = y + 1000; } else break; y = y + 1;} y", value{4.0});
     test(L"var x = 0; for(var i = 10, dec = 1; i; i = i - dec) x = x + i; x", value{55.0});
     test(L"var x=0; for (i=2; i; i=i-1) x=x+i; x+i", value{3.0});
-    // TODO: for .. in
+    
+    // for in statement
+    // FIXME: The order of the objects are unspecified in earlier revisions of ECMAScript..
+    RUN_TEST_SPEC(R"(
+function r(o) {
+    var s = '';
+    for (k in o) {
+        if(s) s+=',';
+        s += k;
+    }
+    return s;
+}
+r(42); //$ string ''
+k; //$ undefined
+var o = new Object(); o.x=42; o.y=60;
+r(o); //$ string 'x,y'
+k; //$ string 'y'
+)");
 
-    // With statement
+    RUN_TEST_SPEC(R"(
+function r(o) {
+    var s = '';
+    for (var k in o) {
+        if(s) s+=',';
+        s += k;
+    }
+    return s;
+}
+r(42); //$ string ''
+k; //$ undefined
+var o = new Object(); o['test test'] = 60; o.prop = 12;
+r(o); //$ string 'test test,prop'
+k; //$ undefined
+
+for (var y = 11 in 60){}
+y; //$ number 11
+)");
+
+    // with statement
     RUN_TEST_SPEC(R"(
 var a = new Object();
 a.x = 42; //$ number 42

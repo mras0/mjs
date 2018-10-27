@@ -470,6 +470,16 @@ private:
                 } else {
                     init = make_statement<expression_statement>(parse_expression());
                 }
+                if (accept(token_type::in_)) {
+                    if (init->type() == statement_type::variable && static_cast<variable_statement&>(*init).l().size() != 1) {
+                        // Only a single variable assigment is legal
+                        UNHANDLED();
+                    }
+
+                    auto e = parse_expression();
+                    EXPECT(token_type::rparen);
+                    return make_statement<for_in_statement>(std::move(init), std::move(e), parse_statement());
+                }
                 EXPECT(token_type::semicolon);
             }
             if (!accept(token_type::semicolon)) {

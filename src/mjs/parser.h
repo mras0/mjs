@@ -472,7 +472,32 @@ private:
     }
 };
 
-//for_in,
+class for_in_statement : public statement {
+public:
+    explicit for_in_statement(const source_extend& extend, statement_ptr&& init, expression_ptr&& e, statement_ptr&& s) : statement(extend), init_(std::move(init)), e_(std::move(e)), s_(std::move(s)) {
+        assert(init_ && (init_->type() == statement_type::expression || (init_->type() == statement_type::variable && static_cast<variable_statement&>(*init_).l().size() == 1)));
+        assert(e_);
+        assert(s_);
+    }
+
+    statement_type type() const override { return statement_type::for_in; }
+
+    const statement& init() const { return *init_; }
+    const expression& e() const { return *e_; }
+    const statement& s() const { return *s_; }
+
+private:
+    statement_ptr  init_;
+    expression_ptr e_;
+    statement_ptr  s_;
+
+    void print(std::wostream& os) const override {
+        os << "for_in_statement{" << *init_ << ",";
+        os << ',' << *e_;
+        os << ',' << *s_;
+        os << "}";
+    }
+};
 
 class continue_statement : public statement {
 public:
@@ -570,7 +595,7 @@ auto accept(const statement& s, Visitor& v) {
     case statement_type::if_:                   return v(static_cast<const if_statement&>(s));
     case statement_type::while_:                return v(static_cast<const while_statement&>(s));
     case statement_type::for_:                  return v(static_cast<const for_statement&>(s));
-    case statement_type::for_in:                break;
+    case statement_type::for_in:                return v(static_cast<const for_in_statement&>(s));
     case statement_type::continue_:             return v(static_cast<const continue_statement&>(s));
     case statement_type::break_:                return v(static_cast<const break_statement&>(s));
     case statement_type::return_:               return v(static_cast<const return_statement&>(s));

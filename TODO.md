@@ -3,7 +3,6 @@
     - Better handling of e.g. number literals..
     - Missing stuff?
 * Parser
-    - `for in` statements
     - Create `parse_test` (and move `test_semicolon_insertion` from interpreter test)
     - Test `source_extend` logic (could probably be more precise for expressions/statements)
 * Better GC

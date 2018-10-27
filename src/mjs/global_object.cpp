@@ -385,6 +385,9 @@ public:
         popuplate_global();
     }
 
+    static constexpr auto prototype_attributes = property_attribute::dont_enum | property_attribute::dont_delete | property_attribute::read_only;
+    static constexpr auto default_attributes = property_attribute::dont_enum;
+
     const object_ptr& object_prototype() const override { return object_prototype_; }
 
     object_ptr make_raw_function() override {
@@ -427,8 +430,6 @@ private:
     object_ptr number_prototype_;
     object_ptr date_prototype_;
 
-    static constexpr auto prototype_attributes = property_attribute::dont_enum | property_attribute::dont_delete | property_attribute::read_only;
-
     // FIXME: Is this sufficient to guard against clever users?
     static void validate_type(const value& v, const wchar_t* expected_type) {
         if (v.type() == value_type::object && v.object_value()->class_name().view() == expected_type && v.object_value()->internal_value() .type() != value_type::undefined) {
@@ -450,13 +451,13 @@ private:
     object_ptr make_function_object() {
         auto o = make_function(std::bind(&global_object_impl::function_constructor, this, std::placeholders::_1, std::placeholders::_2), 1);
         o->put(string{"prototype"}, value{function_prototype_}, prototype_attributes);
-        o->put(string{"length"}, value{1.0});
+        o->put(string{"length"}, value{1.0}, default_attributes);
 
         // §15.3.4
         function_prototype_->call_function([](const value&, const std::vector<value>&) {
             return value::undefined;
         });
-        function_prototype_->put(string{"constructor"}, value{o});
+        function_prototype_->put(string{"constructor"}, value{o}, default_attributes);
         // TODO: toString()
         return o;
     }
@@ -478,13 +479,13 @@ private:
         o->put(string{"prototype"}, value{object_prototype_}, prototype_attributes);
 
         // §15.2.4
-        object_prototype_->put(string{"constructor"}, value{o});
+        object_prototype_->put(string{"constructor"}, value{o}, default_attributes);
         object_prototype_->put(string{"toString"}, value{make_function([](const value& this_, const std::vector<value>&){
             return value{string{"[object "} + this_.object_value()->class_name() + string{"]"}};
-        }, 0)});
+        }, 0)}, default_attributes);
         object_prototype_->put(string{"valueOf"}, value{make_function([](const value& this_, const std::vector<value>&){
             return this_;
-        }, 0)});
+        }, 0)}, default_attributes);
         return o;
     }
 
@@ -510,15 +511,15 @@ private:
         });
         c->put(string{"prototype"}, value{boolean_prototype_}, prototype_attributes);
 
-        boolean_prototype_->put(string{"constructor"}, value{c});
+        boolean_prototype_->put(string{"constructor"}, value{c}, default_attributes);
         boolean_prototype_->put(string{"toString"}, value{make_function([](const value& this_, const std::vector<value>&){
             validate_type(this_, L"Boolean");
             return value{string{this_.object_value()->internal_value().boolean_value() ? L"true" : L"false"}};
-        }, 0)});
+        }, 0)}, default_attributes);
         boolean_prototype_->put(string{"valueOf"}, value{make_function([](const value& this_, const std::vector<value>&){
             validate_type(this_, L"Boolean");
             return this_.object_value()->internal_value();
-        }, 0)});
+        }, 0)}, default_attributes);
 
         return c;
     }
@@ -544,13 +545,13 @@ private:
             return value{args.empty() ? 0.0 : to_number(args.front())};
         });
         c->put(string{L"prototype"}, value{number_prototype_}, prototype_attributes);
-        c->put(string{"MAX_VALUE"}, value{1.7976931348623157e308});
-        c->put(string{"MIN_VALUE"}, value{5e-324});
-        c->put(string{"NaN"}, value{NAN});
-        c->put(string{"NEGATIVE_INFINITY"}, value{-INFINITY});
-        c->put(string{"POSITIVE_INFINITY"}, value{INFINITY});
+        c->put(string{"MAX_VALUE"}, value{1.7976931348623157e308}, default_attributes);
+        c->put(string{"MIN_VALUE"}, value{5e-324}, default_attributes);
+        c->put(string{"NaN"}, value{NAN}, default_attributes);
+        c->put(string{"NEGATIVE_INFINITY"}, value{-INFINITY}, default_attributes);
+        c->put(string{"POSITIVE_INFINITY"}, value{INFINITY}, default_attributes);
 
-        number_prototype_->put(string{L"constructor"}, value{c});
+        number_prototype_->put(string{L"constructor"}, value{c}, default_attributes);
         number_prototype_->put(string{"toString"}, value{make_function([](const value& this_, const std::vector<value>& args){
             validate_type(this_, L"Number");
             const int radix = args.empty() ? 10 : to_int32(args.front());
@@ -563,11 +564,11 @@ private:
                 NOT_IMPLEMENTED(radix);
             }
             return value{to_string(this_.object_value()->internal_value())};
-        }, 1)});
+        }, 1)}, default_attributes);
         number_prototype_->put(string{"valueOf"}, value{make_function([](const value& this_, const std::vector<value>&){
             validate_type(this_, L"Number");
             return this_.object_value()->internal_value();
-        }, 0)});
+        }, 0)}, default_attributes);
 
         return c;
     }
@@ -601,23 +602,23 @@ private:
                 s.push_back(to_uint16(a));
             }
             return value{string{s}};
-        }, 0)});
+        }, 0)}, default_attributes);
 
-        string_prototype_->put(string{"constructor"}, value{c});
+        string_prototype_->put(string{"constructor"}, value{c}, default_attributes);
         string_prototype_->put(string{"toString"}, value{make_function([](const value& this_, const std::vector<value>&){
             validate_type(this_, L"String");
             return this_.object_value()->internal_value();
-        }, 0)});
+        }, 0)}, default_attributes);
         string_prototype_->put(string{"valueOf"}, value{make_function([](const value& this_, const std::vector<value>&){
             validate_type(this_, L"String");
             return this_.object_value()->internal_value();
-        }, 0)});
+        }, 0)}, default_attributes);
 
 
         auto make_string_function = [this](const char* name, int num_args, auto f) {
             string_prototype_->put(string{name}, value{make_function([f](const value& this_, const std::vector<value>& args){
                 return value{f(to_string(this_).view(), args)};
-            }, num_args)});
+            }, num_args)}, default_attributes);
         };
 
         make_string_function("charAt", 1, [](const std::wstring_view& s, const std::vector<value>& args){
@@ -732,11 +733,11 @@ private:
         auto o = make_function(std::bind(&global_object_impl::array_constructor, this, std::placeholders::_1, std::placeholders::_2), 1);
         o->put(string{"prototype"}, value{array_prototype_}, prototype_attributes);
 
-        array_prototype_->put(string{"constructor"}, value{o});
+        array_prototype_->put(string{"constructor"}, value{o}, default_attributes);
         array_prototype_->put(string{"toString"}, value{make_function([](const value& this_, const std::vector<value>&) {
             assert(this_.type() == value_type::object);
             return value{join(this_.object_value(), L",")};
-        }, 0)});
+        }, 0)}, default_attributes);
         array_prototype_->put(string{"join"}, value{make_function([](const value& this_, const std::vector<value>& args) {
             assert(this_.type() == value_type::object);
             string sep{L","};
@@ -744,7 +745,7 @@ private:
                 sep = to_string(args.front());
             }
             return value{join(this_.object_value(), sep.view())};
-        }, 1)});
+        }, 1)}, default_attributes);
         array_prototype_->put(string{"reverse"}, value{make_function([](const value& this_, const std::vector<value>&) {
             assert(this_.type() == value_type::object);
             const auto& o = this_.object_value();
@@ -758,7 +759,7 @@ private:
                 o->put(i2, v1);
             }
             return this_;
-        }, 0)});
+        }, 0)}, default_attributes);
         array_prototype_->put(string{"sort"}, value{make_function([](const value& this_, const std::vector<value>& args) {
             assert(this_.type() == value_type::object);
             const auto& o = this_.object_value();
@@ -807,7 +808,7 @@ private:
                 o->put(index_string(i), values[i]);
             }
             return this_;
-        }, 1)});
+        }, 1)}, default_attributes);
         return o;
     }
 
@@ -815,7 +816,6 @@ private:
     // Console
     //
     auto make_console_object() {
-        const auto attr = property_attribute::dont_enum;
         auto console = object::make(string{"Object"}, object_prototype_);
 
         using timer_clock = std::chrono::steady_clock;
@@ -833,7 +833,7 @@ private:
             }
             std::wcout << '\n';
             return value::undefined;
-        }, 1)}, attr);
+        }, 1)}, default_attributes);
         console->put(string{"time"}, value{make_function(
             [timers](const value&, const std::vector<value>& args) {
             if (args.empty()) {
@@ -842,7 +842,7 @@ private:
             auto label = to_string(args.front());
             (*timers)[label.str()] = timer_clock::now();
             return value::undefined;
-        }, 1)}, attr);
+        }, 1)}, default_attributes);
         console->put(string{"timeEnd"}, value{make_function(
             [timers](const value&, const std::vector<value>& args) {
             const auto end_time = timer_clock::now();
@@ -859,7 +859,7 @@ private:
             std::wcout << "timeEnd " << label << ": " << show_duration(end_time - it->second) << "\n";
             timers->erase(it);
             return value::undefined;
-        }, 1)}, attr);
+        }, 1)}, default_attributes);
 
         return console;
     }
@@ -868,28 +868,27 @@ private:
     // Math
     //
     auto make_math_object() {
-        const auto attr = property_attribute::dont_enum | property_attribute::dont_delete | property_attribute::read_only;
         auto math = object::make(string{"Object"}, object_prototype_);
 
-        math->put(string{"E"},       value{2.7182818284590452354}, attr);
-        math->put(string{"LN10"},    value{2.302585092994046}, attr);
-        math->put(string{"LN2"},     value{0.6931471805599453}, attr);
-        math->put(string{"LOG2E"},   value{1.4426950408889634}, attr);
-        math->put(string{"LOG10E"},  value{0.4342944819032518}, attr);
-        math->put(string{"PI"},      value{3.14159265358979323846}, attr);
-        math->put(string{"SQRT1_2"}, value{0.7071067811865476}, attr);
-        math->put(string{"SQRT2"},   value{1.4142135623730951}, attr);
+        math->put(string{"E"},       value{2.7182818284590452354}, default_attributes);
+        math->put(string{"LN10"},    value{2.302585092994046}, default_attributes);
+        math->put(string{"LN2"},     value{0.6931471805599453}, default_attributes);
+        math->put(string{"LOG2E"},   value{1.4426950408889634}, default_attributes);
+        math->put(string{"LOG10E"},  value{0.4342944819032518}, default_attributes);
+        math->put(string{"PI"},      value{3.14159265358979323846}, default_attributes);
+        math->put(string{"SQRT1_2"}, value{0.7071067811865476}, default_attributes);
+        math->put(string{"SQRT2"},   value{1.4142135623730951}, default_attributes);
 
 
         auto make_math_function1 = [&](const char* name, auto f) {
             math->put(string{name}, value{make_function([f](const value&, const std::vector<value>& args){
                 return value{f(to_number(get_arg(args, 0)))};
-            }, 1)}, attr);
+            }, 1)}, default_attributes);
         };
         auto make_math_function2 = [&](const char* name, auto f) {
             math->put(string{name}, value{make_function([f](const value&, const std::vector<value>& args){
                 return value{f(to_number(get_arg(args, 0)), to_number(get_arg(args, 1)))};
-            }, 2)}, attr);
+            }, 2)}, default_attributes);
         };
 
 #define MATH_IMPL_1(name) make_math_function1(#name, [](double x) { return std::name(x); })
@@ -924,7 +923,7 @@ private:
 
         math->put(string{"random"}, value{make_function([](const value&, const std::vector<value>&){
             return value{static_cast<double>(rand()) / (1.+RAND_MAX)};
-        }, 0)}, attr);
+        }, 0)}, default_attributes);
 
         return math;
     }
@@ -966,15 +965,15 @@ private:
         c->put(string{"parse"}, value{make_function([](const value&, const std::vector<value>& args) {
             if (1) NOT_IMPLEMENTED(get_arg(args, 0));
             return value::undefined;
-        }, 1)});
+        }, 1)}, default_attributes);
         c->put(string{"UTC"}, value{make_function([](const value&, const std::vector<value>& args) {
             if (args.size() < 3) {
                 NOT_IMPLEMENTED("Date.UTC() with less than 3 arguments");
             }
             return value{date_helper::time_clip(date_helper::time_from_args(args))};
-        }, 7)});
+        }, 7)}, default_attributes);
 
-        date_prototype_->put(string{L"constructor"}, value{c});
+        date_prototype_->put(string{L"constructor"}, value{c}, default_attributes);
         // TODO: Date.parse(string)
 
         auto make_date_getter = [&](const char* name, auto f) {
@@ -985,7 +984,7 @@ private:
                     return value{t};
                 }
                 return value{static_cast<double>(f(t))};
-            }, 0)});
+            }, 0)}, default_attributes);
         };
         make_date_getter("valueOf", [](double t) { return t; });
         make_date_getter("getTime", [](double t) { return t; });
@@ -1050,7 +1049,7 @@ private:
                 auto& obj = *this_.object_value();
                 f(obj, args);
                 return obj.internal_value();
-            }, 0)});
+            }, 0)}, default_attributes);
         };
 
         // setTime(time)
@@ -1078,57 +1077,56 @@ private:
     //
     void popuplate_global() {
         // §15.1
-        const auto attr = property_attribute::dont_enum;
-        put(string{"Object"}, value{make_object_object()}, attr);
-        put(string{"Function"}, value{make_function_object()}, attr);
-        put(string{"Array"}, value{make_array_object()}, attr);
-        put(string{"String"}, value{make_string_object()}, attr);
-        put(string{"Boolean"}, value{make_boolean_object()}, attr);
-        put(string{"Number"}, value{make_number_object()}, attr);
-        put(string{"Math"}, value{make_math_object()}, attr);
-        put(string{"Date"}, value{make_date_object()}, attr);
+        put(string{"Object"}, value{make_object_object()}, default_attributes);
+        put(string{"Function"}, value{make_function_object()}, default_attributes);
+        put(string{"Array"}, value{make_array_object()}, default_attributes);
+        put(string{"String"}, value{make_string_object()}, default_attributes);
+        put(string{"Boolean"}, value{make_boolean_object()}, default_attributes);
+        put(string{"Number"}, value{make_number_object()}, default_attributes);
+        put(string{"Math"}, value{make_math_object()}, default_attributes);
+        put(string{"Date"}, value{make_date_object()}, default_attributes);
 
-        put(string{"NaN"}, value{NAN}, attr);
-        put(string{"Infinity"}, value{INFINITY}, attr);
+        put(string{"NaN"}, value{NAN}, default_attributes);
+        put(string{"Infinity"}, value{INFINITY}, default_attributes);
         // Note: eval is added by the eval visitor
         put(string{"parseInt"}, value{make_function(
             [](const value&, const std::vector<value>& args) {
             const auto input = to_string(get_arg(args, 0));
             int radix = to_int32(get_arg(args, 1));
             return value{parse_int(input.view(), radix)};
-        }, 2)}, attr);
+        }, 2)}, default_attributes);
         put(string{"parseFloat"}, value{make_function(
             [](const value&, const std::vector<value>& args) {
             const auto input = to_string(get_arg(args, 0));
             return value{parse_float(input.view())};
-        }, 1)}, attr);
+        }, 1)}, default_attributes);
         put(string{"escape"}, value{make_function(
             [](const value&, const std::vector<value>& args) {
             const auto input = to_string(get_arg(args, 0));
             return value{string{escape(input.view())}};
-        }, 1)}, attr);
+        }, 1)}, default_attributes);
         put(string{"unescape"}, value{make_function(
             [](const value&, const std::vector<value>& args) {
             const auto input = to_string(get_arg(args, 0));
             return value{string{unescape(input.view())}};
-        }, 1)}, attr);
+        }, 1)}, default_attributes);
         put(string{"isNaN"}, value{make_function(
             [](const value&, const std::vector<value>& args) {
             return value(std::isnan(to_number(args.empty() ? value::undefined : args.front())));
-        }, 1)}, attr);
+        }, 1)}, default_attributes);
         put(string{"isFinite"}, value{make_function(
             [](const value&, const std::vector<value>& args) {
             return value(std::isfinite(to_number(args.empty() ? value::undefined : args.front())));
-        }, 1)}, attr);
+        }, 1)}, default_attributes);
         put(string{"alert"}, value{make_function(
             [](const value&, const std::vector<value>& args) {
             std::wcout << "ALERT";
             if (!args.empty()) std::wcout << ": " << args[0];
             std::wcout << "\n";
             return value::undefined;
-        }, 1)}, attr);
+        }, 1)}, default_attributes);
 
-        put(string{"console"}, value{make_console_object()}, attr);
+        put(string{"console"}, value{make_console_object()}, default_attributes);
     }
 };
 
@@ -1145,7 +1143,7 @@ void global_object::put_function(const object_ptr& o, const native_function_type
     o->call_function(f);
     o->construct_function(f);
     auto& p = o->get(string{"prototype"}).object_value();
-    p->put(string{"constructor"}, value{o}, property_attribute::dont_enum);
+    p->put(string{"constructor"}, value{o}, global_object_impl::default_attributes);
 }
 
 } // namespace mjs

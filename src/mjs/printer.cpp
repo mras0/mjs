@@ -156,7 +156,14 @@ public:
         accept(s.s(), *this);
     }
 
-    //void operator()(const for_in_statement&){}
+    void operator()(const for_in_statement& s){
+        os_ << "for (";
+        accept(s.init(), *this);
+        os_ << " in ";
+        accept(s.e(), *this);
+        os_ << ") ";
+        accept(s.s(), *this);
+    }
 
     void operator()(const expression_statement& s) {
         accept(s.e(), *this);

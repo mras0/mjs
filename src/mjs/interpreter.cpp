@@ -66,7 +66,11 @@ public:
         accept(s.s(), *this);
     }
 
-    //void operator()(const for_in_statement&){}
+    void operator()(const for_in_statement& s){
+        accept(s.init(), *this);
+        accept(s.s(), *this);
+    }
+
     void operator()(const continue_statement&){}
     void operator()(const break_statement&){}
     void operator()(const return_statement&){}
@@ -491,6 +495,8 @@ public:
         return completion{};
     }
 
+    // TODO: Reduce code duplication in handling of for/for in statements
+
     completion operator()(const for_statement& s) {
         if (auto is = s.init()) {
             auto c = eval(*is);
@@ -513,7 +519,56 @@ public:
         return completion{};
     }
 
-    //completion operator()(const for_in_statement&) {}
+    completion operator()(const for_in_statement& s) {
+        if (s.init().type() == statement_type::expression) {
+            auto o = global_->to_object(get_value(eval(s.e())));
+            const auto& lhs_expression = static_cast<const expression_statement&>(s.init()).e();
+            for (const auto& n: o->property_names()) {
+                if (!put_value(eval(lhs_expression), value{n})) {
+                    std::wostringstream woss;
+                    woss << lhs_expression << " is not an valid left hand side expression in for in loop";
+                    throw eval_exception(stack_trace(lhs_expression.extend()), woss.str());
+                }
+                auto c = eval(s.s());
+                if (c.type == completion_type::break_) {
+                    return completion{};
+                } else if (c.type == completion_type::return_) {
+                    return c;
+                }
+                assert(c.type == completion_type::normal || c.type == completion_type::continue_);
+            }
+            return completion{};
+        } else {
+            assert(s.init().type() == statement_type::variable);
+            const auto& var_statement = static_cast<const variable_statement&>(s.init());
+            assert(var_statement.l().size() == 1);
+            const auto& init = var_statement.l()[0];
+
+            auto assign = [&](const value& val) {
+                if (!put_value(value{scopes_->lookup(init.id())}, val)) {
+                    // Shouldn't happen (?)
+                    NOT_IMPLEMENTED(s);
+                }
+            };
+
+            assign(init.init() ? get_value(eval(*init.init())) : value::undefined);
+            
+            // Happens after the initial assignment
+            auto o = global_->to_object(get_value(eval(s.e())));
+
+            for (const auto& n: o->property_names()) {
+                assign(value{n});
+                auto c = eval(s.s());
+                if (c.type == completion_type::break_) {
+                    return completion{};
+                } else if (c.type == completion_type::return_) {
+                    return c;
+                }
+                assert(c.type == completion_type::normal || c.type == completion_type::continue_);
+            }
+            return completion{};
+        }
+    }
 
     completion operator()(const continue_statement&) {
         return completion{completion_type::continue_};
