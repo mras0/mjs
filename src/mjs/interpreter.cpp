@@ -447,12 +447,12 @@ public:
     //
 
     completion operator()(const block_statement& s) {
+        completion c{};
         for (const auto& bs: s.l()) {
-            if (auto c = eval(*bs)) {
-                return c;
-            }
+            c = eval(*bs);
+            if (c) break;
         }
-        return completion{};
+        return c;
     }
 
     completion operator()(const variable_statement& s) {
@@ -503,10 +503,11 @@ public:
             assert(!c); // Expect normal completion
             (void)get_value(c.result);
         }
+        completion c{};
         while (!s.cond() || to_boolean(get_value(eval(*s.cond())))) {
-            auto c = eval(s.s());
+            c = eval(s.s());
             if (c.type == completion_type::break_) {
-                return completion{};
+                break;
             } else if (c.type == completion_type::return_) {
                 return c;
             }
@@ -516,10 +517,11 @@ public:
                 (void)get_value(eval(*s.iter()));
             }
         }
-        return completion{};
+        return c;
     }
 
     completion operator()(const for_in_statement& s) {
+        completion c{};
         if (s.init().type() == statement_type::expression) {
             auto o = global_->to_object(get_value(eval(s.e())));
             const auto& lhs_expression = static_cast<const expression_statement&>(s.init()).e();
@@ -529,15 +531,14 @@ public:
                     woss << lhs_expression << " is not an valid left hand side expression in for in loop";
                     throw eval_exception(stack_trace(lhs_expression.extend()), woss.str());
                 }
-                auto c = eval(s.s());
+                c = eval(s.s());
                 if (c.type == completion_type::break_) {
-                    return completion{};
+                    break;
                 } else if (c.type == completion_type::return_) {
                     return c;
                 }
                 assert(c.type == completion_type::normal || c.type == completion_type::continue_);
             }
-            return completion{};
         } else {
             assert(s.init().type() == statement_type::variable);
             const auto& var_statement = static_cast<const variable_statement&>(s.init());
@@ -558,16 +559,16 @@ public:
 
             for (const auto& n: o->property_names()) {
                 assign(value{n});
-                auto c = eval(s.s());
+                c = eval(s.s());
                 if (c.type == completion_type::break_) {
-                    return completion{};
+                    break;
                 } else if (c.type == completion_type::return_) {
                     return c;
                 }
                 assert(c.type == completion_type::normal || c.type == completion_type::continue_);
             }
-            return completion{};
         }
+        return c;
     }
 
     completion operator()(const continue_statement&) {

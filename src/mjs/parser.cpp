@@ -10,6 +10,7 @@
 
 #define UNHANDLED() unhandled(__FUNCTION__, __LINE__)
 #define EXPECT(tt) expect(tt, __FUNCTION__, __LINE__)
+#define EXPECT_SEMICOLON_ALLOW_INSERTION() expect_semicolon_allow_insertion(__FUNCTION__, __LINE__)
 
 namespace mjs {
 
@@ -32,9 +33,6 @@ source_position calc_source_position(const std::wstring_view& t, uint32_t start_
 std::pair<source_position, source_position> extend_to_positions(const std::wstring_view& t, uint32_t start_pos, uint32_t end_pos) {
     auto start = calc_source_position(t, 0, start_pos, {1,1});
     auto end = calc_source_position(t, start_pos, end_pos, start);
-    if (start.line == end.line && start.column != end.column) {
-        end.column--;
-    }
     return {start, end};
 }
 
@@ -155,7 +153,6 @@ private:
     position_stack_node* expression_pos_ = nullptr;
     position_stack_node* statement_pos_ = nullptr;
     bool line_break_skipped_ = false;
-    bool last_token_was_rbrace_ = false;
 
     template<typename T, typename... Args>
     expression_ptr make_expression(Args&&... args) {
@@ -184,14 +181,15 @@ private:
     void skip_whitespace() {
         for (;; lexer_.next_token()) {
             if (current_token_type() == token_type::whitespace) {
+#ifdef PARSER_DEBUG
+                std::wcout << source_extend{source_, token_start_, lexer_.text_position()} << " Consuming token: " << lexer_.current_token() << "\n";
+#endif
             } else if (current_token_type() == token_type::line_terminator) {
                 line_break_skipped_ = true;
             } else {
                 break;
             }
-#ifdef PARSER_DEBUG
-            std::wcout << source_extend{source_, token_start_, lexer_.text_position()} << " Consuming token: " << lexer_.current_token() << "\n";
-#endif
+            token_start_ = lexer_.text_position();
         }
     }
 
@@ -200,13 +198,11 @@ private:
         auto t = lexer_.current_token();
         lexer_.next_token();
         line_break_skipped_ = false;
-        skip_whitespace();
 #ifdef PARSER_DEBUG
         std::wcout << source_extend{source_, token_start_, old_end} << " Consuming token: " << t << "\n";
 #endif
-
         token_start_ = old_end;
-        last_token_was_rbrace_ = t.type() == token_type::rbrace;
+        skip_whitespace();
         return t;
     }
 
@@ -225,6 +221,17 @@ private:
             throw std::runtime_error(oss.str());
         }
         return t;
+    }
+
+    void expect_semicolon_allow_insertion(const char* func, int line) {
+        //
+        // Automatic semi-colon insertion
+        //
+        if (!line_break_skipped_ && current_token_type() != token_type::rbrace && current_token_type() != token_type::eof) {
+            expect(token_type::semicolon, func, line);
+        } else {
+            accept(token_type::semicolon);
+        }
     }
 
     expression_ptr parse_primary_expression() {
@@ -444,8 +451,11 @@ private:
         if (current_token_type() == token_type::lbrace) {
             return parse_block();
         } else if (accept(token_type::var_)) {
-            return make_statement<variable_statement>(parse_variable_declaration_list());
+            auto dl = parse_variable_declaration_list();
+            EXPECT_SEMICOLON_ALLOW_INSERTION();
+            return make_statement<variable_statement>(std::move(dl));
         } else if (current_token_type() == token_type::semicolon) {
+            get_token();
             return make_statement<empty_statement>();
         } else if (accept(token_type::if_)) {
             EXPECT(token_type::lparen);
@@ -492,8 +502,10 @@ private:
             }
             return make_statement<for_statement>(std::move(init), std::move(cond), std::move(iter), parse_statement());
         } else if (accept(token_type::continue_)) {
+            EXPECT_SEMICOLON_ALLOW_INSERTION();
             return make_statement<continue_statement>();
         } else if (accept(token_type::break_)) {
+            EXPECT_SEMICOLON_ALLOW_INSERTION();
             return make_statement<break_statement>();
         } else if (accept(token_type::return_)) {
             // no line break before
@@ -503,6 +515,7 @@ private:
                     e = parse_expression();
                 }
             }
+            EXPECT_SEMICOLON_ALLOW_INSERTION();
             return make_statement<return_statement>(std::move(e));
         } else if (accept(token_type::with_)) {
             EXPECT(token_type::lparen);
@@ -510,7 +523,9 @@ private:
             EXPECT(token_type::rparen);
             return make_statement<with_statement>(std::move(e), parse_statement());
         } else {
-            return make_statement<expression_statement>(parse_expression());
+            auto e = parse_expression();
+            EXPECT_SEMICOLON_ALLOW_INSERTION();
+            return make_statement<expression_statement>(std::move(e));
         }
     }
 
@@ -537,17 +552,8 @@ private:
         statement_ptr s;
         if (current_token_type() == token_type::function_) {
             s = parse_function();
-            accept(token_type::semicolon); // Optional semi-colon
         } else {
             s = parse_statement();
-            //
-            // Automatic semi-colon insertion
-            //
-            if (!line_break_skipped_ && !last_token_was_rbrace_ && current_token_type() != token_type::eof) {
-                EXPECT(token_type::semicolon);
-            } else {
-                accept(token_type::semicolon);
-            }
         }
         return s;
     }

@@ -99,6 +99,7 @@ public:
 #endif
         test_spec_runner tsr{specs, statements};
         tsr.i_.eval(statements);
+        tsr.check_test_spec_done(statements.extend().end);
 #ifdef TEST_SPEC_DEBUG
         std::wcout << "\n";
 #endif
@@ -122,20 +123,20 @@ private:
             std::wcout << " ==> " << to_string(res.result) << "\n";
 #endif
             if (s.extend().file == source_) {
-                check_test_spec_done(s.extend());
+                check_test_spec_done(s.extend().start);
                 last_result_ = res;
             }
         }) {
     }
 
-    void check_test_spec_done(const source_extend& extend) {
+    void check_test_spec_done(uint32_t check_pos) {
         if (index_ == specs_.size()) {
             return;
         }
 
-        if (extend.end > specs_[index_].position) {
+        if (check_pos > specs_[index_].position) {
 #ifdef TEST_SPEC_DEBUG
-            std::wcout << pos_w << extend.start << "-" << pos_w << extend.end << ": Checking at pos " << pos_w << specs_[index_].position << " expecting " << specs_[index_].expected.type() << " " << to_string(specs_[index_].expected) << "\n";
+            std::wcout << pos_w << check_pos << ": Checking at pos " << pos_w << specs_[index_].position << " expecting " << specs_[index_].expected.type() << " " << to_string(specs_[index_].expected) << "\n";
 #endif
             if (last_result_) {
                 std::wostringstream oss;

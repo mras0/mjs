@@ -109,6 +109,7 @@ void eval_tests() {
     test(L"x=2; y=0; while(1) { if(x) {x = x - 1; y = y + 2; continue; y = y + 1000; } else break; y = y + 1;} y", value{4.0});
     test(L"var x = 0; for(var i = 10, dec = 1; i; i = i - dec) x = x + i; x", value{55.0});
     test(L"var x=0; for (i=2; i; i=i-1) x=x+i; x+i", value{3.0});
+    test(L"for (var i=0;!i;) { i=1 }", value{1.});
     
     // for in statement
     // FIXME: The order of the objects are unspecified in earlier revisions of ECMAScript..
@@ -489,8 +490,8 @@ void test_semicolon_insertion() {
 
     // TODO: Check other examples:
     test_parse_fails(R"({ 1 2 } 3)");
-    test_parse_fails(R"({ 1
-2 } 3)");
+    test(LR"({ 1
+2 } 3)", value{3.});
     test(LR"({ 1
 ;2 ;} 3;)", value{3.}); // Valid
     test_parse_fails(R"(for (a; b
