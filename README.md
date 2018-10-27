@@ -26,7 +26,7 @@ later. It has currently been tested with the following compilers:
 To run the tests build the "check" target.
 
 The interpreter is built in the "src" directory. It accepts a Javascript
-on the command line or starts in REPL mode if no argument is given.
+file on the command line or starts in REPL mode if no argument is given.
 
 These steps should work for most people:
 

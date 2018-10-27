@@ -64,6 +64,7 @@ void eval_tests() {
     test(L"x=12//\n+34;x", value{46.0});
     test(L"-7.5 % 2", value{-1.5});
     test(L"1+2*3", value{7.});
+    test(L"''+(0.1+0.2)", value{string{"0.30000000000000004"}});
     test(L"x = 42; 'test ' + 2 * (6 - 4 + 1) + ' ' + x", value{string{"test 6 42"}});
     test(L"y=1/2; z='string'; y+z", value{string{"0.5string"}});
     test(L"var x=2; x++;", value{2.0});

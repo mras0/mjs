@@ -610,18 +610,7 @@ public:
     }
 
     completion operator()(const with_statement& s) {
-        class with_scope {
-        public:
-            explicit with_scope(impl& parent, const object_ptr& o) : parent(parent), old_scopes(parent.scopes_) {
-                parent.scopes_.reset(new scope{o, old_scopes});
-            }
-            ~with_scope() {
-                parent.scopes_ = old_scopes;
-            }
-            impl& parent;
-            scope_ptr old_scopes;
-        };
-        with_scope ws{*this, global_->to_object(get_value(eval(s.e())))};
+        auto_scope with_scope{*this, global_->to_object(get_value(eval(s.e()))), scopes_};
         return eval(s.s());
     }
 
@@ -654,9 +643,8 @@ private:
     };
     class auto_scope {
     public:
-        explicit auto_scope(impl& parent, const scope_ptr& prev) : parent(parent), old_scopes(parent.scopes_) {
-            auto activation = object::make(string{"Activation"}, nullptr); // TODO
-            parent.scopes_.reset(new scope{activation, prev});
+        explicit auto_scope(impl& parent, const object_ptr& act, const scope_ptr& prev) : parent(parent), old_scopes(parent.scopes_) {
+            parent.scopes_.reset(new scope{act, prev});
         }
         ~auto_scope() {
             parent.scopes_ = old_scopes;
@@ -729,17 +717,17 @@ private:
             }
 
             // Scope
-            auto_scope auto_scope_{*this, prev_scope};
-            auto& scope = scopes_->activation;
-            scope->put(string{"this"}, this_, property_attribute::dont_delete | property_attribute::dont_enum | property_attribute::read_only);
-            scope->put(string{"arguments"}, value{as}, property_attribute::dont_delete);
+            auto activation = object::make(string{"Activation"}, nullptr); // TODO
+            auto_scope auto_scope_{*this, activation, prev_scope};
+            activation->put(string{"this"}, this_, property_attribute::dont_delete | property_attribute::dont_enum | property_attribute::read_only);
+            activation->put(string{"arguments"}, value{as}, property_attribute::dont_delete);
             for (size_t i = 0; i < std::min(args.size(), param_names.size()); ++i) {
-                scope->put(param_names[i], args[i]);
+                activation->put(param_names[i], args[i]);
             }
             // Variables
             for (const auto& id: ids) {
-                assert(!scope->has_property(id)); // TODO: Handle this..
-                scope->put(id, value::undefined);
+                assert(!activation->has_property(id)); // TODO: Handle this..
+                activation->put(id, value::undefined);
             }
             return eval(*block).result;
         };

@@ -346,8 +346,15 @@ std::unordered_set<object*> object::all_objects_;
 void object::gc_visit(std::unordered_set<const object*>& live_objects) const {
     live_objects.insert(this);
     for (const auto& p: properties_) {
-        if (p.second.val.type() == value_type::object) {
-            p.second.val.object_value()->gc_visit(live_objects);
+        auto& val = p.second.val;
+        if (val.type() == value_type::object) {
+            auto op = val.object_value().get();
+            assert(op);
+            if (live_objects.find(op) == live_objects.end()) {
+                op->gc_visit(live_objects);
+            }
+        } else {
+            assert(is_primitive(val.type()));
         }
     }
 }
