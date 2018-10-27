@@ -15,8 +15,6 @@
 
 #include "string.h"
 
-// TODO: Garbage collect / cycle breaking...
-
 namespace mjs {
 
 enum class value_type {

@@ -7,6 +7,8 @@
 #include <mjs/parser.h>
 #include <mjs/printer.h>
 
+#include "test_spec.h"
+
 using namespace mjs;
 
 void test(const std::wstring_view& text, const value& expected) {
@@ -107,7 +109,42 @@ void eval_tests() {
     test(L"x=2; y=0; while(1) { if(x) {x = x - 1; y = y + 2; continue; y = y + 1000; } else break; y = y + 1;} y", value{4.0});
     test(L"var x = 0; for(var i = 10, dec = 1; i; i = i - dec) x = x + i; x", value{55.0});
     test(L"var x=0; for (i=2; i; i=i-1) x=x+i; x+i", value{3.0});
-    // TODO: for .. in, with
+    // TODO: for .. in
+
+    // With statement
+    RUN_TEST_SPEC(R"(
+var a = new Object();
+a.x = 42; //$ number 42
+with (a) {
+    x; //$ number 42
+    x = 60;
+    y = true;
+}
+x; //$ undefined
+y; //$ boolean true
+a.x; //$ number 60
+a.y; //$ undefined
+
+function f() {
+    a.y=0;
+    with(a) {
+        x=123;
+        y=1;
+        return;
+    }
+};
+f();
+x; //$ undefined
+y; //$ boolean true
+a.x; //$ number 123
+a.y; //$ number 1
+
+with(42) {
+    toString(); //$ string '42'
+}
+)");
+
+
     test(L"function sum() {  var s = 0; for (var i = 0; i < arguments.length; ++i) s += arguments[i]; return s; } sum(1,2,3)", value{6.0});
     // Object
     test(L"''+Object(null)", value{string{"[object Object]"}});
@@ -204,6 +241,8 @@ void eval_tests() {
     test(L"Number()", value{0.});
     test(L"Number(42.42)", value{42.42});
     test(L"Number.MIN_VALUE", value{5e-324});
+    test(L"Number('1.2')", value{1.2});
+    test(L"Number('1,2')", value{NAN});
     test(L"new Number(42.42).toString()", value{string{"42.42"}});
     test(L"''+new Number(60)", value{string{"60"}});
     test(L"new Number(123).valueOf()", value{123.0});
@@ -233,116 +272,15 @@ void eval_tests() {
     test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; s.prototype.foo", value{string{"bar"}});
 }
 
-std::string_view trim(const std::string_view& s) {
-    size_t pos = 0, len = s.length();
-    while (pos < s.length() && isblank(s[pos]))
-        ++pos, --len;
-    while (len && isblank(s[pos+len-1]))
-        --len;
-    return s.substr(pos, len);
-}
-
-value parse_value(const std::string& s) {
-    std::istringstream iss{s};
-    std::string type;
-    if (iss >> type) {
-        while (iss.rdbuf()->in_avail() && isblank(iss.peek()))
-            iss.get();
-
-        if (type == "undefined") {
-            assert(!iss.rdbuf()->in_avail());
-            return value::undefined;
-        } else if (type == "null") {
-            assert(!iss.rdbuf()->in_avail());
-            return value::null;
-        } else if (type == "boolean") {
-            std::string val;
-            if ((iss >> val) && (val == "true" || val == "false")) {
-                assert(!iss.rdbuf()->in_avail());
-                return mjs::value{val == "true"};
-            }
-        }
-        if (type == "number" && iss.rdbuf()->in_avail()) {
-            if (isalpha(iss.peek())) {
-                std::string name;
-                if (iss >> name) {
-                    assert(!iss.rdbuf()->in_avail());
-                    for (auto& c: name) c = static_cast<char>(tolower(c));
-                    if (name == "infinity") return mjs::value{INFINITY};
-                    if (name == "nan") return mjs::value{NAN};
-                }
-            } else {
-                double val;
-                if (iss >> val) {
-                    assert(!iss.rdbuf()->in_avail());
-                    return value{val};
-                }
-            }
-        }
-        if (type == "string" && iss.get() == '\'') {
-            std::wstring res;
-            while (iss.rdbuf()->in_avail()) {
-                const auto ch = static_cast<uint16_t>(iss.get());
-                if (ch == '\'') {
-                    assert(!iss.rdbuf()->in_avail());
-                    return value{mjs::string{res}};
-                }
-                res.push_back(ch);
-            }
-        }
-    }
-    throw std::runtime_error("Invalid test spec value \"" + s + "\"");
-}
-
-void run_test_spec(const std::string_view& test_spec) {   
-    constexpr const char delim[] = "//$";
-    constexpr const int delim_len = sizeof(delim)-1;
-
-    interpreter i{ *parse(std::make_shared<source_file>(L"run_test_spec", std::wstring(test_spec.begin(), test_spec.end()))) };
-    for (size_t pos = 0, next_pos; pos < test_spec.length(); pos = next_pos + 1) {
-        size_t delim_pos = test_spec.find(delim, pos);
-        if (delim_pos == std::string_view::npos) {
-            break;
-        }
-        next_pos = test_spec.find("\n", delim_pos);
-        if (next_pos == std::string_view::npos) {
-            throw std::runtime_error("Invalid test spec.");
-        }
-
-        const auto code = trim(test_spec.substr(pos, delim_pos - pos));
-        const auto wcode = std::wstring(code.begin(), code.end());
-        delim_pos += delim_len;
-        const auto res = parse_value(std::string(trim(test_spec.substr(delim_pos, next_pos - delim_pos))));
-
-
-        auto source = std::make_shared<source_file>(L"run_test_spec", wcode);
-        auto bs = parse(source);
-        completion ret{};
-        for (const auto& s: bs->l()) {
-            ret = i.eval(*s);
-            if (ret) {
-                std::wostringstream oss;
-                oss << wcode << " failed: " << ret;
-                THROW_RUNTIME_ERROR(oss.str());
-            }
-        }
-        if (ret.result != res) {
-            std::wostringstream oss;
-            oss << "Got " << ret.result << " expecting " <<  res << " while evaluating " << wcode;
-            THROW_RUNTIME_ERROR(oss.str());
-        }
-    }
-}
-
 void test_global_functions() {
     // Values
-    run_test_spec(R"(
+    RUN_TEST_SPEC(R"(
 NaN //$ number NaN
 Infinity //$ number Infinity
 )");
 
     // eval
-    run_test_spec(R"(
+    RUN_TEST_SPEC(R"(
 eval() //$ undefined
 eval(42) //$ number 42
 eval(true) //$ boolean true
@@ -352,7 +290,7 @@ x42=50; eval('x'+42+'=13'); x42 //$ number 13
 )");
 
     // parseInt
-    run_test_spec(R"(
+    RUN_TEST_SPEC(R"(
 parseInt('0'); //$ number 0 
 parseInt(42); //$ number 42
 parseInt('10', 2); //$ number 2
@@ -368,7 +306,7 @@ parseInt(' x', 1); //$ number NaN
 )");
 
     // parseFloat
-    run_test_spec(R"(
+    RUN_TEST_SPEC(R"(
 parseFloat('0'); //$ number 0 
 parseFloat(42); //$ number 42
 parseFloat(' 42.25x'); //$ number 42.25
@@ -376,7 +314,7 @@ parseFloat('h'); //$ number NaN
 )");
 
     // escape / unescape
-    run_test_spec(R"(
+    RUN_TEST_SPEC(R"(
 escape() //$ string 'undefined'
 escape('') //$ string ''
 escape('test') //$ string 'test'
@@ -393,7 +331,7 @@ unescape('%u1234').charCodeAt(0) //$ number 4660
 )");
 
     // isNaN / isFinite
-    run_test_spec(R"(
+    RUN_TEST_SPEC(R"(
 isNaN(NaN) //$ boolean true
 isNaN(Infinity) //$ boolean false
 isNaN(-Infinity) //$ boolean false
@@ -407,7 +345,7 @@ isFinite(Number.MAX_VALUE) //$ boolean true
 }
 
 void test_math_functions() {
-    run_test_spec(R"(
+    RUN_TEST_SPEC(R"(
 Math.E;                 //$ number 2.7182818284590452354
 Math.LN10;              //$ number 2.302585092994046
 Math.LN2;               //$ number 0.6931471805599453
@@ -460,7 +398,7 @@ void test_date_functions() {
     // TODO: Test to*String()
     // TODO: Test NaN Dates
 
-    run_test_spec(R"(
+    RUN_TEST_SPEC(R"(
 new Date(1234).valueOf(); //$ number 1234
 new Date(1234).getTime(); //$ number 1234
 var t = Date.UTC(2000,0,1); t //$number 946684800000
@@ -524,7 +462,7 @@ void test_semicolon_insertion() {
         a+b;}
         f(1,2))", value::undefined);
 
-    run_test_spec(R"(
+    RUN_TEST_SPEC(R"(
 a=1;b=2;c=3;
 a = b
 ++c
@@ -536,24 +474,20 @@ a = b
     test_parse_fails(R"(if (a > b)
 else c = d;)");
 
-    run_test_spec(R"(
+    RUN_TEST_SPEC(R"(
 function c(n) { return n+1; }
 a=1;b=2;d=4;e=5;
 a = b + c
 (d + e).toString()      //$ string '210'
 )");
 
-    run_test_spec(R"(x=0; x=x+1 //$ number 1
+    RUN_TEST_SPEC(R"(x=0; x=x+1 //$ number 1
 x++; x //$ number 2
 )");
 }
 
 int main() {
     try {
-        // TODO: Move elsewhere
-        test(L"Number('1.2')", value{1.2});
-        test(L"Number('1,2')", value{NAN});
-
         eval_tests();
         test_global_functions();
         test_math_functions();

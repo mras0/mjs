@@ -512,7 +512,26 @@ private:
     }
 };
 
-//with,
+class with_statement : public statement {
+public:
+    explicit with_statement(const source_extend& extend, expression_ptr&& e, statement_ptr&& s) : statement(extend), e_(std::move(e)), s_(std::move(s)) {
+        assert(e_);
+        assert(s_);
+    }
+
+    statement_type type() const override { return statement_type::with; }
+
+    const expression& e() const { return *e_; }
+    const statement& s() const { return *s_; }
+
+private:
+    expression_ptr e_;
+    statement_ptr s_;
+
+    void print(std::wostream& os) const override {
+        os << "with_statement{" << *e_ << ", " << *s_ << "}";
+    }
+};
 
 class function_definition : public statement {
 public:
@@ -555,7 +574,7 @@ auto accept(const statement& s, Visitor& v) {
     case statement_type::continue_:             return v(static_cast<const continue_statement&>(s));
     case statement_type::break_:                return v(static_cast<const break_statement&>(s));
     case statement_type::return_:               return v(static_cast<const return_statement&>(s));
-    case statement_type::with:                  break;
+    case statement_type::with:                  return v(static_cast<const with_statement&>(s));
     case statement_type::function_definition:   return v(static_cast<const function_definition&>(s));
     }
     assert(!"Not implemented");

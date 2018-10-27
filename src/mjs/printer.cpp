@@ -180,6 +180,13 @@ public:
         os_ << ';';
     }
 
+    void operator()(const with_statement& s) {
+        os_ << "with (";
+        accept(s.e(), *this);
+        os_ << ") ";
+        accept(s.s(), *this);
+    }
+
     void operator()(const function_definition& s) {
         os_ << "function " << s.id() << "(";
         for (size_t i = 0; i < s.params().size(); ++i) {
@@ -204,12 +211,12 @@ private:
     }
 };
 
-void print(std::wostream& os, class expression& e) {
+void print(std::wostream& os, const expression& e) {
     print_visitor pv{os};
     accept(e, pv);
 }
 
-void print(std::wostream& os, class statement& s) {
+void print(std::wostream& os, const statement& s) {
     print_visitor pv{os};
     accept(s, pv);
 }

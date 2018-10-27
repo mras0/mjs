@@ -95,15 +95,23 @@ bool is_right_to_left(token_type tt) {
     return operator_precedence(tt) >= assignment_precedence; // HACK
 }
 
+#define RECORD_EXPRESSION_START position_stack_node _expression_position##__LINE__{*this, expression_pos_}
+#define RECORD_STATEMENT_START position_stack_node _statement_position##__LINE__{*this, statement_pos_}
+
 class parser {
 public:
     explicit parser(const std::shared_ptr<source_file>& source) : source_(source), lexer_(source_->text) {}
+    ~parser() {
+        assert(!expression_pos_);
+        assert(!statement_pos_);
+    }
 
     std::unique_ptr<block_statement> parse() {
 
 #ifdef PARSER_DEBUG
         std::wcout << "\nParsing '" << source_->text << "'\n\n";
 #endif
+        
         statement_list l;
         while (lexer_.current_token()) {
             try {
@@ -121,19 +129,38 @@ public:
     }
 
 private:
+    class position_stack_node {
+    public:
+        explicit position_stack_node(parser& parent, position_stack_node*& stack) : parent_(parent), prev_(stack), stack_(stack) {
+            stack_ = this;
+            pos_ = parent_.token_start_;
+        }
+        ~position_stack_node() {
+            assert(stack_ == this);
+            stack_ = prev_;
+        }
+        source_extend extend() const {
+            return source_extend{parent_.source_, pos_, parent_.token_start_};
+        }
+    private:
+        parser& parent_;
+        position_stack_node* prev_;
+        position_stack_node*& stack_;
+        uint32_t pos_;
+    };
+
     std::shared_ptr<source_file> source_;
     lexer lexer_;
     uint32_t token_start_ = 0;
-    uint32_t expression_start_ = 0;
-    uint32_t statement_start_ = 0;
+    position_stack_node* expression_pos_ = nullptr;
+    position_stack_node* statement_pos_ = nullptr;
     bool line_break_skipped_ = false;
     bool last_token_was_rbrace_ = false;
 
     template<typename T, typename... Args>
     expression_ptr make_expression(Args&&... args) {
-        const auto tp = lexer_.text_position();
-        auto e = expression_ptr{new T{source_extend{ source_, expression_start_, tp }, std::forward<Args>(args)...}};
-        expression_start_ = tp;
+        assert(expression_pos_);
+        auto e = expression_ptr{new T{expression_pos_->extend(), std::forward<Args>(args)...}};
 #ifdef PARSER_DEBUG
         std::wcout << e->extend() << " Producting: " << *e << "\n";
 #endif
@@ -142,9 +169,8 @@ private:
 
     template<typename T, typename... Args>
     statement_ptr make_statement(Args&&... args) {
-        const auto tp = lexer_.text_position();
-        auto s = statement_ptr{new T{source_extend{ source_, statement_start_, tp }, std::forward<Args>(args)...}};
-        statement_start_ = tp;
+        assert(statement_pos_);
+        auto s = statement_ptr{new T{statement_pos_->extend(), std::forward<Args>(args)...}};
 #ifdef PARSER_DEBUG
         std::wcout << s->extend() << " Producting: " << *s << "\n";
 #endif
@@ -284,6 +310,7 @@ private:
     }
 
     expression_ptr parse_expression() {
+        RECORD_EXPRESSION_START;
         return parse_expression1(parse_assignment_expression(), comma_precedence);
     }
 
@@ -392,6 +419,7 @@ private:
             auto id = EXPECT(token_type::identifier).text();
             expression_ptr init{};
             if (accept(token_type::equal)) {
+                RECORD_EXPRESSION_START;
                 init = parse_assignment_expression();
             }
             l.push_back(declaration{id, std::move(init)});
@@ -400,6 +428,7 @@ private:
     }
 
     statement_ptr parse_statement() {
+        RECORD_STATEMENT_START;
         // Statement :
         //  Block
         //  VariableStatement
@@ -410,6 +439,7 @@ private:
         //  ContinueStatement
         //  BreakStatement
         //  ReturnStatement
+        //  WithStatement
 
         if (current_token_type() == token_type::lbrace) {
             return parse_block();
@@ -464,12 +494,18 @@ private:
                 }
             }
             return make_statement<return_statement>(std::move(e));
+        } else if (accept(token_type::with_)) {
+            EXPECT(token_type::lparen);
+            auto e = parse_expression();
+            EXPECT(token_type::rparen);
+            return make_statement<with_statement>(std::move(e), parse_statement());
         } else {
             return make_statement<expression_statement>(parse_expression());
         }
     }
 
     statement_ptr parse_function() {
+        RECORD_STATEMENT_START;
         EXPECT(token_type::function_);
         auto id = EXPECT(token_type::identifier).text();
         EXPECT(token_type::lparen);

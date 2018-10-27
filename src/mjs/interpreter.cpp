@@ -70,7 +70,7 @@ public:
     void operator()(const continue_statement&){}
     void operator()(const break_statement&){}
     void operator()(const return_statement&){}
-    //void operator()(const with_statement&){}
+    void operator()(const with_statement&){}
 
     void operator()(const function_definition& s) {
         assert(!s.id().view().empty());
@@ -105,7 +105,7 @@ private:
 
 class interpreter::impl {
 public:
-    explicit impl(const block_statement& program) : global_(global_object::make()) {
+    explicit impl(const block_statement& program, const on_statement_executed_type& on_statement_executed) : global_(global_object::make()), on_statement_executed_(on_statement_executed) {
         assert(!global_->has_property(string{"eval"}));
         global_->put(string{"eval"}, value{global_->make_function(
             [this](const value&, const std::vector<value>& args) {
@@ -148,7 +148,11 @@ public:
     }
 
     completion eval(const statement& s) {
-        return accept(s, *this);
+        auto res = accept(s, *this);
+        if (on_statement_executed_) {
+            on_statement_executed_(s, res);
+        }
+        return res;
     }
 
     value operator()(const identifier_expression& e) {
@@ -527,7 +531,21 @@ public:
         return completion{completion_type::return_, res};
     }
 
-    //completion operator()(const with_statement&) {}
+    completion operator()(const with_statement& s) {
+        class with_scope {
+        public:
+            explicit with_scope(impl& parent, const object_ptr& o) : parent(parent), old_scopes(parent.scopes_) {
+                parent.scopes_.reset(new scope{o, old_scopes});
+            }
+            ~with_scope() {
+                parent.scopes_ = old_scopes;
+            }
+            impl& parent;
+            scope_ptr old_scopes;
+        };
+        with_scope ws{*this, global_->to_object(get_value(eval(s.e())))};
+        return eval(s.s());
+    }
 
     completion operator()(const function_definition& s) {
         // §15.3.2.1
@@ -606,8 +624,9 @@ private:
         impl& parent;
         scope_ptr old_scopes;
     };
-    scope_ptr                           scopes_;
+    scope_ptr                      scopes_;
     std::shared_ptr<global_object> global_;
+    on_statement_executed_type     on_statement_executed_;
 
     std::vector<source_extend> stack_trace(const source_extend& current_extend) const {
         std::vector<source_extend> t;
@@ -657,7 +676,7 @@ private:
     }
 };
 
-interpreter::interpreter(const block_statement& program) : impl_(new impl{program}) {
+interpreter::interpreter(const block_statement& program, const on_statement_executed_type& on_statement_executed) : impl_(new impl{program, on_statement_executed}) {
 }
 
 interpreter::~interpreter() = default;
