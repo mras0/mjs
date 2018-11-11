@@ -13,6 +13,11 @@ add_library(mjs_lib STATIC
     mjs/interpreter.h
     mjs/printer.cpp
     mjs/printer.h
+    mjs/gc_heap.cpp
+    mjs/gc_heap.h
+    mjs/gc_function.h
+    mjs/gc_table.cpp
+    mjs/gc_table.h
     )
 target_include_directories(mjs_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 add_executable(mjs mjs.cpp)

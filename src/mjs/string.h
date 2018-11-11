@@ -3,35 +3,56 @@
 #include <iosfwd>
 #include <string>
 #include <string_view>
+#include "gc_heap.h"
 
 namespace mjs {
 
-class string {
+class gc_string {
 public:
-    explicit string() : s_() {}
-    explicit string(const char* str);
-    explicit string(const wchar_t* s) : s_(s) {}
-    explicit string(const std::wstring_view& s) : s_(s) {}
-    explicit string(std::wstring&& s) : s_(std::move(s)) {}
-    string(const string& s) : s_(s.s_) {}
-    string(string&& s) : s_(std::move(s.s_)) {}
-    string& operator=(const string& s) { s_ = s.s_; return *this; }
-    string& operator=(const string&& s) { s_ = std::move(s.s_); return *this; }
-
-    string& operator+=(const string& rhs) {
-        s_ += rhs.s_;
-        return *this;
+    static gc_heap_ptr<gc_string> make(gc_heap& h, const std::wstring_view& s) {
+        return gc_heap::construct<gc_string>(h.allocate(sizeof(gc_string) + s.length() * sizeof(wchar_t)), s);
     }
 
-    std::wstring_view view() const { return s_; }
-    const std::wstring& str() const { return s_; }
+    std::wstring_view view() const {
+        return std::wstring_view(const_cast<gc_string&>(*this).data(), length_);
+    }
+
 private:
-    std::wstring s_;
+    friend gc_type_info_registration<gc_string>;
+
+    uint32_t length_; // TODO: Get from allocation header
+
+    wchar_t* data() {
+        return reinterpret_cast<wchar_t*>(reinterpret_cast<std::byte*>(this) + sizeof(*this));
+    }
+
+    explicit gc_string(const std::wstring_view& s) : length_(static_cast<uint32_t>(s.length())) {
+        std::memcpy(data(), s.data(), s.length() * sizeof(wchar_t));
+    }
+
+    gc_heap_ptr_untyped move(gc_heap& new_heap) const {
+        return make(new_heap, view());
+    }
+};
+
+// TODO: Try to eliminate (or lessen) use of local heap
+class string {
+public:
+    explicit string() : string(L"") {}
+    // TODO: Could optimize this constructor by providing appropriate overloads in gc_string
+    explicit string(const char* str) : string(std::wstring(str, str+std::strlen(str))) {}
+    explicit string(const std::wstring_view& s) : s_(gc_string::make(gc_heap::local_heap(),s)) {}
+    std::wstring_view view() const { return s_->view(); }
+private:
+    gc_heap_ptr<gc_string> s_;
 };
 std::ostream& operator<<(std::ostream& os, const string& s);
 std::wostream& operator<<(std::wostream& os, const string& s);
 inline bool operator==(const string& l, const string& r) { return l.view() == r.view(); }
-inline string operator+(const string& l, const string& r) { auto res = l; return res += r; }
+inline string operator+(const string& l, const string& r) {
+    // TODO: Optimize this
+    return string{std::wstring{l.view()} + std::wstring{r.view()}};
+}
 
 double to_number(const string& s);
 
@@ -40,7 +61,7 @@ double to_number(const string& s);
 namespace std {
 template<> struct hash<::mjs::string> {
     size_t operator()(const ::mjs::string& s) const {
-        return hash<std::wstring>()(s.str());
+        return hash<std::wstring_view>()(s.view());
     }
 };
 } // namespace std

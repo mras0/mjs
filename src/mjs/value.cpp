@@ -76,7 +76,6 @@ value& value::operator=(value&& rhs) {
     default: NOT_IMPLEMENTED(rhs.type_);
     }
     type_ = rhs.type_;
-    rhs.type_ = value_type::undefined;
     return *this;
 }
 

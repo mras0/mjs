@@ -2,15 +2,20 @@
 #include <string>
 
 #include <mjs/value.h>
+#include <mjs/gc_heap.h>
 
 #define CATCH_CONFIG_RUNNER
 #include "catch.hpp"
 
-int main( int argc, char* argv[] ) {
-  return Catch::Session().run( argc, argv );
-}
-
 using namespace mjs;
+
+int main( int argc, char* argv[] ) {
+    scoped_gc_heap heap{4096};
+    const int ret = Catch::Session().run( argc, argv );
+    heap.garbage_collect();
+    assert(heap.calc_used() == 0);
+    return ret;
+}
 
 std::ostream& operator<<(std::ostream& os, const std::vector<string>& vs) {
     os << "{";
@@ -51,9 +56,6 @@ TEST_CASE("value - string") {
     REQUIRE(value{string{"Hello"}}.type() == value_type::string);
     REQUIRE(value{string{std::wstring_view{L"test"}}}.type() == value_type::string);
     REQUIRE(string{"test "} + string{"42"} == string{"test 42"});
-    string s{"test"};
-    s += string{" xx"};
-    REQUIRE(s == string{"test xx"});
 }
 
 TEST_CASE("object") {

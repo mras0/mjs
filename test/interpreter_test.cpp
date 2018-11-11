@@ -12,45 +12,57 @@
 using namespace mjs;
 
 void test(const std::wstring_view& text, const value& expected) {
-    decltype(parse(nullptr)) bs;
-    try {
-        bs = parse(std::make_shared<source_file>(L"test", text));
-    } catch (const std::exception& e) {
-        std::wcout << "Parse failed for \"" << text << "\": " << e.what() <<  "\n";
-        throw;
-    }
-    auto pb = [&bs]() {
-        print(std::wcout, *bs);
-        std::wcout << '\n';
-        for (const auto& s: bs->l()) {
-            std::wcout << *s << "\n";
+    const auto used_before = gc_heap::local_heap().calc_used();
+    {
+
+        decltype(parse(nullptr)) bs;
+        try {
+            bs = parse(std::make_shared<source_file>(L"test", text));
+        } catch (const std::exception& e) {
+            std::wcout << "Parse failed for \"" << text << "\": " << e.what() <<  "\n";
+            throw;
         }
-    };
-    try {
-        interpreter i{*bs};
-        value res{};
-        for (const auto& s: bs->l()) {
-            res = i.eval(*s).result;
-        }
-        if (res != expected) {
-            std::wcout << "Test failed: " << text << " expecting " << debug_string(expected) << " got " << debug_string(res) << "\n";
+        auto pb = [&bs]() {
+            print(std::wcout, *bs);
+            std::wcout << '\n';
+            for (const auto& s: bs->l()) {
+                std::wcout << *s << "\n";
+            }
+        };
+        try {
+            interpreter i{*bs};
+            value res{};
+            for (const auto& s: bs->l()) {
+                res = i.eval(*s).result;
+            }
+            if (res != expected) {
+                std::wcout << "Test failed: " << text << " expecting " << debug_string(expected) << " got " << debug_string(res) << "\n";
+                pb();
+                THROW_RUNTIME_ERROR("Test failed");
+            }
+        } catch (const std::exception& e) {
+            std::wcout << "Test failed: " << text << " uexpected exception thrown: " << e.what() << "\n";
             pb();
-            THROW_RUNTIME_ERROR("Test failed");
+            throw;
         }
-    } catch (const std::exception& e) {
-        std::wcout << "Test failed: " << text << " uexpected exception thrown: " << e.what() << "\n";
-        pb();
-        throw;
     }
 
+    gc_heap::local_heap().garbage_collect();
     object::garbage_collect({});
     if (object::object_count()) {
         std::wcout << "Total number of objects left: " << object::object_count() <<  " while testing '" << text << "'\n";
         THROW_RUNTIME_ERROR("Leaks");
     }
+    const auto used_now = gc_heap::local_heap().calc_used();
+    if (used_before < used_now) {
+        std::wcout << "Used before: " << used_before << " Used now: " << used_now << "\n";
+        THROW_RUNTIME_ERROR("Leaks");
+    }
 }
 
 void eval_tests() {
+    scoped_gc_heap h{1<<14};
+
     test(L"undefined", value::undefined);
     test(L"null", value::null);
     test(L"false", value{false});
@@ -555,6 +567,7 @@ d3.setTime(5678); d3.getTime() //$ number 5678
 
 // TODO: Create seperate parse_test
 void test_semicolon_insertion() {
+    scoped_gc_heap heap{8192};
     struct parse_failure {};
 
     auto test_parse_fails = [](const char* text) {

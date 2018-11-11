@@ -847,7 +847,7 @@ private:
                 THROW_RUNTIME_ERROR("Missing argument to console.time()");
             }
             auto label = to_string(args.front());
-            (*timers)[label.str()] = timer_clock::now();
+            (*timers)[std::wstring{label.view()}] = timer_clock::now();
             return value::undefined;
         }, 1);
         put_native_function(console, "timeEnd", [timers](const value&, const std::vector<value>& args) {
@@ -856,7 +856,7 @@ private:
                 THROW_RUNTIME_ERROR("Missing argument to console.timeEnd()");
             }
             auto label = to_string(args.front());
-            auto it = timers->find(label.str());
+            auto it = timers->find(std::wstring{label.view()});
             if (it == timers->end()) {
                 std::wostringstream woss;
                 woss << "Timer not found: " << label;
@@ -1138,7 +1138,7 @@ std::shared_ptr<global_object> global_object::make() {
 }
 
 void global_object::put_function(const object_ptr& o, const native_function_type& f, const string& body_text, int named_args) {
-    assert(o->class_name().str() == L"Function");
+    assert(o->class_name().view() == L"Function");
     assert(!o->call_function());
     assert(o->get(string{"prototype"}).type() == value_type::object);
     o->put(string{"length"}, value{static_cast<double>(named_args)}, property_attribute::read_only | property_attribute::dont_delete | property_attribute::dont_enum);

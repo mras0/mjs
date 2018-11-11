@@ -172,32 +172,44 @@ void run_test_spec(const std::string_view& source_text, const std::string_view& 
     constexpr const char delim[] = "//$";
     constexpr const int delim_len = sizeof(delim)-1;
 
-    std::vector<test_spec> specs;
 
+    scoped_gc_heap heap{1<<14};
 
-    for (size_t pos = 0, next_pos; pos < source_text.length(); pos = next_pos + 1) {
-        size_t delim_pos = source_text.find(delim, pos);
-        if (delim_pos == std::string_view::npos) {
-            break;
+    {
+        std::vector<test_spec> specs;
+
+        for (size_t pos = 0, next_pos; pos < source_text.length(); pos = next_pos + 1) {
+            size_t delim_pos = source_text.find(delim, pos);
+            if (delim_pos == std::string_view::npos) {
+                break;
+            }
+            next_pos = source_text.find("\n", delim_pos);
+            if (next_pos == std::string_view::npos) {
+                throw std::runtime_error("Invalid test spec." + std::string(name) + ": line terminator missing.");
+            }
+
+            delim_pos += delim_len;
+            specs.push_back(test_spec{static_cast<uint32_t>(delim_pos), parse_value(std::string(trim(source_text.substr(delim_pos, next_pos - delim_pos))))});
         }
-        next_pos = source_text.find("\n", delim_pos);
-        if (next_pos == std::string_view::npos) {
-            throw std::runtime_error("Invalid test spec." + std::string(name) + ": line terminator missing.");
+
+        if (specs.empty()) {
+            throw std::runtime_error("Invalid test spec." + std::string(name) + ": No specs found");
         }
 
-        delim_pos += delim_len;
-        specs.push_back(test_spec{static_cast<uint32_t>(delim_pos), parse_value(std::string(trim(source_text.substr(delim_pos, next_pos - delim_pos))))});
+        auto bs = parse(std::make_shared<source_file>(std::wstring(name.begin(), name.end()), std::wstring(source_text.begin(), source_text.end())));
+        const auto index = test_spec_runner::run(specs, *bs);
+        if (index != specs.size()) {
+            throw std::runtime_error("Invalid test spec." + std::string(name) + ": Only " + std::to_string(index) + " of " + std::to_string(specs.size()) + " specs ran");
+        }
     }
 
-    if (specs.empty()) {
-        throw std::runtime_error("Invalid test spec." + std::string(name) + ": No specs found");
+    heap.garbage_collect();
+    if (heap.calc_used()) {
+        std::ostringstream oss;
+        oss << "Leaks in test spec: " << heap.calc_used() << "\n" << source_text;
+        THROW_RUNTIME_ERROR(oss.str());
     }
 
-    auto bs = parse(std::make_shared<source_file>(std::wstring(name.begin(), name.end()), std::wstring(source_text.begin(), source_text.end())));
-    const auto index = test_spec_runner::run(specs, *bs);
-    if (index != specs.size()) {
-        throw std::runtime_error("Invalid test spec." + std::string(name) + ": Only " + std::to_string(index) + " of " + std::to_string(specs.size()) + " specs ran");
-    }
 }
 
 } // namespace mjs

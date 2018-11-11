@@ -134,14 +134,14 @@ public:
             std::wstring body{}, p{};
             if (args.empty()) {
             } else if (args.size() == 1) {
-                body = to_string(args.front()).str();
+                body = to_string(args.front()).view();
             } else {
-                p = to_string(args.front()).str();
+                p = to_string(args.front()).view();
                 for (size_t k = 1; k < args.size() - 1; ++k) {
                     p += ',';
-                    p += to_string(args[k]).str();
+                    p += to_string(args[k]).view();
                 }
-                body = to_string(args.back()).str();
+                body = to_string(args.back()).view();
             }
 
             auto bs = parse(std::make_shared<source_file>(L"Function definition", L"function anonymous(" + p + L") {\n" + body + L"\n}"));
@@ -161,12 +161,10 @@ public:
 
     ~impl() {
         assert(scopes_ && !scopes_->prev);
-#ifndef NDEBUG
         scopes_.reset();
         global_.reset();
         mjs::object::garbage_collect({});
         assert(!mjs::object::object_count());
-#endif
     }
 
     value eval(const expression& e) {
@@ -731,7 +729,7 @@ private:
             }
             return eval(*block).result;
         };
-        global_->put_function(callee, func, string{std::wstring{L"function "} + id.str() + body_text}, static_cast<int>(param_names.size()));
+        global_->put_function(callee, func, string{L"function " + std::wstring{id.view()} + body_text}, static_cast<int>(param_names.size()));
 
         callee->construct_function([this, callee, id](const value& unsused_this_, const std::vector<value>& args) {
             assert(unsused_this_.type() == value_type::undefined); (void)unsused_this_;

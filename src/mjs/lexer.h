@@ -142,7 +142,6 @@ public:
             } else {
                 ivalue_ = t.ivalue_;
             }
-            t.type_ = token_type::eof;
         }
         return *this;
     }
