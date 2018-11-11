@@ -23,7 +23,6 @@ const char* string_value(value_type t) {
     case value_type::string:    return "string";
     case value_type::object:    return "object";
     case value_type::reference: return "reference";
-    case value_type::native_function: return "native_function";
     }
     NOT_IMPLEMENTED((int)t);
 }
@@ -58,7 +57,6 @@ value& value::operator=(const value& rhs) {
         case value_type::string:    new (&s_) string{rhs.s_}; break;
         case value_type::object:    new (&o_) object_ptr{rhs.o_}; break;
         case value_type::reference: new (&r_) reference{rhs.r_}; break;
-        case value_type::native_function: new (&f_) native_function_type{rhs.f_}; break;
         default: NOT_IMPLEMENTED(rhs.type_);
         }
         type_ = rhs.type_;
@@ -75,7 +73,6 @@ value& value::operator=(value&& rhs) {
     case value_type::string:    new (&s_) string{std::move(rhs.s_)}; break;
     case value_type::object:    new (&o_) object_ptr{std::move(rhs.o_)}; break;
     case value_type::reference: new (&r_) reference{std::move(rhs.r_)}; break;
-    case value_type::native_function: new (&f_) native_function_type{std::move(rhs.f_)}; break;
     default: NOT_IMPLEMENTED(rhs.type_);
     }
     type_ = rhs.type_;
@@ -92,7 +89,6 @@ void value::destroy() {
     case value_type::string: s_.~string(); break;
     case value_type::object: o_.~shared_ptr(); break;
     case value_type::reference: r_.~reference(); break;
-    case value_type::native_function: f_.~function(); break;
     default: NOT_IMPLEMENTED(type_);
     }
     type_ = value_type::undefined;
@@ -122,7 +118,6 @@ bool operator==(const value& l, const value& r) {
     case value_type::string:    return l.string_value().view() == r.string_value().view();
     case value_type::object:    return l.object_value() == r.object_value();
     case value_type::reference: break;
-    case value_type::native_function: break;
     }
     NOT_IMPLEMENTED(l.type());
 }
@@ -153,7 +148,6 @@ bool to_boolean(const value& v) {
     case value_type::string:    return !v.string_value().view().empty();
     case value_type::object:    return true;
     case value_type::reference: break;
-    case value_type::native_function: break;
     }
     NOT_IMPLEMENTED(v.type());
 }
@@ -167,7 +161,6 @@ double to_number(const value& v) {
     case value_type::string:    return to_number(v.string_value());
     case value_type::object:    return to_number(to_primitive(v, value_type::number));
     case value_type::reference: break;
-    case value_type::native_function: break;
     }
     NOT_IMPLEMENTED(v.type());
 }
@@ -336,7 +329,6 @@ string to_string(const value& v) {
     case value_type::string:    return v.string_value();
     case value_type::object:    return to_string(to_primitive(v, value_type::string));
     case value_type::reference: break;
-    case value_type::native_function: break;
     }
     NOT_IMPLEMENTED(v.type());
 }
@@ -435,12 +427,7 @@ void object::debug_print(std::wostream& os, int indent_incr, int max_nest, int i
     auto indent_string = std::wstring(indent + indent_incr, ' ');
     auto print_prop = [&](const auto& name, const auto& val, bool internal) {
         os << indent_string << name << ": ";
-        if constexpr (std::is_same_v<const string&, decltype(val)>) {
-            (void)internal;
-            os << val;
-        } else {
-            mjs::debug_print(os, mjs::value{val}, indent_incr, internal ? 1 : max_nest - 1, indent + indent_incr);
-        }
+        mjs::debug_print(os, mjs::value{val}, indent_incr, max_nest > 1 && internal ? 1 : max_nest - 1, indent + indent_incr);
         os << "\n";
     };
     os << "{\n";
@@ -452,11 +439,11 @@ void object::debug_print(std::wostream& os, int indent_incr, int max_nest, int i
         }
     }
     print_prop("[[Class]]", class_, true);
-    print_prop("[[Prototype]]", prototype_, true);
+    print_prop("[[Prototype]]", prototype_ ? value{prototype_} : value::null, true);
     if (value_.type() != value_type::undefined) {
         print_prop("[[Value]]", value_, true);
     }
-    os << std::wstring(indent, ' ') << "}\n";
+    os << std::wstring(indent, ' ') << "}";
 }
 
 [[noreturn]] void throw_runtime_error(const std::string_view& s, const char* file, int line) {

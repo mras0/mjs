@@ -124,6 +124,7 @@ private:
     std::shared_ptr<source_file> source_;
     interpreter i_;
     size_t index_ = 0;
+    uint32_t last_line_ = 0;
     completion last_result_{};
 
     explicit test_spec_runner(const std::vector<test_spec>& specs, const block_statement& statements)
@@ -133,11 +134,12 @@ private:
 #ifdef TEST_SPEC_DEBUG
             std::wcout << pos_w << s.extend().start << "-" << pos_w << s.extend().end << ": ";
             print(std::wcout, s);
-            std::wcout << " ==> " << to_string(res.result) << "\n";
+            std::wcout << " ==> " << debug_string(res.result) << "\n";
 #endif
-            if (s.extend().file == source_) {
+            if (s.extend().file == source_ && s.extend().start > last_line_) {
                 check_test_spec_done(s.extend().start);
                 last_result_ = res;
+                last_line_ = s.extend().start;
             }
         }) {
     }
@@ -153,7 +155,7 @@ private:
 #endif
             if (last_result_) {
                 std::wostringstream oss;
-                oss << source_->filename << " failed: " << last_result_;
+                oss << source_->filename << " failed: " << last_result_.type << " " << debug_string(last_result_.result);
                 THROW_RUNTIME_ERROR(oss.str());
             }
             if (last_result_.result != specs_[index_].expected) {

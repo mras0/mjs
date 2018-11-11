@@ -20,7 +20,7 @@ namespace mjs {
 enum class value_type {
     undefined, null, boolean, number, string, object,
     // internal
-    reference, native_function
+    reference
 };
 
 constexpr bool is_primitive(value_type t) {
@@ -81,7 +81,6 @@ public:
     explicit value(const string& s) : type_(value_type::string), s_(s) {}
     explicit value(const object_ptr& o) : type_(value_type::object), o_(o) {}
     explicit value(const reference& r) : type_(value_type::reference), r_(r) {}
-    explicit value(const native_function_type& f) : type_(value_type::native_function), f_(f) {}
     explicit value(const void*) = delete;
     value(const value& rhs);
     value(value&& rhs);
@@ -96,7 +95,6 @@ public:
     const string& string_value() const { assert(type_ == value_type::string); return s_; }
     const object_ptr& object_value() const { assert(type_ == value_type::object); return o_; }
     const reference& reference_value() const { assert(type_ == value_type::reference); return r_; }
-    const native_function_type& native_function_value() const { assert(type_ == value_type::native_function); return f_; }
 
     static const value undefined;
     static const value null;

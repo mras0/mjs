@@ -252,6 +252,27 @@ c.length; //$ number 3
 f=Function('x','return x?arguments.callee(x-1)*x:1');
 f(5) //$ number 120
 )");
+    RUN_TEST_SPEC(R"(
+var y = 0;
+
+function print() {
+    return ''+this.x+','+this.y+','+y;
+}
+
+function f(x) {
+    function g() {
+        this.x = x;
+        this.y = y++;
+    }
+
+    g.prototype.toString = print;
+    return new g();
+}
+
+''+f(42); //$ string '42,0,1'
+''+f(43); //$ string '43,1,2'
+)");
+
     test(L"function  f ( x   ,\ny )  { return x + y;  }; f.toString()", value{string{"function f( x   ,\ny )  { return x + y;  }"}});
     test(L"a=parseInt;a.toString()", value{string{"function parseInt() { [native code] }"}});
     // Array
