@@ -99,32 +99,9 @@ public:
     }
 
     // [[DefaultValue]] (Hint)
-    virtual value default_value(value_type hint) {
-        if (hint == value_type::undefined) {
-            // When hint is undefined, assume Number unless it's a Date object in which case assume String
-            hint = value_type::number;
-        }
-
-        assert(hint == value_type::number || hint == value_type::string);
-        for (int i = 0; i < 2; ++i) {
-            const char* id = (hint == value_type::string) ^ i ? "toString" : "valueOf";
-            const auto& fo = get(mjs::string{id});
-            if (fo.type() != value_type::object) {
-                continue;
-            }
-            const auto& f = fo.object_value()->call_function();
-            if (!f) {
-                continue;
-            }
-            // TODO: Don't rely on local_heap(), and when fixing this remove std::is_same_v<object,T> in gc_heap::unsafe_create_from_position<T>
-            auto v = f(mjs::value{gc_heap::local_heap().unsafe_create_from_pointer(this)}, {});
-            if (!is_primitive(v.type())) {
-                continue;
-            }
-            return v;
-        }
-
-        throw std::runtime_error("default_value() not implemented");
+    virtual value_type default_value_type() const {
+        // When hint is undefined, assume Number unless it's a Date object in which case assume String
+        return value_type::number;
     }
 
     // [[Construct]] (Arguments...)

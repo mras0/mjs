@@ -266,18 +266,10 @@ gc_heap_ptr<T> gc_heap::construct(const gc_heap_ptr_untyped& p, Args&&... args) 
     return gc_heap_ptr<T>{p};
 }
 
-class object;
-
 template<typename T>
 gc_heap_ptr<T> gc_heap::unsafe_create_from_position(uint32_t pos) {
-    assert(pos > 0 && pos < next_free_ && (storage_[pos-1].allocation.type == gc_type_info_registration<T>::get().get_index() || std::is_same_v<object, T>)); // Disable check for object (needed by object::default_value)
+    assert(pos > 0 && pos < next_free_ && storage_[pos-1].allocation.type == gc_type_info_registration<T>::get().get_index());
     return gc_heap_ptr<T>{gc_heap_ptr_untyped{*this, pos}};
-}
-
-template<typename T>
-gc_heap_ptr<T> gc_heap::unsafe_create_from_pointer(T* ptr) {
-    assert(is_internal(ptr));
-    return unsafe_create_from_position<T>(static_cast<uint32_t>(reinterpret_cast<slot*>(ptr) - &storage_[0]));
 }
 
 } // namespace mjs

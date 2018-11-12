@@ -363,9 +363,9 @@ class date_object : public object {
 public:
     friend gc_type_info_registration<date_object>;
 
-    virtual value default_value(value_type hint) {
+    value_type default_value_type() const override {
         // When hint is undefined, assume Number unless it's a Date object in which case assume String
-        return object::default_value(hint == value_type::undefined ? value_type::string : hint);
+        return value_type::string;
     }
 
 private:
