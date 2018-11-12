@@ -2,6 +2,7 @@
 #include <string>
 
 #include <mjs/value.h>
+#include <mjs/object.h>
 #include <mjs/gc_heap.h>
 
 #define CATCH_CONFIG_RUNNER
@@ -74,7 +75,6 @@ TEST_CASE("object") {
     REQUIRE(!o->can_put(n2));
     REQUIRE(o->get(n) == value{42.0});
     REQUIRE(o->get(n2) == value{n2});
-    REQUIRE(&o->get(n) == &o->get(n)); // Should return same reference
     REQUIRE(o->property_names() == (std::vector<string>{n}));
     o->put(n, value{n});
     REQUIRE(o->get(n) == value{n});

@@ -2,6 +2,7 @@
 #define MJS_INTERPRETER_H
 
 #include "value.h"
+#include <functional>
 
 namespace mjs {
 

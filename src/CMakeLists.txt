@@ -3,6 +3,8 @@ add_library(mjs_lib STATIC
     mjs/string.h
     mjs/value.cpp
     mjs/value.h
+    mjs/object.cpp
+    mjs/object.h
     mjs/lexer.cpp
     mjs/lexer.h
     mjs/parser.cpp

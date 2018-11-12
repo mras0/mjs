@@ -132,11 +132,10 @@ std::wstring unescape(std::wstring_view s) {
 
 class array_object : public object {
 public:
-    static std::shared_ptr<array_object> make(const object_ptr& prototype, uint32_t length) {
-        struct make_shared_helper : array_object {
-            make_shared_helper(const object_ptr& prototype, uint32_t length) : array_object(prototype, length) {}
-        };
-        return std::make_shared<make_shared_helper>(prototype, length);
+    friend gc_type_info_registration<array_object>;
+
+    static gc_heap_ptr<array_object> make(const object_ptr& prototype, uint32_t length) {
+        return gc_heap::local_heap().make<array_object>(prototype, length);
     }
 
     void put(const string& name, const value& val, property_attribute attr) override {
@@ -172,6 +171,10 @@ public:
 private:
     explicit array_object(const object_ptr& prototype, uint32_t length) : object{string{"Array"}, prototype} {
         object::put(string{"length"}, value{static_cast<double>(length)}, property_attribute::dont_enum | property_attribute::dont_delete);
+    }
+
+    gc_heap_ptr_untyped move(gc_heap& new_heap) {
+        return new_heap.make<array_object>(std::move(*this));
     }
 };
 
@@ -358,12 +361,7 @@ struct date_helper {
 
 class date_object : public object {
 public:
-    static std::shared_ptr<date_object> make(const object_ptr& prototype, double val) {
-        struct make_shared_helper : date_object {
-            make_shared_helper(const object_ptr& prototype, double val) : date_object(prototype, val) {}
-        };
-        return std::make_shared<make_shared_helper>(prototype, val);
-    }
+    friend gc_type_info_registration<date_object>;
 
     virtual value default_value(value_type hint) {
         // When hint is undefined, assume Number unless it's a Date object in which case assume String
@@ -374,15 +372,15 @@ private:
     explicit date_object(const object_ptr& prototype, double val) : object{string{"Date"}, prototype} {
         internal_value(value{val});
     }
+
+    gc_heap_ptr_untyped move(gc_heap& new_heap) {
+        return new_heap.make<date_object>(std::move(*this));
+    }
 };
 
 class global_object_impl : public global_object {
 public:
-    explicit global_object_impl() : global_object(string{"Global"}, object_ptr{}) {
-        object_prototype_   = object::make(string{"ObjectPrototype"}, nullptr);
-        function_prototype_ = object::make(string{"Function"}, object_prototype_);
-        popuplate_global();
-    }
+    friend gc_type_info_registration<global_object_impl>;
 
     const object_ptr& object_prototype() const override { return object_prototype_; }
 
@@ -422,7 +420,7 @@ private:
 
     // FIXME: Is this sufficient to guard against clever users?
     static void validate_type(const value& v, const object_ptr& expected_prototype, const char* expected_type) {
-        if (v.type() == value_type::object && v.object_value()->prototype() == expected_prototype) {
+        if (v.type() == value_type::object && v.object_value()->prototype().get() == expected_prototype.get()) {
             return;
         }
         std::wostringstream woss;
@@ -939,7 +937,7 @@ private:
     //
 
     auto new_date(double val) {
-        return date_object::make(date_prototype_, val);
+        return gc_heap::local_heap().make<date_object>(date_prototype_, val);
     }
 
     auto make_date_object() {
@@ -1131,10 +1129,33 @@ private:
 
         put(string{"console"}, value{make_console_object()}, default_attributes);
     }
+
+    explicit global_object_impl() : global_object(string{"Global"}, object_ptr{}) {
+        object_prototype_   = object::make(string{"ObjectPrototype"}, nullptr);
+        function_prototype_ = object::make(string{"Function"}, object_prototype_);
+        popuplate_global();
+    }
+
+#if 0
+    global_object_impl(global_object_impl&& other) : object(std::move(this)) {
+        object_prototype_   = std::move(other.object_prototype_);
+        function_prototype_ = std::move(other.function_prototype_);
+        array_prototype_    = std::move(other.array_prototype_);
+        string_prototype_   = std::move(other.string_prototype_);
+        boolean_prototype_  = std::move(other. boolean_prototype_);
+        number_prototype_   = std::move(other.number_prototype_);
+        date_prototype_     = std::move(other.date_prototype_);
+    }
+#endif
+    global_object_impl(global_object_impl&& other) = default;
+
+    gc_heap_ptr_untyped move(gc_heap& new_heap) {
+        return new_heap.make<global_object_impl>(std::move(*this));
+    }
 };
 
-std::shared_ptr<global_object> global_object::make() {
-    return std::make_shared<global_object_impl>();
+gc_heap_ptr<global_object> global_object::make() {
+    return gc_heap::local_heap().make<global_object_impl>();
 }
 
 void global_object::put_function(const object_ptr& o, const native_function_type& f, const string& body_text, int named_args) {
@@ -1147,7 +1168,7 @@ void global_object::put_function(const object_ptr& o, const native_function_type
     o->construct_function(f);
     assert(o->internal_value().type() == value_type::undefined);
     o->internal_value(value{body_text});
-    auto& p = o->get(string{"prototype"}).object_value();
+    auto p = o->get(string{"prototype"}).object_value();
     p->put(string{"constructor"}, value{o}, global_object_impl::default_attributes);
 }
 

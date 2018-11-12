@@ -11,7 +11,7 @@ if (MSVC)
     set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${PROJECT_NAME})
     add_definitions("-D_CRT_SECURE_NO_WARNINGS")
 else()
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -pedantic -Wall -Wextra -Werror")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -pedantic -Wall -Wextra -g")
     if (NOT WIN32) # Too bad :(
 	set(use_asan FALSE CACHE BOOL "Use address sanitizer")
 	set(use_usan FALSE CACHE BOOL "Use undefined behavior sanitizer")

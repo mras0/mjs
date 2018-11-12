@@ -42,6 +42,7 @@ int main(int argc, char* argv[]) {
             return interpret_file(read_ascii_file(argv[1]));
         }
 
+        mjs::scoped_gc_heap heap{1<<22}; // TODO: Do something sane
         mjs::interpreter i{*mjs::parse(make_source(L""))};
         for (;;) {
             std::wcout << "> " << std::flush;

@@ -1,4 +1,5 @@
 #include "value.h"
+#include "object.h"
 #include <ostream>
 #include <stdexcept>
 #include <sstream>
@@ -31,7 +32,7 @@ const char* string_value(value_type t) {
 // reference
 //
 
-const value& reference::get_value() const {
+value reference::get_value() const {
     return base_->get(property_name_);
 }
 
@@ -86,7 +87,7 @@ void value::destroy() {
     case value_type::boolean: break;
     case value_type::number: break;
     case value_type::string: s_.~string(); break;
-    case value_type::object: o_.~shared_ptr(); break;
+    case value_type::object: o_.~gc_heap_ptr(); break;
     case value_type::reference: r_.~reference(); break;
     default: NOT_IMPLEMENTED(type_);
     }
@@ -115,7 +116,7 @@ bool operator==(const value& l, const value& r) {
         return lv == rv || (std::isnan(lv) && std::isnan(rv));
     }
     case value_type::string:    return l.string_value().view() == r.string_value().view();
-    case value_type::object:    return l.object_value() == r.object_value();
+    case value_type::object:    return l.object_value().get() == r.object_value().get();
     case value_type::reference: break;
     }
     NOT_IMPLEMENTED(l.type());
@@ -332,51 +333,6 @@ string to_string(const value& v) {
     NOT_IMPLEMENTED(v.type());
 }
 
-std::unordered_set<object*> object::all_objects_;
-
-void object::gc_visit(std::unordered_set<const object*>& live_objects) const {
-    live_objects.insert(this);
-    for (const auto& p: properties_) {
-        auto& val = p.second.val;
-        if (val.type() == value_type::object) {
-            auto op = val.object_value().get();
-            assert(op);
-            if (live_objects.find(op) == live_objects.end()) {
-                op->gc_visit(live_objects);
-            }
-        } else {
-            assert(is_primitive(val.type()));
-        }
-    }
-}
-
-void object::garbage_collect(const std::vector<object_ptr>& roots) {
-    std::unordered_set<const object*> live_objects;
-    for (const auto& o : roots) {
-        o->gc_visit(live_objects);
-    }
-    std::vector<std::weak_ptr<object>> to_delete;
-
-    for (auto it = all_objects_.begin(); it != all_objects_.end(); ++it) {
-        if (live_objects.find(*it) == live_objects.end()) {
-            to_delete.push_back((*it)->shared_from_this());
-        }
-    }
-    for (const auto& o: to_delete) {
-        if (auto p = o.lock()) {
-            p->clear();
-        }
-    }
-}
-
-void object::clear() {
-    prototype_.reset();
-    value_ = value::undefined;
-    construct_ = native_function_type{};
-    call_ = native_function_type{};
-    properties_.clear();
-}
-
 void debug_print(std::wostream& os, const value& v, int indent_incr, int max_nest, int indent) {
     switch (v.type()) {
     case value_type::undefined: [[fallthrough]];
@@ -416,33 +372,6 @@ std::wstring debug_string(const value& v) {
     std::wostringstream woss;
     debug_print(woss, v, 4, 0);
     return woss.str();
-}
-
-void object::debug_print(std::wostream& os, int indent_incr, int max_nest, int indent) const {
-    if (indent / indent_incr > 4 || max_nest <= 0) {
-        os << "[Object " << class_ << "]";
-        return;
-    }
-    auto indent_string = std::wstring(indent + indent_incr, ' ');
-    auto print_prop = [&](const auto& name, const auto& val, bool internal) {
-        os << indent_string << name << ": ";
-        mjs::debug_print(os, mjs::value{val}, indent_incr, max_nest > 1 && internal ? 1 : max_nest - 1, indent + indent_incr);
-        os << "\n";
-    };
-    os << "{\n";
-    for (const auto& p : properties_) {
-        if (p.first.view() == L"constructor") {
-            print_prop(p.first, p.second.val, true);
-        } else {
-            print_prop(p.first, p.second.val, false);
-        }
-    }
-    print_prop("[[Class]]", class_, true);
-    print_prop("[[Prototype]]", prototype_ ? value{prototype_} : value::null, true);
-    if (value_.type() != value_type::undefined) {
-        print_prop("[[Value]]", value_, true);
-    }
-    os << std::wstring(indent, ' ') << "}";
 }
 
 [[noreturn]] void throw_runtime_error(const std::string_view& s, const char* file, int line) {

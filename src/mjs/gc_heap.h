@@ -105,6 +105,9 @@ public:
     template<typename T>
     gc_heap_ptr<T> unsafe_create_from_position(uint32_t pos);
 
+    template<typename T>
+    gc_heap_ptr<T> unsafe_create_from_pointer(T* ptr);
+
     uint32_t unsafe_gc_move(gc_heap& new_heap, uint32_t pos);
 
     static gc_heap& local_heap() {
@@ -162,6 +165,13 @@ public:
     ~scoped_gc_heap() {
         assert(gc_heap::local_heap_ == this);
         gc_heap::local_heap_ = old_heap_;
+
+#if 0 // TODO: This should be possible
+#ifndef  NDEBUG
+        garbage_collect();
+        assert(calc_used() == 0);
+#endif
+#endif
     }
     scoped_gc_heap(scoped_gc_heap&) = delete;
     scoped_gc_heap& operator=(scoped_gc_heap&) = delete;
@@ -207,6 +217,8 @@ public:
         return pos_;
     }
 
+    explicit operator bool() const { return heap_; }
+
     void* get() const {
         assert(heap_);
         return const_cast<void*>(static_cast<const void*>(&heap_->storage_[pos_]));
@@ -226,6 +238,11 @@ class gc_heap_ptr : public gc_heap_ptr_untyped {
 public:
     friend gc_heap;
     gc_heap_ptr() = default;
+    gc_heap_ptr(std::nullptr_t) : gc_heap_ptr_untyped() {
+    }
+    template<typename U, typename = typename std::enable_if<std::is_convertible_v<U*, T*>>::type>
+    gc_heap_ptr(const gc_heap_ptr<U>& p) : gc_heap_ptr_untyped(p) {
+    }
 
     T* get() const { return static_cast<T*>(gc_heap_ptr_untyped::get()); }
     T* operator->() const { return get(); }
@@ -249,10 +266,18 @@ gc_heap_ptr<T> gc_heap::construct(const gc_heap_ptr_untyped& p, Args&&... args) 
     return gc_heap_ptr<T>{p};
 }
 
+class object;
+
 template<typename T>
 gc_heap_ptr<T> gc_heap::unsafe_create_from_position(uint32_t pos) {
-    assert(pos > 0 && pos < storage_.size() && storage_[pos-1].allocation.type == gc_type_info_registration<T>::get().get_index());
+    assert(pos > 0 && pos < next_free_ && (storage_[pos-1].allocation.type == gc_type_info_registration<T>::get().get_index() || std::is_same_v<object, T>)); // Disable check for object (needed by object::default_value)
     return gc_heap_ptr<T>{gc_heap_ptr_untyped{*this, pos}};
+}
+
+template<typename T>
+gc_heap_ptr<T> gc_heap::unsafe_create_from_pointer(T* ptr) {
+    assert(is_internal(ptr));
+    return unsafe_create_from_position<T>(static_cast<uint32_t>(reinterpret_cast<slot*>(ptr) - &storage_[0]));
 }
 
 } // namespace mjs

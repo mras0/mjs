@@ -161,10 +161,6 @@ public:
 
     ~impl() {
         assert(scopes_ && !scopes_->prev);
-        scopes_.reset();
-        global_.reset();
-        mjs::object::garbage_collect({});
-        assert(!mjs::object::object_count());
     }
 
     value eval(const expression& e) {
@@ -337,7 +333,7 @@ public:
                 return l.boolean_value() == r.boolean_value();
             }
             assert(l.type() == value_type::object);
-            return l.object_value() == r.object_value();
+            return l.object_value().get() == r.object_value().get();
         }
         // Types are different
         if (l.type() == value_type::null && r.type() == value_type::undefined) {
@@ -652,7 +648,7 @@ private:
         scope_ptr old_scopes;
     };
     scope_ptr                      scopes_;
-    std::shared_ptr<global_object> global_;
+    gc_heap_ptr<global_object>     global_;
     on_statement_executed_type     on_statement_executed_;
 
     std::vector<source_extend> stack_trace(const source_extend& current_extend) const {

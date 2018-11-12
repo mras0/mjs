@@ -2,12 +2,13 @@
 #define MJS_GLOBAL_OBJECT_H
 
 #include "value.h"
+#include "object.h"
 
 namespace mjs {
 
 class global_object : public object {
 public:
-    static std::shared_ptr<global_object> make();
+    static gc_heap_ptr<global_object> make();
     virtual ~global_object() {}
 
     virtual const object_ptr& object_prototype() const = 0;
@@ -32,6 +33,7 @@ public:
 
 protected:
     using object::object;
+    global_object(global_object&&) = default;
 
     virtual object_ptr make_function(const native_function_type& f, const string& body_text, int named_args) = 0;
 };

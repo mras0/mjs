@@ -38,11 +38,15 @@ private:
 // TODO: Try to eliminate (or lessen) use of local heap
 class string {
 public:
+    string(const gc_heap_ptr<gc_string>& s) : s_(s) {}
+
     explicit string() : string(L"") {}
     // TODO: Could optimize this constructor by providing appropriate overloads in gc_string
     explicit string(const char* str) : string(std::wstring(str, str+std::strlen(str))) {}
-    explicit string(const std::wstring_view& s) : s_(gc_string::make(gc_heap::local_heap(),s)) {}
+    explicit string(const std::wstring_view& s) : string(gc_string::make(gc_heap::local_heap(),s)) {}
     std::wstring_view view() const { return s_->view(); }
+
+    const gc_heap_ptr<gc_string>& unsafe_raw_get() const { return s_; }
 private:
     gc_heap_ptr<gc_string> s_;
 };
@@ -57,13 +61,5 @@ inline string operator+(const string& l, const string& r) {
 double to_number(const string& s);
 
 } // namespace mjs
-
-namespace std {
-template<> struct hash<::mjs::string> {
-    size_t operator()(const ::mjs::string& s) const {
-        return hash<std::wstring_view>()(s.view());
-    }
-};
-} // namespace std
 
 #endif
