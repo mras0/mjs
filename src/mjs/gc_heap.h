@@ -105,9 +105,6 @@ public:
     template<typename T>
     gc_heap_ptr<T> unsafe_create_from_position(uint32_t pos);
 
-    template<typename T>
-    gc_heap_ptr<T> unsafe_create_from_pointer(T* ptr);
-
     uint32_t unsafe_gc_move(gc_heap& new_heap, uint32_t pos);
 
     static gc_heap& local_heap() {
@@ -142,14 +139,15 @@ private:
 
     thread_local static gc_heap* local_heap_;
     std::set<const gc_heap_ptr_untyped*> pointers_;
-    std::vector<slot> storage_;
+    slot* storage_;
+    uint32_t capacity_;
     uint32_t next_free_ = 0;
 
     void attach(const gc_heap_ptr_untyped& p);
     void detach(const gc_heap_ptr_untyped& p);
 
     bool is_internal(const void* p) const {
-        return reinterpret_cast<uintptr_t>(p) >= reinterpret_cast<uintptr_t>(storage_.data()) && reinterpret_cast<uintptr_t>(p) < reinterpret_cast<uintptr_t>(storage_.data() + storage_.size());
+        return reinterpret_cast<uintptr_t>(p) >= reinterpret_cast<uintptr_t>(storage_) && reinterpret_cast<uintptr_t>(p) < reinterpret_cast<uintptr_t>(storage_ + capacity_);
     }
 
     static slot_allocation_header& allocation_header(const gc_heap_ptr_untyped& p);

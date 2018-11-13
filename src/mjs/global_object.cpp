@@ -8,6 +8,7 @@
 #include <cstring>
 #include <iostream>
 #include <functional>
+#include <unordered_map>
 
 // TODO: Get rid of this stuff alltogether
 #ifndef _WIN32

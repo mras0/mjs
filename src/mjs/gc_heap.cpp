@@ -1,6 +1,7 @@
 #include "gc_heap.h"
 #include <algorithm>
 #include <iomanip>
+#include <cstdlib>
 
 namespace {
 
@@ -53,7 +54,7 @@ std::vector<const gc_type_info*> gc_type_info::types_;
 
 thread_local gc_heap* gc_heap::local_heap_ = nullptr;
 
-gc_heap::gc_heap(uint32_t capacity) : storage_(capacity) {
+gc_heap::gc_heap(uint32_t capacity) : storage_(static_cast<slot*>(std::malloc(capacity * sizeof(slot)))), capacity_(capacity) {
 }
 
 gc_heap::~gc_heap() {
@@ -66,6 +67,7 @@ gc_heap::~gc_heap() {
         pos += a.size;
     }
     assert(pointers_.empty());
+    std::free(storage_);
 }
 
 void gc_heap::debug_print(std::wostream& os) const {
@@ -117,7 +119,7 @@ uint32_t gc_heap::calc_used() const {
 }
 
 void gc_heap::garbage_collect() {
-    gc_heap new_heap{static_cast<uint32_t>(storage_.size())}; // TODO: Allow resize
+    gc_heap new_heap{capacity_}; // TODO: Allow resize
 
     std::vector<const gc_heap_ptr_untyped*> roots;
 
@@ -174,7 +176,7 @@ gc_heap_ptr_untyped gc_heap::allocate(size_t num_bytes) {
     }
 
     const auto num_slots = 1 + bytes_to_slots(num_bytes);
-    if (num_slots > storage_.size() || next_free_ > storage_.size() - num_slots) {
+    if (num_slots > capacity_ || next_free_ > capacity_ - num_slots) {
         assert(!"Not implemented: Ran out of heap");
         std::abort();
     }
@@ -187,7 +189,7 @@ gc_heap_ptr_untyped gc_heap::allocate(size_t num_bytes) {
 
 void gc_heap::attach(const gc_heap_ptr_untyped& p) {
     assert(p.pos_ > 0);
-    assert(p.pos_ < storage_.size());
+    assert(p.pos_ < next_free_);
 
     [[maybe_unused]] const auto inserted = pointers_.insert(&p).second;
     assert(inserted);
@@ -199,7 +201,7 @@ void gc_heap::detach(const gc_heap_ptr_untyped& p) {
 }
 
 gc_heap::slot_allocation_header& gc_heap::allocation_header(const gc_heap_ptr_untyped& p) {
-    assert(p.heap_ && p.pos_ > 0 && p.pos_ < p.heap_->storage_.size());
+    assert(p.heap_ && p.pos_ > 0 && p.pos_ < p.heap_->next_free_);
     return p.heap().storage_[p.pos_ - 1].allocation;
 }
 

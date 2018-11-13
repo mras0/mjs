@@ -6,14 +6,17 @@
     - Create `parse_test` (and move `test_semicolon_insertion` from interpreter test)
     - Test `source_extend` logic (could probably be more precise for expressions/statements)
 * Better GC
+    - Make sure garbage can be collected safely most of the time (and formulate rules for when it's not allowed)
     - Ensure thread safety (perhaps only GC type information registration is troublesome)
     - Improve speed
     - Support compacting the current heap?
-    - Reduce/remove reliance on gc_heap::local_heap()
-    - Make it harder to use incorrectly - more type safety possible? (remove 'unsafe' calls)
+    - Reduce/remove reliance on `gc_heap::local_heap()`
+    - Make it harder to use incorrectly - more type safety possible? (remove 'unsafe' calls). More help for implementing `gc_table`/`gc_function`-like objects
     - Support pointers inside objects
-    - Allocator support (But it seems like gc_heap_ptr is too fancy to be compatible - a static to_pointer() function can't really be 'nicely' [it could of course use local_heap, but that's not nice])
-    - Use untracked ptr's internally (in gc* functions/classes)
+    - Allocator support (But it seems like `gc_heap_ptr` is too fancy to be compatible - a static `to_pointer()` function can't really be 'nicely' [it could of course use `local_heap`, but that's not nice])
+    - Use untracked ptr's internally (in `gc*` functions/classes)
+    - Support use of multiple heaps (for generational GC)
+    - Consider using a `std::vector<gc_heap_ptr_untyped*>` for storing the pointers. It probably makes sense to search backwards when removing pointers.
 * Finish global object
     - Date
         - mutators
