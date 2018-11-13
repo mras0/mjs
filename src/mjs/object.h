@@ -5,11 +5,11 @@
 
 #include "value.h"
 #include "gc_table.h"
-#include <functional> // TODO: loose dependece on this
+#include "gc_function.h"
 
 namespace mjs {
 
-using native_function_type = std::function<value (const value&, const std::vector<value>&)>;
+using native_function_type = gc_heap_ptr<gc_function>;
 
 class object {
 public:

@@ -3,7 +3,7 @@
 
 #include <iosfwd>
 #include <cassert>
-#include "string.h"
+#include <string>
 
 namespace mjs {
 
@@ -110,7 +110,7 @@ public:
     explicit token(token_type type) : type_(type) {
         assert(!has_text());
     }
-    explicit token(token_type type, const string& text) : type_(type), text_(text) {
+    explicit token(token_type type, const std::wstring& text) : type_(type), text_(text) {
         assert(has_text());
     }
     explicit token(double dval) : type_(token_type::numeric_literal), dvalue_(dval) {
@@ -126,7 +126,7 @@ public:
             destroy();
             type_ = t.type_;
             if (t.has_text()) {
-                new (&text_) string(t.text_);
+                new (&text_) std::wstring(t.text_);
             } else {
                 ivalue_ = t.ivalue_;
             }
@@ -138,7 +138,7 @@ public:
             destroy();
             type_ = t.type_;
             if (t.has_text()) {
-                new (&text_) string(std::move(t.text_));
+                new (&text_) std::wstring(std::move(t.text_));
             } else {
                 ivalue_ = t.ivalue_;
             }
@@ -152,7 +152,7 @@ public:
 
     token_type type() const { return type_; }
 
-    const string& text() const {
+    const std::wstring& text() const {
         assert(has_text());
         return text_;
     }
@@ -172,14 +172,14 @@ public:
 private:
     token_type type_;
     union {
-        uint64_t ivalue_;
-        double   dvalue_;
-        string   text_;
+        uint64_t        ivalue_;
+        double          dvalue_;
+        std::wstring    text_;
     };
 
     void destroy() {
         if (has_text()) {
-            text_.~string();
+            text_.~basic_string();
         }
     }
 
@@ -209,7 +209,6 @@ private:
 };
 
 std::wstring cpp_quote(const std::wstring_view& s);
-inline std::wstring cpp_quote(const string& s) { return cpp_quote(s.view()); }
 
 } // namespace mjs
 

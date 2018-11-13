@@ -52,7 +52,7 @@ void test(const std::wstring_view& text, const value& expected) {
 
     gc_heap::local_heap().garbage_collect();
     const auto used_now = gc_heap::local_heap().calc_used();
-    if (0&&used_before < used_now) {
+    if (used_before < used_now) {
         std::wcout << "Used before: " << used_before << " Used now: " << used_now << "\n";
         THROW_RUNTIME_ERROR("Leaks");
     }

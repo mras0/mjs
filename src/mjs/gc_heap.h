@@ -166,11 +166,9 @@ public:
         assert(gc_heap::local_heap_ == this);
         gc_heap::local_heap_ = old_heap_;
 
-#if 0 // TODO: This should be possible
-#ifndef  NDEBUG
         garbage_collect();
+#ifndef  NDEBUG
         assert(calc_used() == 0);
-#endif
 #endif
     }
     scoped_gc_heap(scoped_gc_heap&) = delete;

@@ -69,21 +69,36 @@ gc_heap::~gc_heap() {
 }
 
 void gc_heap::debug_print(std::wostream& os) const {
+    const int size_w = 4;
+    const int pos_w = 8;
+    const int tt_width = 25;
     os << "Heap:\n";
     for (uint32_t pos = 0; pos < next_free_;) {
         const auto a = storage_[pos].allocation;
-        os << fmt(pos+1).width(4) << " size: " << fmt(a.size).width(2) << " type: " << fmt(a.type) << " ";
+        os << fmt(pos+1).width(pos_w) << " size: " << fmt(a.size).width(size_w) << " type: " << fmt(a.type).width(2) << " ";
         if (a.active()) {
-            os << a.type_info().name();
+            save_stream_state sss{os};
+            os << std::left << std::setw(tt_width) << a.type_info().name();
         }
         os << "\n";
         pos += a.size;
     }
     os << "Pointers:\n";
     for (auto p: pointers_) {
-        os << fmt(p->pos_).width(4);
+        assert(p->heap_ == this);
+        os << fmt(p->pos_).width(pos_w);
+        const auto a = storage_[p->pos_-1].allocation;
+        os << " [size: " << fmt(a.size).width(size_w) << " type: " << fmt(a.type).width(2);
+        if (a.active()) {
+            save_stream_state sss{os};
+            os << " " << std::left << std::setw(tt_width) << a.type_info().name();
+        } else {
+            assert(false);
+        }
+        os << "] " << p << " ";
+        
         if (is_internal(p)) {
-            os << " (internal at " << reinterpret_cast<const uint64_t*>(p) - &storage_[0].representation << ")";
+            os << " (internal at " << fmt(reinterpret_cast<const uint64_t*>(p) - &storage_[0].representation).width(pos_w) << ")";
         }
         os << "\n";
     }
@@ -173,6 +188,7 @@ gc_heap_ptr_untyped gc_heap::allocate(size_t num_bytes) {
 void gc_heap::attach(const gc_heap_ptr_untyped& p) {
     assert(p.pos_ > 0);
     assert(p.pos_ < storage_.size());
+
     [[maybe_unused]] const auto inserted = pointers_.insert(&p).second;
     assert(inserted);
 }

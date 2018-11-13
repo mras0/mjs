@@ -6,7 +6,6 @@
 #include <vector>
 #include <cassert>
 
-#include "string.h"
 #include "lexer.h"
 
 namespace mjs {
@@ -131,14 +130,14 @@ using statement_list = std::vector<statement_ptr>;
 
 class identifier_expression : public expression {
 public:
-    explicit identifier_expression(const source_extend& extend, const string& id) : expression(extend), id_(id) {}
+    explicit identifier_expression(const source_extend& extend, const std::wstring& id) : expression(extend), id_(id) {}
 
     expression_type type() const override { return expression_type::identifier; }
 
-    const string& id() const { return id_; }
+    const std::wstring& id() const { return id_; }
 
 private:
-    string id_;
+    std::wstring id_;
 
     void print(std::wostream& os) const override {
         os << "identifier_expression{" << id_ << "}";
@@ -319,17 +318,17 @@ class declaration {
 public:
     using list = std::vector<declaration>;
 
-    explicit declaration(const string& id, expression_ptr&& init) : id_(id), init_(std::move(init)) {
-        assert(!id.view().empty() || init_);
+    explicit declaration(const std::wstring& id, expression_ptr&& init) : id_(id), init_(std::move(init)) {
+        assert(!id.empty() || init_);
     }
 
-    const string& id() const { return id_;}
+    const std::wstring& id() const { return id_;}
 
     const expression* init() const { return init_.get(); }
 
     friend std::wostream& operator<<(std::wostream& os, const declaration& d) {
         os << '{';
-        if (!d.id_.view().empty()) {
+        if (!d.id_.empty()) {
             os << d.id_;
             if (d.init_) {
                 os << ", " << *d.init_;
@@ -341,7 +340,7 @@ public:
     }
 
 private:
-    string id_;
+    std::wstring id_;
     expression_ptr init_;
 };
 
@@ -564,7 +563,7 @@ private:
 
 class function_definition : public statement {
 public:
-    explicit function_definition(const source_extend& extend, const source_extend& body_extend, const string& id, std::vector<string>&& params, statement_ptr&& block) : statement(extend), body_extend_(body_extend), id_(id), params_(std::move(params)) {
+    explicit function_definition(const source_extend& extend, const source_extend& body_extend, const std::wstring& id, std::vector<std::wstring>&& params, statement_ptr&& block) : statement(extend), body_extend_(body_extend), id_(id), params_(std::move(params)) {
         assert(block && block->type() == statement_type::block);
         block_.reset(static_cast<block_statement*>(block.release()));
     }
@@ -572,15 +571,15 @@ public:
     statement_type type() const override { return statement_type::function_definition; }
 
     const source_extend& body_extend() const { return body_extend_; }
-    const string& id() const { return id_; }
-    const std::vector<string>& params() const { return params_; }
+    const std::wstring& id() const { return id_; }
+    const std::vector<std::wstring>& params() const { return params_; }
     const block_statement& block() const { return *block_; }
     const std::shared_ptr<block_statement>& block_ptr() const { return block_; }
 
 private:
     source_extend body_extend_;
-    string id_;
-    std::vector<string> params_;
+    std::wstring id_;
+    std::vector<std::wstring> params_;
     std::shared_ptr<block_statement> block_;
 
     void print(std::wostream& os) const override {

@@ -7,6 +7,7 @@
 #include <ctime>
 #include <cstring>
 #include <iostream>
+#include <functional>
 
 // TODO: Get rid of this stuff alltogether
 #ifndef _WIN32
@@ -432,7 +433,7 @@ private:
     // Function
     //
 
-    object_ptr make_function(const native_function_type& f, const string& body_text, int named_args) override {
+    object_ptr do_make_function(const native_function_type& f, const string& body_text, int named_args) override {
         auto o = make_raw_function();
         put_function(o, f, body_text, named_args);
         return o;
@@ -443,9 +444,9 @@ private:
         o->put(string{"prototype"}, value{function_prototype_}, prototype_attributes);
 
         // §15.3.4
-        function_prototype_->call_function([](const value&, const std::vector<value>&) {
+        function_prototype_->call_function(gc_function::make(gc_heap::local_heap(), [](const value&, const std::vector<value>&) {
             return value::undefined;
-        });
+        }));
         function_prototype_->put(string{"constructor"}, value{o}, default_attributes);
         put_native_function(function_prototype_, "toString", [this](const value& this_, const std::vector<value>&) {
             validate_type(this_, function_prototype_, "Function");
@@ -499,9 +500,9 @@ private:
         auto c = make_function([this](const value&, const std::vector<value>& args) {
             return value{new_boolean(!args.empty() && to_boolean(args.front()))};
         },  native_function_body("Boolean"), 1);
-        c->call_function([](const value&, const std::vector<value>& args) {
+        c->call_function(gc_function::make(gc_heap::local_heap(), [](const value&, const std::vector<value>& args) {
             return value{!args.empty() && to_boolean(args.front())};
-        });
+        }));
         c->put(string{"prototype"}, value{boolean_prototype_}, prototype_attributes);
 
         auto check_type = [p = boolean_prototype_](const value& this_) {
@@ -540,9 +541,9 @@ private:
         auto c = make_function([this](const value&, const std::vector<value>& args) {
             return value{new_number(args.empty() ? 0.0 : to_number(args.front()))};
         }, native_function_body("Number"), 1);
-        c->call_function([](const value&, const std::vector<value>& args) {
+        c->call_function(gc_function::make(gc_heap::local_heap(), [](const value&, const std::vector<value>& args) {
             return value{args.empty() ? 0.0 : to_number(args.front())};
-        });
+        }));
         c->put(string{L"prototype"}, value{number_prototype_}, prototype_attributes);
         c->put(string{"MAX_VALUE"}, value{1.7976931348623157e308}, default_attributes);
         c->put(string{"MIN_VALUE"}, value{5e-324}, default_attributes);
@@ -595,9 +596,9 @@ private:
         auto c = make_function([this](const value&, const std::vector<value>& args) {
             return value{new_string(args.empty() ? string{""} : to_string(args.front()))};
         }, native_function_body("String"), 1);
-        c->call_function([](const value&, const std::vector<value>& args) {
+        c->call_function(gc_function::make(gc_heap::local_heap(), [](const value&, const std::vector<value>& args) {
             return value{args.empty() ? string{""} : to_string(args.front())};
-        });
+        }));
         c->put(string{"prototype"}, value{string_prototype_}, prototype_attributes);
         put_native_function(c, "fromCharCode", [](const value&, const std::vector<value>& args){
             std::wstring s;
@@ -791,7 +792,7 @@ private:
                     return -1;
                 }
                 if (comparefn) {
-                    const auto r = to_number(comparefn(value::null, {x,y}));
+                    const auto r = to_number(comparefn->call(value::null, {x,y}));
                     if (r < 0) return -1;
                     if (r > 0) return 1;
                     return 0;
@@ -961,10 +962,10 @@ private:
             }
             return value{date_helper::time_clip(date_helper::utc(date_helper::time_from_args(args)))};
         }, native_function_body("Date"), 7);
-        c->call_function([this](const value&, const std::vector<value>&) {
+        c->call_function(gc_function::make(gc_heap::local_heap(), [this](const value&, const std::vector<value>&) {
             // Equivalent to (new Date()).toString()
             return value{to_string(value{new_date(date_helper::current_time_utc())})};
-        });
+        }));
         c->put(string{"prototype"}, value{date_prototype_}, prototype_attributes);
         put_native_function(c, "parse", [](const value&, const std::vector<value>& args) {
             if (1) NOT_IMPLEMENTED(get_arg(args, 0));
@@ -1136,17 +1137,6 @@ private:
         popuplate_global();
     }
 
-#if 0
-    global_object_impl(global_object_impl&& other) : object(std::move(this)) {
-        object_prototype_   = std::move(other.object_prototype_);
-        function_prototype_ = std::move(other.function_prototype_);
-        array_prototype_    = std::move(other.array_prototype_);
-        string_prototype_   = std::move(other.string_prototype_);
-        boolean_prototype_  = std::move(other. boolean_prototype_);
-        number_prototype_   = std::move(other.number_prototype_);
-        date_prototype_     = std::move(other.date_prototype_);
-    }
-#endif
     global_object_impl(global_object_impl&& other) = default;
 
     gc_heap_ptr_untyped move(gc_heap& new_heap) {

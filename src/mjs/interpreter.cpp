@@ -28,7 +28,7 @@ std::wostream& operator<<(std::wostream& os, const completion& c) {
 
 class hoisting_visitor {
 public:
-    static std::vector<string> scan(const block_statement& bs) {
+    static std::vector<std::wstring> scan(const block_statement& bs) {
         hoisting_visitor hv{};
         hv(bs);
         return hv.ids_;
@@ -77,7 +77,7 @@ public:
     void operator()(const with_statement&){}
 
     void operator()(const function_definition& s) {
-        assert(!s.id().view().empty());
+        assert(!s.id().empty());
         ids_.push_back(s.id());
     }
 
@@ -87,7 +87,7 @@ public:
 
 private:
     explicit hoisting_visitor() {}
-    std::vector<string> ids_;
+    std::vector<std::wstring> ids_;
 };
 
 class eval_exception : public std::runtime_error {
@@ -130,7 +130,7 @@ public:
             return ret.result;
         }, 1);
 
-        global_object::put_function(global_->get(string{"Function"}).object_value(), [this](const value&, const std::vector<value>& args) {
+        global_object::put_function(global_->get(string{"Function"}).object_value(), gc_function::make(gc_heap::local_heap(), [this](const value&, const std::vector<value>& args) {
             std::wstring body{}, p{};
             if (args.empty()) {
             } else if (args.size() == 1) {
@@ -149,14 +149,14 @@ public:
                 NOT_IMPLEMENTED("Invalid function definition: " << bs->extend().source_view());
             }
 
-            return value{create_function(static_cast<const function_definition&>(*bs->l().front()), scope_ptr{new scope{global_, nullptr}})};
-        }, global_object::native_function_body("Function"), 1);
+            return value{create_function(static_cast<const function_definition&>(*bs->l().front()), make_scope(global_, nullptr))};
+        }), global_object::native_function_body("Function"), 1);
 
         for (const auto& id: hoisting_visitor::scan(program)) {
-            global_->put(id, value::undefined);
+            global_->put(string{id}, value::undefined);
         }
 
-        scopes_.reset(new scope{global_, nullptr});
+        scopes_ = make_scope(global_, nullptr);
     }
 
     ~impl() {
@@ -187,7 +187,7 @@ public:
         case token_type::true_:           return value{true};
         case token_type::false_:          return value{false};
         case token_type::numeric_literal: return value{e.t().dvalue()};
-        case token_type::string_literal:  return value{e.t().text()};
+        case token_type::string_literal:  return value{string{e.t().text()}};
         default: NOT_IMPLEMENTED(e);
         }
     }
@@ -215,7 +215,7 @@ public:
         }
 
         scopes_->call_site = e.extend();
-        auto res = c(this_, args);
+        auto res = c->call(this_, args);
         scopes_->call_site = source_extend{nullptr,0,0};
         return res;
     }
@@ -473,9 +473,10 @@ public:
 
     completion operator()(const variable_statement& s) {
         for (const auto& d: s.l()) {
-            assert(scopes_->activation->has_property(d.id()));
+            auto id = string{d.id()};
+            assert(scopes_->activation->has_property(id));
             if (d.init()) {
-                scopes_->activation->put(d.id(), eval(*d.init()));
+                scopes_->activation->put(id, eval(*d.init()));
             }
         }
         return completion{};
@@ -609,7 +610,7 @@ public:
     }
 
     completion operator()(const function_definition& s) {
-        scopes_->activation->put(s.id(), value{create_function(s, scopes_)});
+        scopes_->activation->put(string{s.id()}, value{create_function(s, scopes_)});
         return completion{};
     }
 
@@ -619,10 +620,10 @@ public:
 
 private:
     class scope;
-    using scope_ptr = std::shared_ptr<scope>;
+    using scope_ptr = gc_heap_ptr<scope>;
     class scope {
     public:
-        explicit scope(const object_ptr& act, const scope_ptr& prev) : activation(act), prev(prev) {}
+        friend gc_type_info_registration<scope>;
 
         reference lookup(const string& id) const {
             if (!prev || activation->has_property(id)) {
@@ -631,14 +632,25 @@ private:
             return prev->lookup(id);
         }
 
+        reference lookup(const std::wstring& id) const {
+            return lookup(string{id});
+        }
+
         object_ptr activation;
         scope_ptr prev;
         source_extend call_site;
+
+    private:
+        explicit scope(const object_ptr& act, const scope_ptr& prev) : activation(act), prev(prev) {}
+
+        gc_heap_ptr_untyped move(gc_heap& new_heap) {
+            return new_heap.make<scope>(std::move(*this));
+        }
     };
     class auto_scope {
     public:
         explicit auto_scope(impl& parent, const object_ptr& act, const scope_ptr& prev) : parent(parent), old_scopes(parent.scopes_) {
-            parent.scopes_.reset(new scope{act, prev});
+            parent.scopes_ = gc_heap::local_heap().make<scope>(act, prev);
         }
         ~auto_scope() {
             parent.scopes_ = old_scopes;
@@ -650,6 +662,10 @@ private:
     scope_ptr                      scopes_;
     gc_heap_ptr<global_object>     global_;
     on_statement_executed_type     on_statement_executed_;
+
+    static scope_ptr make_scope(const object_ptr& act, const scope_ptr& prev) {
+        return gc_heap::local_heap().make<scope>(act, prev);
+    }
 
     std::vector<source_extend> stack_trace(const source_extend& current_extend) const {
         std::vector<source_extend> t;
@@ -693,17 +709,17 @@ private:
         }
 
         scopes_->call_site = e.extend();
-        auto res = c(value::undefined, args);
+        auto res = c->call(value::undefined, args);
         scopes_->call_site = source_extend{nullptr,0,0};
         return res;
     }
 
-    object_ptr create_function(const string& id, const std::shared_ptr<block_statement>& block, const std::vector<string>& param_names, const std::wstring& body_text, const scope_ptr& prev_scope) {
+    object_ptr create_function(const string& id, const std::shared_ptr<block_statement>& block, const std::vector<std::wstring>& param_names, const std::wstring& body_text, const scope_ptr& prev_scope) {
         // §15.3.2.1
         auto callee = global_->make_raw_function();
-        auto func = [this, block, param_names, prev_scope, callee, ids = hoisting_visitor::scan(*block)](const value& this_, const std::vector<value>& args) {
+        auto func = [this, global = this->global_, block, param_names, prev_scope, callee, ids = hoisting_visitor::scan(*block)](const value& this_, const std::vector<value>& args) {
             // Arguments array
-            auto as = object::make(string{"Object"}, global_->object_prototype());
+            auto as = object::make(string{"Object"}, global->object_prototype());
             as->put(string{"callee"}, value{callee}, property_attribute::dont_enum);
             as->put(string{"length"}, value{static_cast<double>(args.size())}, property_attribute::dont_enum);
             for (uint32_t i = 0; i < args.size(); ++i) {
@@ -716,31 +732,31 @@ private:
             activation->put(string{"this"}, this_, property_attribute::dont_delete | property_attribute::dont_enum | property_attribute::read_only);
             activation->put(string{"arguments"}, value{as}, property_attribute::dont_delete);
             for (size_t i = 0; i < std::min(args.size(), param_names.size()); ++i) {
-                activation->put(param_names[i], args[i]);
+                activation->put(string{param_names[i]}, args[i]);
             }
             // Variables
             for (const auto& id: ids) {
-                assert(!activation->has_property(id)); // TODO: Handle this..
-                activation->put(id, value::undefined);
+                assert(!activation->has_property(string{id})); // TODO: Handle this..
+                activation->put(string{id}, value::undefined);
             }
             return eval(*block).result;
         };
-        global_->put_function(callee, func, string{L"function " + std::wstring{id.view()} + body_text}, static_cast<int>(param_names.size()));
+        global_->put_function(callee, gc_function::make(gc_heap::local_heap(), func), string{L"function " + std::wstring{id.view()} + body_text}, static_cast<int>(param_names.size()));
 
-        callee->construct_function([this, callee, id](const value& unsused_this_, const std::vector<value>& args) {
+        callee->construct_function(gc_function::make(gc_heap::local_heap(), [global = global_, callee, id](const value& unsused_this_, const std::vector<value>& args) {
             assert(unsused_this_.type() == value_type::undefined); (void)unsused_this_;
             assert(!id.view().empty());
             auto p = callee->get(string("prototype"));
-            auto o = value{object::make(id, p.type() == value_type::object ? p.object_value() : global_->object_prototype())};
-            auto r = callee->call_function()(o, args);
+            auto o = value{object::make(id, p.type() == value_type::object ? p.object_value() : global->object_prototype())};
+            auto r = callee->call_function()->call(o, args);
             return r.type() == value_type::object ? r : value{o};
-        });
+        }));
 
         return callee;
     }
 
     object_ptr create_function(const function_definition& s, const scope_ptr& prev_scope) {
-        return create_function(s.id(), s.block_ptr(), s.params(), std::wstring{s.body_extend().source_view()}, prev_scope);
+        return create_function(string{s.id()}, s.block_ptr(), s.params(), std::wstring{s.body_extend().source_view()}, prev_scope);
     }
 };
 

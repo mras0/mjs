@@ -243,7 +243,7 @@ private:
         if (auto id = accept(token_type::identifier)) {
             return make_expression<identifier_expression>(id.text());
         } else if (accept(token_type::this_)) {
-            return make_expression<identifier_expression>(mjs::string{"this"});
+            return make_expression<identifier_expression>(std::wstring{L"this"});
         } else if (accept(token_type::lparen)) {
             auto e = parse_expression();
             EXPECT(token_type::rparen);
@@ -535,7 +535,7 @@ private:
         auto id = EXPECT(token_type::identifier).text();
         const auto body_start = lexer_.text_position() - 1;
         EXPECT(token_type::lparen);
-        std::vector<string> params;
+        std::vector<std::wstring> params;
         if (!accept(token_type::rparen)) {
             do {
                 params.push_back(EXPECT(token_type::identifier).text());

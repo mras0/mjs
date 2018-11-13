@@ -203,10 +203,13 @@ void run_test_spec(const std::string_view& source_text, const std::string_view& 
         }
     }
 
+    // TODO: The remaining garbage is from the parser(?)
     heap.garbage_collect();
-    if (0 && heap.calc_used()) { // TODO: Check for this
-        std::ostringstream oss;
-        oss << "Leaks in test spec: " << heap.calc_used() << "\n" << source_text;
+    if (heap.calc_used()) {
+        std::wostringstream oss;
+        oss << "Leaks in test spec: " << heap.calc_used() << "\n" << std::wstring(source_text.begin(), source_text.end());
+        oss << "\n";
+        heap.debug_print(oss);
         THROW_RUNTIME_ERROR(oss.str());
     }
 

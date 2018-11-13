@@ -64,7 +64,7 @@ std::wostream& operator<<(std::wostream& os, const token& t) {
     if (t.type() == token_type::numeric_literal) {
         os << ", " << t.dvalue_;
     } else if (t.has_text()) {
-        os << ", \"" << cpp_quote(t.text().view()) << "\"";
+        os << ", \"" << cpp_quote(t.text()) << "\"";
     }
     return os << "}";
 }
@@ -413,7 +413,7 @@ void lexer::next_token() {
                     s.push_back(qch);
                 }
             }
-            current_token_ = token{token_type::string_literal, string{std::move(s)}};
+            current_token_ = token{token_type::string_literal, std::move(s)};
         } else if (is_whitespace(ch)) {
             while (token_end < text_.size() && is_whitespace(text_[token_end])) {
                 ++token_end;
@@ -433,7 +433,7 @@ void lexer::next_token() {
 #define X(rw) else if (id == L ## #rw) current_token_ = token{token_type::rw ## _};
             RESERVED_WORDS(X)
 #undef X
-            else current_token_  = token{token_type::identifier, string{id}};
+            else current_token_  = token{token_type::identifier, id};
         } else if (is_digit(ch) || (ch == '.' && token_end < text_.size() && is_digit(text_[token_end]))) {
             if (ch == '0' && !(token_end < text_.size() && text_[token_end] == '.')) {
                 double v = 0;

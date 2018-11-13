@@ -152,11 +152,11 @@ value to_primitive(const value& v, value_type hint) {
         if (fo.type() != value_type::object) {
             continue;
         }
-        const auto& f = fo.object_value()->call_function();
+        auto f = fo.object_value()->call_function();
         if (!f) {
             continue;
         }
-        auto res = f(v, {});
+        auto res = f->call(v, {});
         if (!is_primitive(res.type())) {
             continue;
         }

@@ -35,7 +35,16 @@ protected:
     using object::object;
     global_object(global_object&&) = default;
 
-    virtual object_ptr make_function(const native_function_type& f, const string& body_text, int named_args) = 0;
+    virtual object_ptr do_make_function(const native_function_type& f, const string& body_text, int named_args) = 0;
+
+    template<typename F>
+    object_ptr make_function(const F& f, const string& body_text, int named_args) {
+        return do_make_function(gc_function::make(gc_heap::local_heap(), f), body_text, named_args);
+    }
+
+    object_ptr make_function(const native_function_type& f, const string& body_text, int named_args) {
+        return do_make_function(f, body_text, named_args);
+    }
 };
 
 extern string index_string(uint32_t index);
