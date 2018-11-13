@@ -110,6 +110,7 @@ void eval_tests() {
     test(L"function f(x,y) { return x*x+y; } f(2, 3)", value{7.0});
     test(L"function f(){ i = 42; }; f(); i", value{42.0});
     test(L"i = 1; function f(){ var i = 42; }; f(); i", value{1.0});
+    test(L"x=42; function f(x) { return x; } f()", value::undefined);
     test(L";", value::undefined);
     test(L"if (1) 2;", value{2.0});
     test(L"if (0) 2;", value::undefined);

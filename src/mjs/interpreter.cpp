@@ -731,8 +731,8 @@ private:
             auto_scope auto_scope_{*this, activation, prev_scope};
             activation->put(string{"this"}, this_, property_attribute::dont_delete | property_attribute::dont_enum | property_attribute::read_only);
             activation->put(string{"arguments"}, value{as}, property_attribute::dont_delete);
-            for (size_t i = 0; i < std::min(args.size(), param_names.size()); ++i) {
-                activation->put(string{param_names[i]}, args[i]);
+            for (size_t i = 0; i < param_names.size(); ++i) {
+                activation->put(string{param_names[i]}, i < args.size() ? args[i] : value::undefined);
             }
             // Variables
             for (const auto& id: ids) {
