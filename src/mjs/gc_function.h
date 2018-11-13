@@ -4,9 +4,14 @@
 #include "gc_heap.h"
 #include "value.h"
 
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4324) // Structure was padded du to alignment specifier
+#endif
+
 namespace mjs {
 
-class gc_function {
+class alignas(uint64_t) gc_function {
 public:
     template<typename F>
     static gc_heap_ptr<gc_function> make(gc_heap& h, const F& f) {
@@ -56,5 +61,11 @@ private:
 };
 
 } // namespace mjs
+
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
+
 
 #endif

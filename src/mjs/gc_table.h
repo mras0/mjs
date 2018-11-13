@@ -6,7 +6,7 @@
 
 namespace mjs {
 
-class gc_table {
+class alignas(uint64_t) gc_table {
 private:
     struct entry_representation {
         uint32_t key_index;

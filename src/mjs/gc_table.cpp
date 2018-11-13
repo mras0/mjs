@@ -72,7 +72,6 @@ mjs::value gc_table::from_representation(uint64_t repr) const {
     std::wostringstream woss;
     woss << "Not handled: " << type << " " << repr;
     THROW_RUNTIME_ERROR(woss.str());
-    std::abort();
 }
 
 uint64_t gc_table::to_representation(const value& v) {
