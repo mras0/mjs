@@ -126,7 +126,7 @@ void gc_heap::garbage_collect() {
     std::copy_if(pointers_.begin(), pointers_.end(), std::back_inserter(roots), [this](const gc_heap_ptr_untyped* p) { return !is_internal(p); });
 
     for (auto p: roots) {
-        // If the assert fires a GC allocated object used e.g. a raw std::function, that captured gc_heap_ptr's
+        // If the assert fires a GC allocated object used something that captured gc_heap_ptr's (e.g. a raw std::function)
         assert(pointers_.find(p) != pointers_.end() && "Internal pointer was accidently classified as root!");
         const_cast<gc_heap_ptr_untyped*>(p)->pos_ = gc_move(new_heap, p->pos_);
     }
@@ -153,9 +153,8 @@ uint32_t gc_heap::gc_move(gc_heap& new_heap, uint32_t pos) {
     a.type = gc_moved_type_index;
     storage_[pos].new_position = new_pos;
 
-
-    // Can now avoid infinite recursion when copying the internal pointers (after changing the allocation header)
-    // Copy any internal pointers of the just moved object
+    // After changing the allocation header, infinite recursion can now be avoided when copying the internal pointers.
+    // TODO: This is only for "lazy" objects - optimize by avoiding this check for "known good" objects (e.g. gc_string/gc_table)
     auto l = reinterpret_cast<gc_heap_ptr_untyped*>(&new_heap.storage_[new_pos]);
     auto u = reinterpret_cast<gc_heap_ptr_untyped*>(&new_heap.storage_[new_pos] + new_heap.storage_[new_pos-1].allocation.size - 1);
     for (auto it = pointers_.lower_bound(l); it != pointers_.end() && (*it) < u; ++it) {
@@ -188,9 +187,7 @@ gc_heap_ptr_untyped gc_heap::allocate(size_t num_bytes) {
 }
 
 void gc_heap::attach(const gc_heap_ptr_untyped& p) {
-    assert(p.pos_ > 0);
-    assert(p.pos_ < next_free_);
-
+    assert(p.pos_ > 0 && p.pos_ < next_free_);
     [[maybe_unused]] const auto inserted = pointers_.insert(&p).second;
     assert(inserted);
 }

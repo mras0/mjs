@@ -6,11 +6,12 @@
 
 #ifdef _MSC_VER
 #pragma warning(push)
-#pragma warning(disable: 4324) // Structure was padded du to alignment specifier
+#pragma warning(disable: 4324) // Structure was padded due to alignment specifier
 #endif
 
 namespace mjs {
 
+// Alignment needed so impl<F> will be construct with proper alignment
 class alignas(uint64_t) gc_function {
 public:
     template<typename F>
@@ -66,6 +67,5 @@ private:
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif
-
 
 #endif

@@ -1,8 +1,6 @@
 #ifndef MJS_OBJECT_H
 #define MJS_OBJECT_H
 
-// TODO: Allow expansion of properties table (!)
-
 #include "value.h"
 #include "gc_table.h"
 #include "gc_function.h"
@@ -102,7 +100,6 @@ public:
         return true;
     }
 
-    // [[DefaultValue]] (Hint)
     virtual value_type default_value_type() const {
         // When hint is undefined, assume Number unless it's a Date object in which case assume String
         return value_type::number;

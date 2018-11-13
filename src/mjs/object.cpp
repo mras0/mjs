@@ -14,7 +14,6 @@ void object::debug_print(std::wostream& os, int indent_incr, int max_nest, int i
         os << "\n";
     };
     os << "{\n";
-    //for (const auto& p : properties_) {
     for (auto it = properties_->begin(); it != properties_->end(); ++it) {
         if (it.key()->view() == L"constructor") {
             print_prop(it.key()->view(), it.value(), true);

@@ -8,6 +8,7 @@
 * Better GC
     - Make sure garbage can be collected safely most of the time (and formulate rules for when it's not allowed)
     - Ensure thread safety (perhaps only GC type information registration is troublesome)
+    - Handle long chains (don't run out of stack!)
     - Improve speed
     - Support compacting the current heap?
     - Reduce/remove reliance on `gc_heap::local_heap()`
@@ -23,6 +24,9 @@
         - time zone adjustments
         - to/from string
     - Probably other missing stuff and non-compliant implementations...
+* Interpreter
+    - Lessen stack usage
+    - Handle error conditions better
 * Optimize `NumberToString()`
 * Create example(s)
     - Embedding mjs (I.e. adding user-defined classes)

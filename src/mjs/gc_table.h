@@ -25,7 +25,7 @@ public:
     [[nodiscard]] gc_heap_ptr<gc_table> copy_with_increased_capacity() const {
         auto nt = make(*heap_, capacity() * 2);
         nt->length_ = length();
-        // Since it's the same hape we can just copy the representation
+        // Since it's the same heap the representation can just be copied
         std::memcpy(nt->entries(), entries(), length() * sizeof(entry_representation));
         return nt;
     }

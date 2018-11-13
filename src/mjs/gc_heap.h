@@ -25,9 +25,14 @@ class gc_heap_ptr;
 
 class gc_type_info {
 public:
+    // Destroy the object at 'p'
+    virtual void destroy(void* p) const = 0;
+
+    // Move the object at 'p' to 'new_heap' (might be the same as the original heap in the future)
+    virtual gc_heap_ptr_untyped move(gc_heap& new_heap, void* p) const = 0;
+
+    // For debugging purposes only
     virtual const char* name() const = 0;
-    virtual void destroy(void*) const = 0;
-    virtual gc_heap_ptr_untyped move(gc_heap&, void*) const = 0;
 
     uint32_t get_index() {
         auto it = std::find(types_.begin(), types_.end(), this);
@@ -55,14 +60,16 @@ public:
         return reg;
     }
 
+private:
+    explicit gc_type_info_registration() {}
+
+    friend gc_heap;
+
     // Helper so gc_*** classes don't have to friend both gc_heap and gc_type_info_registration
     template<typename... Args>
     static void construct(void* p, Args&&... args) {
         new (p) T(std::forward<Args>(args)...);
     }
-
-private:
-    explicit gc_type_info_registration() {}
 
     const char* name() const override {
         return typeid(T).name();
@@ -262,9 +269,12 @@ gc_heap_ptr<T> gc_heap::construct(const gc_heap_ptr_untyped& p, Args&&... args) 
     return gc_heap_ptr<T>{p};
 }
 
+class object;
+
 template<typename T>
 gc_heap_ptr<T> gc_heap::unsafe_create_from_position(uint32_t pos) {
-    assert(pos > 0 && pos < next_free_ && storage_[pos-1].allocation.type == gc_type_info_registration<T>::get().get_index());
+    // TODO: gc_table::to_representation needs to be able to get object ptr's to derived classes, implemented some (debug) logic in gc_type_info_registration<T> to support that
+    assert(pos > 0 && pos < next_free_ && (std::is_same_v<object, T> || storage_[pos-1].allocation.type == gc_type_info_registration<T>::get().get_index()));
     return gc_heap_ptr<T>{gc_heap_ptr_untyped{*this, pos}};
 }
 

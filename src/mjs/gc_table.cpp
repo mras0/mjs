@@ -1,27 +1,9 @@
 #include "gc_table.h"
+#include "object.h"
 #include <sstream>
 #include <cmath>
 
 namespace mjs {
-
-
-// TEMPTEMP
-
-class gc_object_ptr {
-public:
-    const object_ptr& ptr() { return ptr_; }
-
-private:
-    friend gc_type_info_registration<gc_object_ptr>;
-    object_ptr ptr_;
-
-    explicit gc_object_ptr(const object_ptr& ptr) : ptr_(ptr) {}
-
-    gc_heap_ptr_untyped move(gc_heap& new_heap) const {
-        return new_heap.make<gc_object_ptr>(std::move(ptr_));
-    }
-};
-
 
 // sign bit, exponent (11-bits), fraction (52-bits)
 // NaNs have exponent 0x7ff and fraction != 0
@@ -66,7 +48,7 @@ mjs::value gc_table::from_representation(uint64_t repr) const {
     case value_type::boolean:   assert(payload == 0 || payload == 1); return value{!!payload};
     case value_type::number:    /*should be handled above*/ break;
     case value_type::string:    return value{string{heap_->unsafe_create_from_position<gc_string>(payload)}};
-    case value_type::object:    return value{heap_->unsafe_create_from_position<gc_object_ptr>(payload)->ptr()};
+    case value_type::object:    return value{heap_->unsafe_create_from_position<object>(payload)};
     default:                    break;
     }
     std::wostringstream woss;
@@ -81,11 +63,7 @@ uint64_t gc_table::to_representation(const value& v) {
     case value_type::boolean:   return make_repr(v.type(), v.boolean_value());
     case value_type::number:    return number_repr(v.number_value());
     case value_type::string:    return make_repr(v.type(), v.string_value().unsafe_raw_get().unsafe_get_position());
-    case value_type::object:
-    {
-        auto p = heap_->make<gc_object_ptr>(v.object_value());
-        return make_repr(v.type(), p.unsafe_get_position());
-    }
+    case value_type::object:    return make_repr(v.type(), v.object_value().unsafe_get_position());
     case value_type::reference: break; // Not legal here
     }
     std::wostringstream woss;
