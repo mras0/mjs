@@ -203,7 +203,6 @@ void run_test_spec(const std::string_view& source_text, const std::string_view& 
         }
     }
 
-    // TODO: The remaining garbage is from the parser(?)
     heap.garbage_collect();
     if (heap.calc_used()) {
         std::wostringstream oss;
