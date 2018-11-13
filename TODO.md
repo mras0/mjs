@@ -13,6 +13,7 @@
     - Make it harder to use incorrectly - more type safety possible? (remove 'unsafe' calls)
     - Support pointers inside objects
     - Allocator support (But it seems like gc_heap_ptr is too fancy to be compatible - a static to_pointer() function can't really be 'nicely' [it could of course use local_heap, but that's not nice])
+    - Use untracked ptr's internally (in gc* functions/classes)
 * Finish global object
     - Date
         - mutators

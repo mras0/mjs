@@ -15,11 +15,20 @@ private:
     };
 public:
     static gc_heap_ptr<gc_table> make(gc_heap& h, uint32_t capacity) {
+        assert(capacity > 0);
         return gc_heap::construct<gc_table>(h.allocate(sizeof(gc_table) + capacity * sizeof(entry_representation)), h, capacity);
     }
 
     uint32_t capacity() const { return capacity_; }
     uint32_t length() const { return length_; }
+
+    [[nodiscard]] gc_heap_ptr<gc_table> copy_with_increased_capacity() const {
+        auto nt = make(*heap_, capacity() * 2);
+        nt->length_ = length();
+        // Since it's the same hape we can just copy the representation
+        std::memcpy(nt->entries(), entries(), length() * sizeof(entry_representation));
+        return nt;
+    }
 
     class entry {
     public:

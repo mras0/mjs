@@ -312,6 +312,9 @@ function f(x) {
     test(L"new Array(1,2).toString()", value{string{"1,2"}});
     test(L"+new Array(1)", value{0.});
     test(L"+new Array(1,2)", value{NAN});
+    // Make sure we handle "large" arrays
+    test(L"a=new Array(500);for (var i=0; i<a.length; ++i) a[i] = i; sum=0; for (var i=0; i<a.length; ++i) sum += a[i]; sum", value{499*500/2.});
+
     // String
     test(L"String()", value{string{""}});
     test(L"String('test')", value{string{"test"}});

@@ -63,6 +63,10 @@ public:
                 it.value(val);
             }
         } else {
+            if (properties_->length() == properties_->capacity()) {
+                properties_ = properties_->copy_with_increased_capacity();
+            }
+
             properties_->insert(name, val, attr);
         }
     }
