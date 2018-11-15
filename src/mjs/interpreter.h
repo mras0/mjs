@@ -3,6 +3,7 @@
 
 #include "value.h"
 #include <functional>
+#include <memory>
 
 namespace mjs {
 

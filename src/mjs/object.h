@@ -13,9 +13,13 @@ class object {
 public:
     friend gc_type_info_registration<object>;
 
+    gc_heap& heap() const {
+        return heap_;
+    }
+
     // TODO: Remove this
     static auto make(const string& class_name, const object_ptr& prototype) {
-        return gc_heap::local_heap().make<object>(class_name, prototype);
+        return class_name.unsafe_raw_get().heap().make<object>(class_name, prototype);
     }
 
     virtual ~object() {}
@@ -28,7 +32,7 @@ public:
     // The value of the [[Prototype]] property must be either an object or null , and every [[Prototype]] chain must have
     // finite  length  (that  is,  starting  from  any  object,  recursively  accessing  the  [[Prototype]]  property  must  eventually
     // lead to a null value). Whether or not a native object can have a host object as its [[Prototype]] depends on the implementation
-    const object_ptr& prototype() { return prototype_; }
+    object_ptr prototype() { return prototype_.track(heap_); }
 
     //
     // [[Class]] ()
@@ -37,59 +41,65 @@ public:
     // the  [[Class]]  property  of  a  host  object  may  be  any  value,  even  a  value  used  by  a  built-in  object  for  its  [[Class]]
     // property. Note that this specification does not provide any means for a program to access the value of a [[Class]]
     // property; it is used internally to distinguish different kinds of built-in objects
-    const string& class_name() const { return class_; }
+    string class_name() const { return class_.track(heap_); }
 
     // [[Value]] ()
-    const value& internal_value() const { return value_; }
+    value internal_value() const { return value_.get_value(heap_); }
     void internal_value(const value& v) { value_ = v; }
 
     // [[Get]] (PropertyName)
     value get(const string& name) const {
-        auto it = properties_->find(name);
-        if (it != properties_->end()) {
+        auto& props = properties_.dereference(heap_);
+        auto it = props.find(name);
+        if (it != props.end()) {
             return it.value();
         }
-        return prototype_ ? prototype_->get(name) : value::undefined;
+        return prototype_ ? prototype_.dereference(heap_).get(name) : value::undefined;
     }
 
     // [[Put]] (PropertyName, Value)
     virtual void put(const string& name, const value& val, property_attribute attr = property_attribute::none) {
-        auto it = properties_->find(name);
-        if (it != properties_->end()) {
+        auto& props = properties_.dereference(heap_);
+        auto it = props.find(name);
+        if (it != props.end()) {
             // CanPut?
             if (!it.has_attribute(property_attribute::read_only)) {
                 it.value(val);
             }
         } else {
-            if (properties_->length() == properties_->capacity()) {
-                properties_ = properties_->copy_with_increased_capacity();
+            if (props.length() == props.capacity()) {
+                properties_ = props.copy_with_increased_capacity();
             }
 
-            properties_->insert(name, val, attr);
+            // properties_ could have changed, so don't use props
+            properties_.dereference(heap_).insert(name, val, attr);
         }
     }
 
     // [[CanPut]] (PropertyName)
     bool can_put(const string& name) const {
-        auto it = properties_->find(name);
-        if (it != properties_->end()) {
+        auto& props = properties_.dereference(heap_);
+        auto it = props.find(name);
+        if (it != props.end()) {
             return !it.has_attribute(property_attribute::read_only);
         }
-        return prototype_ ? prototype_->can_put(name) : true;
+        return prototype_ ? prototype_.dereference(heap_).can_put(name) : true;
     }
 
     // [[HasProperty]] (PropertyName)
     bool has_property(const string& name) const {
-        if (properties_->find(name) != properties_->end()) {
+        auto& props = properties_.dereference(heap_);
+        if (props.find(name) != props.end()) {
             return true;
         }
-        return prototype_ ? prototype_->has_property(name) : false;
+        return prototype_ ? prototype_.dereference(heap_).has_property(name) : false;
     }
 
     // [[Delete]] (PropertyName)
     bool delete_property(const string& name) {
-        auto it = properties_->find(name);
-        if (it == properties_->end()) {
+        auto& props = properties_.dereference(heap_);
+        auto it = props.find(name);
+        if (it == props.end()) {
             return true;
 
         }
@@ -107,11 +117,11 @@ public:
 
     // [[Construct]] (Arguments...)
     void construct_function(const native_function_type& f) { construct_ = f; }
-    const native_function_type& construct_function() const { return construct_; }
+    native_function_type construct_function() const { return construct_ ? construct_.track(heap_) : nullptr; }
 
     // [[Call]] (Arguments...)
     void call_function(const native_function_type& f) { call_ = f; }
-    const native_function_type& call_function() const { return call_; }
+    native_function_type call_function() const { return call_ ? call_.track(heap_) : nullptr; }
 
     std::vector<string> property_names() const {
         std::vector<string> names;
@@ -123,29 +133,34 @@ public:
 
 protected:
     explicit object(const string& class_name, const object_ptr& prototype)
-        : class_(class_name)
+        : heap_(class_name.unsafe_raw_get().heap())
+        , class_(class_name.unsafe_raw_get())
         , prototype_(prototype)
-        , properties_(gc_table::make(gc_heap::local_heap(), 32)) {
+        , properties_(gc_table::make(heap_, 32))
+        , value_(value::undefined) {
     }
 
-    object(object&&) = default;
+    object(object&& o) = default;
 
+    bool fixup(gc_heap& new_heap);
 private:
-    string class_;
-    object_ptr prototype_;
-    value value_;
-    native_function_type construct_;
-    native_function_type call_;
-    gc_heap_ptr<gc_table> properties_;
+    gc_heap& heap_;
+    gc_heap_ptr_untracked<gc_string>    class_;
+    gc_heap_ptr_untracked<object>       prototype_;
+    gc_heap_ptr_untracked<gc_function>  construct_;
+    gc_heap_ptr_untracked<gc_function>  call_;
+    gc_heap_ptr_untracked<gc_table>     properties_;
+    value_representation                value_;
 
     void add_property_names(std::vector<string>& names) const {
-        for (auto it = properties_->begin(); it != properties_->end(); ++it) {
+        auto& props = properties_.dereference(heap_);
+        for (auto it = props.begin(); it != props.end(); ++it) {
             if (!it.has_attribute(property_attribute::dont_enum)) {
                 names.push_back(it.key());
             }
         }
         if (prototype_) {
-            prototype_->add_property_names(names);
+            prototype_.dereference(heap()).add_property_names(names);
         }
     }
 

@@ -18,6 +18,7 @@
 namespace mjs {
 
 class value;
+class object;
 class gc_heap;
 class gc_heap_ptr_untyped;
 template<typename T>
@@ -35,6 +36,14 @@ public:
     // Move the object at 'p' to 'new_heap' (might be the same as the original heap in the future)
     gc_heap_ptr_untyped move(gc_heap& new_heap, void* p) const;
 
+    // Handle fixup of untacked pointers (happens after the object has been otherwise moved to avoid infite recursion)
+    bool fixup(gc_heap& new_heap, void* p) const {
+        if (fixup_) {
+            return fixup_ == no_fixup_needed || fixup_(new_heap, p);
+        }
+        return false;
+    }
+
     // For debugging purposes only
     const char* name() const {
         return name_;
@@ -48,11 +57,18 @@ public:
         return static_cast<uint32_t>(it - types_.begin());
     }
 
+    bool is_convertible_to_object() const {
+        return convertible_to_object_;
+    }
+
 protected:
     using destroy_function = void (*)(void*);
     using move_function = gc_heap_ptr_untyped (*)(gc_heap&, void*);
+    using fixup_function = bool (*)(gc_heap&, void*);
 
-    explicit gc_type_info(destroy_function destroy, move_function move, const char* name) : destroy_(destroy), move_(move), name_(name) {
+    static const fixup_function no_fixup_needed;
+
+    explicit gc_type_info(destroy_function destroy, move_function move, fixup_function fixup, bool convertible_to_object, const char* name) : destroy_(destroy), move_(move), fixup_(fixup), convertible_to_object_(convertible_to_object), name_(name) {
         types_.push_back(this);
         assert(move_);
         assert(name_);
@@ -61,6 +77,8 @@ protected:
 private:
     destroy_function destroy_;
     move_function move_;
+    fixup_function fixup_;
+    bool convertible_to_object_;
     const char* name_;
     friend gc_heap;
 
@@ -79,7 +97,7 @@ public:
     }
 
 private:
-    explicit gc_type_info_registration() : gc_type_info(std::is_trivially_destructible_v<T>?nullptr:&destroy, &move,typeid(T).name()) {}
+    explicit gc_type_info_registration() : gc_type_info(std::is_trivially_destructible_v<T>?nullptr:&destroy, &move, fixup_func(), std::is_convertible_v<T*, object*>, typeid(T).name()) {}
 
     friend gc_heap;
 
@@ -93,8 +111,47 @@ private:
         static_cast<T*>(p)->~T();
     }
 
+    template<typename U, typename=void>
+    struct has_fixup_t : std::false_type{};
+
+    template<typename U>
+    struct has_fixup_t<U, std::void_t<decltype(std::declval<U>().fixup(std::declval<gc_heap&>()))>> : std::true_type{};
+
+    template<typename U, typename=void>
+    struct has_trivial_fixup_t : std::false_type{};
+
+    template<typename U>
+    struct has_trivial_fixup_t<U, std::void_t<decltype(std::declval<U>().trivial_fixup())>> : std::true_type{};
+
+    static fixup_function fixup_func() {
+        if constexpr (has_trivial_fixup_t<T>::value) {
+            return no_fixup_needed;
+        } else if constexpr(has_fixup_t<T>::value) {
+            return [](gc_heap& new_heap, void* p) { return static_cast<T*>(p)->fixup(new_heap); };
+        } else {
+            return nullptr;
+        }
+    }
+
     static gc_heap_ptr_untyped move(gc_heap& new_heap, void* p);
 };
+
+class value_representation {
+public:
+    value_representation() = default;
+    explicit value_representation(const value& v) : repr_(to_representation(v)) {}
+    value_representation& operator=(const value& v) {
+        repr_ = to_representation(v);
+        return *this;
+    }
+    value get_value(gc_heap& heap) const;
+    void fixup_after_move(gc_heap& new_heap, gc_heap& old_heap);
+private:
+    uint64_t repr_;
+
+    static uint64_t to_representation(const value& v);
+};
+static_assert(sizeof(value_representation) == sizeof(uint64_t));
 
 class scoped_gc_heap;
 class gc_heap {
@@ -127,6 +184,9 @@ public:
     gc_heap_ptr<T> unsafe_create_from_position(uint32_t pos);
 
     template<typename T>
+    T& unsafe_dereference(uint32_t pos);
+
+    template<typename T>
     gc_heap_ptr<T> unsafe_create_from_pointer(T* ptr);
 
     uint32_t unsafe_gc_move(gc_heap& new_heap, uint32_t pos);
@@ -149,7 +209,7 @@ private:
         }
 
         const gc_type_info& type_info() const {
-            assert(active());
+            assert(active() && type < gc_type_info::types_.size());
             return *gc_type_info::types_[type];
         }
     };
@@ -274,6 +334,36 @@ private:
 };
 
 template<typename T>
+class gc_heap_ptr_untracked {
+public:
+    gc_heap_ptr_untracked() : pos_(0) {}
+    gc_heap_ptr_untracked(const gc_heap_ptr<T>& p) : pos_(p.unsafe_get_position()) {}
+    gc_heap_ptr_untracked(const gc_heap_ptr_untracked&) = default;
+    gc_heap_ptr_untracked& operator=(const gc_heap_ptr_untracked&) = default;
+
+    explicit operator bool() const { return pos_; }
+
+    T& dereference(gc_heap& h) const {
+        assert(pos_);
+        return h.unsafe_dereference<T>(pos_);
+    }
+
+    gc_heap_ptr<T> track(gc_heap& h) const {
+        assert(pos_);
+        return h.unsafe_create_from_position<T>(pos_);
+    }
+
+    void fixup_after_move(gc_heap& new_heap, gc_heap& old_heap) {
+        if (pos_) {
+            pos_ = old_heap.unsafe_gc_move(new_heap, pos_);
+        }
+    }
+
+private:
+    uint32_t pos_ = 0;
+};
+
+template<typename T>
 gc_heap_ptr_untyped gc_type_info_registration<T>::move(gc_heap& new_heap, void* p) {
     return static_cast<T*>(p)->move(new_heap);
 }
@@ -290,9 +380,14 @@ class object;
 
 template<typename T>
 gc_heap_ptr<T> gc_heap::unsafe_create_from_position(uint32_t pos) {
-    // TODO: gc_table::to_representation needs to be able to get object ptr's to derived classes, implemented some (debug) logic in gc_type_info_registration<T> to support that
-    assert(pos > 0 && pos < next_free_ && (std::is_same_v<object, T> || storage_[pos-1].allocation.type == gc_type_info_registration<T>::get().get_index()));
+    assert(pos > 0 && pos < next_free_ && ((std::is_same_v<object, T> && storage_[pos-1].allocation.type_info().is_convertible_to_object()) || storage_[pos-1].allocation.type == gc_type_info_registration<T>::get().get_index()));
     return gc_heap_ptr<T>{gc_heap_ptr_untyped{*this, pos}};
+}
+
+template<typename T>
+T& gc_heap::unsafe_dereference(uint32_t pos) {
+    assert(pos > 0 && pos < next_free_ && ((std::is_same_v<object, T> && storage_[pos-1].allocation.type_info().is_convertible_to_object()) || storage_[pos-1].allocation.type == gc_type_info_registration<T>::get().get_index()));
+    return *reinterpret_cast<T*>(&storage_[pos]);
 }
 
 template<typename T>

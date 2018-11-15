@@ -1,7 +1,11 @@
 #include "gc_heap.h"
+#include "value.h"
+#include "object.h"
 #include <algorithm>
 #include <iomanip>
+#include <sstream>
 #include <cstdlib>
+#include <cmath>
 
 namespace {
 
@@ -55,9 +59,100 @@ namespace mjs {
 //
 
 std::vector<const gc_type_info*> gc_type_info::types_;
+const gc_type_info::fixup_function gc_type_info::no_fixup_needed = reinterpret_cast<gc_type_info::fixup_function>(1);
 
 gc_heap_ptr_untyped gc_type_info::move(gc_heap& new_heap, void* p) const {
     return move_(new_heap, p);
+}
+
+//
+// value_representation
+//
+// sign bit, exponent (11-bits), fraction (52-bits)
+// NaNs have exponent 0x7ff and fraction != 0
+static constexpr int type_shift         = 52-4;
+static constexpr uint64_t nan_bits      = 0x7ffULL << 52;
+static constexpr uint64_t type_bits     = 0xfULL << type_shift;
+
+constexpr bool is_special(uint64_t repr) {
+    return (repr & nan_bits) == nan_bits && (repr & type_bits) != 0;
+}
+
+constexpr value_type type_from_repr(uint64_t repr) {
+    return static_cast<value_type>(((repr&type_bits)>>type_shift)-1);
+}
+
+constexpr uint64_t make_repr(value_type type, uint32_t payload) {
+    return nan_bits | (static_cast<uint64_t>(type)+1)<<type_shift | payload;
+}
+
+static uint64_t number_repr(double d) {
+    if (std::isnan(d)) {
+        return nan_bits | 1;
+    }
+    uint64_t repr;
+    static_assert(sizeof(d) == sizeof(repr));
+    std::memcpy(&repr, &d, sizeof(repr));
+    return repr;
+}
+
+value value_representation::get_value(gc_heap& heap) const {
+    if (!is_special(repr_)) {
+        double d;
+        static_assert(sizeof(d) == sizeof(repr_));
+        std::memcpy(&d, &repr_, sizeof(d));
+        return value{d};
+    }
+    const auto type    = type_from_repr(repr_);
+    const auto payload = static_cast<uint32_t>(repr_);
+    switch (type) {
+    case value_type::undefined: assert(!payload); return value::undefined;
+    case value_type::null:      assert(!payload); return value::null;
+    case value_type::boolean:   assert(payload == 0 || payload == 1); return value{!!payload};
+    case value_type::number:    /*should be handled above*/ break;
+    case value_type::string:    return value{string{heap.unsafe_create_from_position<gc_string>(payload)}};
+    case value_type::object:    return value{heap.unsafe_create_from_position<object>(payload)};
+    default:                    break;
+    }
+    std::wostringstream woss;
+    woss << "Not handled: " << type << " " << repr_;
+    THROW_RUNTIME_ERROR(woss.str());
+}
+
+uint64_t value_representation::to_representation(const value& v) {
+    switch (v.type()) {
+    case value_type::undefined: [[fallthrough]];
+    case value_type::null:      return make_repr(v.type(), 0);
+    case value_type::boolean:   return make_repr(v.type(), v.boolean_value());
+    case value_type::number:    return number_repr(v.number_value());
+    case value_type::string:    return make_repr(v.type(), v.string_value().unsafe_raw_get().unsafe_get_position());
+    case value_type::object:    return make_repr(v.type(), v.object_value().unsafe_get_position());
+    case value_type::reference: break; // Not legal here
+    }
+    std::wostringstream woss;
+    woss << "Not handled: ";
+    debug_print(woss, v, 2);
+    THROW_RUNTIME_ERROR(woss.str());
+}
+
+void value_representation::fixup_after_move(gc_heap& new_heap, gc_heap& old_heap) {
+    if (!is_special(repr_)) {
+        return;
+    }
+    const auto type = type_from_repr(repr_);
+    switch (type) {
+    case value_type::undefined: [[fallthrough]];
+    case value_type::null:      [[fallthrough]];
+    case value_type::boolean:   [[fallthrough]];
+    case value_type::number:
+        return;
+    case value_type::string:    [[fallthrough]];
+    case value_type::object:
+        repr_ = make_repr(type, old_heap.unsafe_gc_move(new_heap, repr_ & UINT32_MAX));
+        break;
+    default:
+        std::abort();
+    } 
 }
 
 //
@@ -166,11 +261,18 @@ uint32_t gc_heap::gc_move(gc_heap& new_heap, uint32_t pos) {
     storage_[pos].new_position = new_pos;
 
     // After changing the allocation header, infinite recursion can now be avoided when copying the internal pointers.
-    // TODO: This is only for "lazy" objects - optimize by avoiding this check for "known good" objects (e.g. gc_string/gc_table)
     auto l = reinterpret_cast<gc_heap_ptr_untyped*>(&new_heap.storage_[new_pos]);
     auto u = reinterpret_cast<gc_heap_ptr_untyped*>(&new_heap.storage_[new_pos] + new_heap.storage_[new_pos-1].allocation.size - 1);
-    for (auto it = pointers_.lower_bound(l); it != pointers_.end() && (*it) < u; ++it) {
-        const_cast<gc_heap_ptr_untyped*>(*it)->pos_ = gc_move(new_heap, (*it)->pos_);
+
+    // Let the object do fixup on its own if it wants to
+    if (!type_info.fixup(new_heap, &new_heap.storage_[new_pos])) {
+
+        // Handle it otherwise
+        for (auto it = pointers_.lower_bound(l); it != pointers_.end() && (*it) < u; ++it) {
+            const_cast<gc_heap_ptr_untyped*>(*it)->pos_ = gc_move(new_heap, (*it)->pos_);
+        }
+    } else {
+        assert((pointers_.lower_bound(l) == pointers_.end() || *pointers_.lower_bound(l) >= u) && "Object lied about its fixup capabilities!");
     }
 
     return new_pos;

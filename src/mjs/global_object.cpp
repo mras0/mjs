@@ -8,6 +8,7 @@
 #include <cstring>
 #include <iostream>
 #include <unordered_map>
+#include <memory>
 
 // TODO: Get rid of this stuff alltogether
 #ifndef _WIN32
@@ -1141,6 +1142,11 @@ private:
 
     gc_heap_ptr_untyped move(gc_heap& new_heap) {
         return new_heap.make<global_object_impl>(std::move(*this));
+    }
+
+    bool fixup(gc_heap& new_heap) {
+        object::fixup(new_heap);
+        return false; // This object is lazy
     }
 
     gc_heap_ptr<global_object_impl> self_ptr() {

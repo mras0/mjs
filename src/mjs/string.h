@@ -33,6 +33,8 @@ private:
     gc_heap_ptr_untyped move(gc_heap& new_heap) const {
         return make(new_heap, view());
     }
+
+    void trivial_fixup();
 };
 static_assert(std::is_trivially_destructible_v<gc_string>);
 

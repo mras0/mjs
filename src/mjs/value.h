@@ -7,7 +7,6 @@
 #include <cassert>
 #include <stdint.h>
 #include <climits>
-#include <memory>
 #include <vector>
 
 #include "string.h"

@@ -9,9 +9,9 @@ namespace mjs {
 class alignas(uint64_t) gc_table {
 private:
     struct entry_representation {
-        uint32_t key_index;
-        uint32_t attributes;
-        uint64_t value_representation;
+        gc_heap_ptr_untracked<gc_string> key;
+        uint32_t                         attributes;
+        value_representation             value;
     };
 public:
     static gc_heap_ptr<gc_table> make(gc_heap& h, uint32_t capacity) {
@@ -44,7 +44,8 @@ public:
         }
 
         gc_heap_ptr<gc_string> key() const {
-            return create<gc_string>(e().key_index);
+            assert(tab_ && tab_->heap_);
+            return e().key.track(*tab_->heap_);
         }
 
         property_attribute property_attributes() const {
@@ -53,12 +54,12 @@ public:
 
         void value(const value& val) {
             assert(tab_);
-            e().value_representation = tab_->to_representation(val);
+            e().value = val;
         }
 
         mjs::value value() const {
-            assert(tab_);
-            return tab_->from_representation(e().value_representation);
+            assert(tab_ && tab_->heap_);
+            return e().value.get_value(*tab_->heap_);
         }
 
         bool has_attribute(property_attribute a) const {
@@ -77,11 +78,6 @@ public:
             return tab_->entries()[index_];
         }
 
-        template<typename T>
-        gc_heap_ptr<T> create(uint32_t index) const {
-            return tab_->heap_->unsafe_create_from_position<T>(index);
-        }
-
         gc_table* tab_;
         uint32_t index_;
         explicit entry(gc_table& tab, uint32_t index) : tab_(&tab), index_(index) {
@@ -95,9 +91,9 @@ public:
         assert(length() < capacity());
         assert(find(key.view()) == end());
         entries()[length_++] = entry_representation{
-            raw_key.unsafe_get_position(),
+            raw_key,
             static_cast<uint32_t>(attr),
-            to_representation(v)
+            value_representation{v}
         };
     }
 
@@ -140,8 +136,7 @@ private:
 
     gc_heap_ptr_untyped move(gc_heap& new_heap) const;
 
-    value from_representation(uint64_t representation) const;
-    uint64_t to_representation(const value& v);
+    bool fixup(gc_heap& new_heap);
 };
 static_assert(std::is_trivially_destructible_v<gc_table>);
 
