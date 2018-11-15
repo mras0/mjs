@@ -467,8 +467,7 @@ private:
                 return value{o};
             }
             return value{global->to_object(args.front())};
-        }
-        , native_function_body("Object"), 1);
+        }, native_function_body("Object"), 1);
         o->put(string{"prototype"}, value{object_prototype_}, prototype_attributes);
 
         // §15.2.4

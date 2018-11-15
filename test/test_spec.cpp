@@ -18,7 +18,6 @@ const auto pos_w = std::setw(4);
 
 #endif
 
-
 namespace mjs {
 
 std::string_view trim(const std::string_view& s) {
@@ -141,7 +140,7 @@ private:
                 last_result_ = res;
                 last_line_ = s.extend().start;
             }
-            //gc_heap::local_heap().garbage_collect();
+            gc_heap::local_heap().garbage_collect(); // Run garbage collection after each statement to help catch bugs
         }) {
     }
 

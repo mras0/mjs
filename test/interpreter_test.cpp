@@ -37,6 +37,7 @@ void test(const std::wstring_view& text, const value& expected) {
             value res{};
             for (const auto& s: bs->l()) {
                 res = i.eval(*s).result;
+                gc_heap::local_heap().garbage_collect(); // Make sure the heap can be GC'd after every statement
             }
             if (res != expected) {
                 std::wcout << "Test failed: " << text << " expecting " << debug_string(expected) << " got " << debug_string(res) << "\n";

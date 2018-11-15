@@ -476,7 +476,9 @@ public:
             auto id = string{d.id()};
             assert(scopes_->activation->has_property(id));
             if (d.init()) {
-                scopes_->activation->put(id, eval(*d.init()));
+                // Evaulate in two steps to avoid using stale activation object pointer in case the evaulation forces a garbage collection
+                auto init_val = eval(*d.init());
+                scopes_->activation->put(id, init_val);
             }
         }
         return completion{};
