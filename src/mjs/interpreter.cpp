@@ -717,9 +717,9 @@ private:
     object_ptr create_function(const string& id, const std::shared_ptr<block_statement>& block, const std::vector<std::wstring>& param_names, const std::wstring& body_text, const scope_ptr& prev_scope) {
         // §15.3.2.1
         auto callee = global_->make_raw_function();
-        auto func = [this, global = this->global_, block, param_names, prev_scope, callee, ids = hoisting_visitor::scan(*block)](const value& this_, const std::vector<value>& args) {
+        auto func = [this, block, param_names, prev_scope, callee, ids = hoisting_visitor::scan(*block)](const value& this_, const std::vector<value>& args) {
             // Arguments array
-            auto as = object::make(string{"Object"}, global->object_prototype());
+            auto as = object::make(string{"Object"}, global_->object_prototype());
             as->put(string{"callee"}, value{callee}, property_attribute::dont_enum);
             as->put(string{"length"}, value{static_cast<double>(args.size())}, property_attribute::dont_enum);
             for (uint32_t i = 0; i < args.size(); ++i) {

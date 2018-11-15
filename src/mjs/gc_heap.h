@@ -112,6 +112,9 @@ public:
     template<typename T>
     gc_heap_ptr<T> unsafe_create_from_position(uint32_t pos);
 
+    template<typename T>
+    gc_heap_ptr<T> unsafe_create_from_pointer(T* ptr);
+
     uint32_t unsafe_gc_move(gc_heap& new_heap, uint32_t pos);
 
     static gc_heap& local_heap() {
@@ -276,6 +279,12 @@ gc_heap_ptr<T> gc_heap::unsafe_create_from_position(uint32_t pos) {
     // TODO: gc_table::to_representation needs to be able to get object ptr's to derived classes, implemented some (debug) logic in gc_type_info_registration<T> to support that
     assert(pos > 0 && pos < next_free_ && (std::is_same_v<object, T> || storage_[pos-1].allocation.type == gc_type_info_registration<T>::get().get_index()));
     return gc_heap_ptr<T>{gc_heap_ptr_untyped{*this, pos}};
+}
+
+template<typename T>
+gc_heap_ptr<T> gc_heap::unsafe_create_from_pointer(T* ptr) {
+    assert(is_internal(ptr));
+    return unsafe_create_from_position<T>(static_cast<uint32_t>(reinterpret_cast<slot*>(ptr) - storage_));
 }
 
 } // namespace mjs

@@ -141,6 +141,7 @@ private:
                 last_result_ = res;
                 last_line_ = s.extend().start;
             }
+            //gc_heap::local_heap().garbage_collect();
         }) {
     }
 

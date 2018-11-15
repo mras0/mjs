@@ -27,6 +27,7 @@ std::shared_ptr<mjs::source_file> make_source(const std::wstring_view& s) {
 }
 
 int interpret_file(const std::shared_ptr<mjs::source_file>& source) {
+    mjs::scoped_gc_heap heap{1<<24}; // TODO: Do something sane
     auto bs = mjs::parse(source);
     mjs::interpreter i{*bs};
     mjs::value res{};
