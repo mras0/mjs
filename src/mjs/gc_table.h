@@ -143,6 +143,7 @@ private:
     value from_representation(uint64_t representation) const;
     uint64_t to_representation(const value& v);
 };
+static_assert(std::is_trivially_destructible_v<gc_table>);
 
 } // namespace mjs
 #endif

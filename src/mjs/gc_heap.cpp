@@ -50,7 +50,19 @@ auto hexfmt(T n) { return number_formatter{n}.base(16).width(2*sizeof(T)); }
 
 namespace mjs {
 
+//
+// gc_type_info
+//
+
 std::vector<const gc_type_info*> gc_type_info::types_;
+
+gc_heap_ptr_untyped gc_type_info::move(gc_heap& new_heap, void* p) const {
+    return move_(new_heap, p);
+}
+
+//
+// gc_heap
+//
 
 thread_local gc_heap* gc_heap::local_heap_ = nullptr;
 

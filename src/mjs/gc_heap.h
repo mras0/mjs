@@ -26,15 +26,21 @@ class gc_heap_ptr;
 class gc_type_info {
 public:
     // Destroy the object at 'p'
-    virtual void destroy(void* p) const = 0;
+    void destroy(void* p) const {
+        if (destroy_) {
+            destroy_(p);
+        }
+    }
 
     // Move the object at 'p' to 'new_heap' (might be the same as the original heap in the future)
-    virtual gc_heap_ptr_untyped move(gc_heap& new_heap, void* p) const = 0;
+    gc_heap_ptr_untyped move(gc_heap& new_heap, void* p) const;
 
     // For debugging purposes only
-    virtual const char* name() const = 0;
+    const char* name() const {
+        return name_;
+    }
 
-    uint32_t get_index() {
+    uint32_t get_index() const {
         auto it = std::find(types_.begin(), types_.end(), this);
         if (it == types_.end()) {
             std::abort();
@@ -43,25 +49,37 @@ public:
     }
 
 protected:
-    explicit gc_type_info() {
+    using destroy_function = void (*)(void*);
+    using move_function = gc_heap_ptr_untyped (*)(gc_heap&, void*);
+
+    explicit gc_type_info(destroy_function destroy, move_function move, const char* name) : destroy_(destroy), move_(move), name_(name) {
         types_.push_back(this);
+        assert(move_);
+        assert(name_);
     }
 
 private:
+    destroy_function destroy_;
+    move_function move_;
+    const char* name_;
     friend gc_heap;
+
+    gc_type_info(gc_type_info&) = delete;
+    gc_type_info& operator=(gc_type_info&) = delete;
+
     static std::vector<const gc_type_info*> types_;
 };
 
 template<typename T>
 class gc_type_info_registration : public gc_type_info {
 public:
-    static gc_type_info_registration& get() {
-        static gc_type_info_registration reg;
+    static const gc_type_info_registration& get() {
+        static const gc_type_info_registration reg;
         return reg;
     }
 
 private:
-    explicit gc_type_info_registration() {}
+    explicit gc_type_info_registration() : gc_type_info(std::is_trivially_destructible_v<T>?nullptr:&destroy, &move,typeid(T).name()) {}
 
     friend gc_heap;
 
@@ -71,15 +89,11 @@ private:
         new (p) T(std::forward<Args>(args)...);
     }
 
-    const char* name() const override {
-        return typeid(T).name();
-    }
-
-    void destroy(void* p) const override {
+    static void destroy(void* p) {
         static_cast<T*>(p)->~T();
     }
 
-    gc_heap_ptr_untyped move(gc_heap& new_heap, void* p) const override;
+    static gc_heap_ptr_untyped move(gc_heap& new_heap, void* p);
 };
 
 class scoped_gc_heap;
@@ -260,7 +274,7 @@ private:
 };
 
 template<typename T>
-gc_heap_ptr_untyped gc_type_info_registration<T>::move(gc_heap& new_heap, void* p) const {
+gc_heap_ptr_untyped gc_type_info_registration<T>::move(gc_heap& new_heap, void* p) {
     return static_cast<T*>(p)->move(new_heap);
 }
 
