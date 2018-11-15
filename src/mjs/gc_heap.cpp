@@ -125,8 +125,8 @@ uint64_t value_representation::to_representation(const value& v) {
     case value_type::null:      return make_repr(v.type(), 0);
     case value_type::boolean:   return make_repr(v.type(), v.boolean_value());
     case value_type::number:    return number_repr(v.number_value());
-    case value_type::string:    return make_repr(v.type(), v.string_value().unsafe_raw_get().unsafe_get_position());
-    case value_type::object:    return make_repr(v.type(), v.object_value().unsafe_get_position());
+    case value_type::string:    return make_repr(v.type(), v.string_value().unsafe_raw_get().pos_);
+    case value_type::object:    return make_repr(v.type(), v.object_value().pos_);
     case value_type::reference: break; // Not legal here
     }
     std::wostringstream woss;

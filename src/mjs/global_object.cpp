@@ -419,6 +419,7 @@ private:
     object_ptr boolean_prototype_;
     object_ptr number_prototype_;
     object_ptr date_prototype_;
+    gc_heap_ptr<global_object_impl> self_;
 
     // FIXME: Is this sufficient to guard against clever users?
     static void validate_type(const value& v, const object_ptr& expected_prototype, const char* expected_type) {
@@ -462,7 +463,7 @@ private:
     //
 
     object_ptr make_object_object() {
-        auto o = make_function([global = self_ptr()](const value&, const std::vector<value>& args) {
+        auto o = make_function([global = self_](const value&, const std::vector<value>& args) {
             if (args.empty() || args.front().type() == value_type::undefined || args.front().type() == value_type::null) {
                 auto o = object::make(string{"Object"}, global->object_prototype_);
                 return value{o};
@@ -496,7 +497,7 @@ private:
         boolean_prototype_ = object::make(string{"Boolean"}, object_prototype_);
         boolean_prototype_->internal_value(value{false});
 
-        auto c = make_function([global = self_ptr()](const value&, const std::vector<value>& args) {
+        auto c = make_function([global = self_](const value&, const std::vector<value>& args) {
             return value{global->new_boolean(!args.empty() && to_boolean(args.front()))};
         },  native_function_body("Boolean"), 1);
         c->call_function(gc_function::make(gc_heap::local_heap(), [](const value&, const std::vector<value>& args) {
@@ -537,7 +538,7 @@ private:
         number_prototype_ = object::make(string{"Number"}, object_prototype_);
         number_prototype_->internal_value(value{0.});
 
-        auto c = make_function([global = self_ptr()](const value&, const std::vector<value>& args) {
+        auto c = make_function([global = self_](const value&, const std::vector<value>& args) {
             return value{global->new_number(args.empty() ? 0.0 : to_number(args.front()))};
         }, native_function_body("Number"), 1);
         c->call_function(gc_function::make(gc_heap::local_heap(), [](const value&, const std::vector<value>& args) {
@@ -592,7 +593,7 @@ private:
         string_prototype_ = object::make(string{"String"}, object_prototype_);
         string_prototype_->internal_value(value{string{""}});
 
-        auto c = make_function([global = self_ptr()](const value&, const std::vector<value>& args) {
+        auto c = make_function([global = self_](const value&, const std::vector<value>& args) {
             return value{global->new_string(args.empty() ? string{""} : to_string(args.front()))};
         }, native_function_body("String"), 1);
         c->call_function(gc_function::make(gc_heap::local_heap(), [](const value&, const std::vector<value>& args) {
@@ -622,7 +623,7 @@ private:
         }, 0);
 
 
-        auto make_string_function = [global = self_ptr()](const char* name, int num_args, auto f) {
+        auto make_string_function = [global = self_](const char* name, int num_args, auto f) {
             global->put_native_function(global->string_prototype_, name, [f](const value& this_, const std::vector<value>& args){
                 return value{f(to_string(this_).view(), args)};
             }, num_args);
@@ -659,7 +660,7 @@ private:
             return index == std::wstring_view::npos ? -1. : static_cast<double>(index);
         });
 
-        make_string_function("split", 1, [global = self_ptr()](const std::wstring_view& s, const std::vector<value>& args){
+        make_string_function("split", 1, [global = self_](const std::wstring_view& s, const std::vector<value>& args){
             auto a = global->array_constructor(value::null, {}).object_value();
             if (args.empty()) {
                 a->put(index_string(0), value{string{s}});
@@ -737,7 +738,7 @@ private:
     object_ptr make_array_object() {
         array_prototype_ = array_object::make(object_prototype_, 0);
 
-        auto o = make_function([global = self_ptr()](const value& this_, const std::vector<value>& args) {
+        auto o = make_function([global = self_](const value& this_, const std::vector<value>& args) {
             return global->array_constructor(this_, args);
         }, native_function_body("Array"), 1);
         o->put(string{"prototype"}, value{array_prototype_}, prototype_attributes);
@@ -948,7 +949,7 @@ private:
         date_prototype_ = object::make(string{"Date"}, object_prototype_);
         date_prototype_->internal_value(value{NAN});
 
-        auto c = make_function([global = self_ptr()](const value&, const std::vector<value>& args) {
+        auto c = make_function([global = self_](const value&, const std::vector<value>& args) {
             if (args.empty()) {
                 return value{global->new_date(date_helper::current_time_utc())};
             } else if (args.size() == 1) {
@@ -963,7 +964,7 @@ private:
             }
             return value{date_helper::time_clip(date_helper::utc(date_helper::time_from_args(args)))};
         }, native_function_body("Date"), 7);
-        c->call_function(gc_function::make(gc_heap::local_heap(), [global = self_ptr()](const value&, const std::vector<value>&) {
+        c->call_function(gc_function::make(gc_heap::local_heap(), [global = self_](const value&, const std::vector<value>&) {
             // Equivalent to (new Date()).toString()
             return value{to_string(value{global->new_date(date_helper::current_time_utc())})};
         }));
@@ -1149,15 +1150,12 @@ private:
         return false; // This object is lazy
     }
 
-    gc_heap_ptr<global_object_impl> self_ptr() {
-        return gc_heap::local_heap().unsafe_create_from_pointer(this);
-    }
-
     friend global_object;
 };
 
 gc_heap_ptr<global_object> global_object::make() {
     auto global = gc_heap::local_heap().make<global_object_impl>();
+    global->self_ = global;
     global->popuplate_global(); // Populate here so the safe_ptr() won't fail the assert
     return global;
 }

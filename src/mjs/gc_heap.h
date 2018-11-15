@@ -23,6 +23,8 @@ class gc_heap;
 class gc_heap_ptr_untyped;
 template<typename T>
 class gc_heap_ptr;
+template<typename T>
+class gc_heap_ptr_untracked;
 
 class gc_type_info {
 public:
@@ -158,6 +160,8 @@ class gc_heap {
 public:
     friend gc_heap_ptr_untyped;
     friend scoped_gc_heap;
+    friend value_representation;
+    template<typename> friend class gc_heap_ptr_untracked;
 
     static constexpr uint32_t slot_size = sizeof(uint64_t);
     static constexpr uint32_t bytes_to_slots(size_t bytes) { return static_cast<uint32_t>((bytes + slot_size - 1) / slot_size); }
@@ -179,17 +183,6 @@ public:
     gc_heap_ptr<T> make(Args&&... args) {
         return construct<T>(allocate(sizeof(T)), std::forward<Args>(args)...);
     }
-
-    template<typename T>
-    gc_heap_ptr<T> unsafe_create_from_position(uint32_t pos);
-
-    template<typename T>
-    T& unsafe_dereference(uint32_t pos);
-
-    template<typename T>
-    gc_heap_ptr<T> unsafe_create_from_pointer(T* ptr);
-
-    uint32_t unsafe_gc_move(gc_heap& new_heap, uint32_t pos);
 
     static gc_heap& local_heap() {
         assert(local_heap_);
@@ -237,6 +230,14 @@ private:
     static slot_allocation_header& allocation_header(const gc_heap_ptr_untyped& p);
 
     uint32_t gc_move(gc_heap& new_heap, uint32_t pos);
+
+    template<typename T>
+    gc_heap_ptr<T> unsafe_create_from_position(uint32_t pos);
+
+    template<typename T>
+    T& unsafe_dereference(uint32_t pos);
+
+    uint32_t unsafe_gc_move(gc_heap& new_heap, uint32_t pos);
 };
 
 class scoped_gc_heap : public gc_heap {
@@ -262,6 +263,8 @@ private:
 class gc_heap_ptr_untyped {
 public:
     friend gc_heap;
+    template<typename> friend class gc_heap_ptr_untracked;
+    friend value_representation;
 
     gc_heap_ptr_untyped() : heap_(nullptr), pos_(0) {
     }
@@ -293,10 +296,6 @@ public:
         return const_cast<gc_heap&>(*heap_);
     }
 
-    uint32_t unsafe_get_position() const {
-        return pos_;
-    }
-
     explicit operator bool() const { return heap_; }
 
     void* get() const {
@@ -317,12 +316,11 @@ template<typename T>
 class gc_heap_ptr : public gc_heap_ptr_untyped {
 public:
     friend gc_heap;
+
     gc_heap_ptr() = default;
-    gc_heap_ptr(std::nullptr_t) : gc_heap_ptr_untyped() {
-    }
+    gc_heap_ptr(std::nullptr_t) : gc_heap_ptr_untyped() {}
     template<typename U, typename = typename std::enable_if<std::is_convertible_v<U*, T*>>::type>
-    gc_heap_ptr(const gc_heap_ptr<U>& p) : gc_heap_ptr_untyped(p) {
-    }
+    gc_heap_ptr(const gc_heap_ptr<U>& p) : gc_heap_ptr_untyped(p) {}
 
     T* get() const { return static_cast<T*>(gc_heap_ptr_untyped::get()); }
     T* operator->() const { return get(); }
@@ -337,7 +335,7 @@ template<typename T>
 class gc_heap_ptr_untracked {
 public:
     gc_heap_ptr_untracked() : pos_(0) {}
-    gc_heap_ptr_untracked(const gc_heap_ptr<T>& p) : pos_(p.unsafe_get_position()) {}
+    gc_heap_ptr_untracked(const gc_heap_ptr<T>& p) : pos_(p.pos_) {}
     gc_heap_ptr_untracked(const gc_heap_ptr_untracked&) = default;
     gc_heap_ptr_untracked& operator=(const gc_heap_ptr_untracked&) = default;
 
@@ -388,12 +386,6 @@ template<typename T>
 T& gc_heap::unsafe_dereference(uint32_t pos) {
     assert(pos > 0 && pos < next_free_ && ((std::is_same_v<object, T> && storage_[pos-1].allocation.type_info().is_convertible_to_object()) || storage_[pos-1].allocation.type == gc_type_info_registration<T>::get().get_index()));
     return *reinterpret_cast<T*>(&storage_[pos]);
-}
-
-template<typename T>
-gc_heap_ptr<T> gc_heap::unsafe_create_from_pointer(T* ptr) {
-    assert(is_internal(ptr));
-    return unsafe_create_from_position<T>(static_cast<uint32_t>(reinterpret_cast<slot*>(ptr) - storage_));
 }
 
 } // namespace mjs
