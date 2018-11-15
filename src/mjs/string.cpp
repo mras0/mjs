@@ -6,6 +6,8 @@
 
 namespace mjs {
 
+static_assert(std::is_trivially_destructible_v<gc_string>);
+
 std::ostream& operator<<(std::ostream& os, const string& s) {
     auto v = s.view();
     return os << std::string(v.begin(), v.end());

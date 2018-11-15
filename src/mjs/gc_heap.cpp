@@ -311,9 +311,4 @@ void gc_heap::detach(const gc_heap_ptr_untyped& p) {
     assert(deleted);
 }
 
-gc_heap::slot_allocation_header& gc_heap::allocation_header(const gc_heap_ptr_untyped& p) {
-    assert(p.heap_ && p.pos_ > 0 && p.pos_ < p.heap_->next_free_);
-    return p.heap().storage_[p.pos_ - 1].allocation;
-}
-
 } // namespace mjs

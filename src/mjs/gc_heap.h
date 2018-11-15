@@ -51,24 +51,16 @@ public:
         return name_;
     }
 
-    uint32_t get_index() const {
-        auto it = std::find(types_.begin(), types_.end(), this);
-        if (it == types_.end()) {
-            std::abort();
-        }
-        return static_cast<uint32_t>(it - types_.begin());
-    }
-
+    // Is the type convertible to object?
     bool is_convertible_to_object() const {
         return convertible_to_object_;
     }
-
 protected:
     using destroy_function = void (*)(void*);
     using move_function = gc_heap_ptr_untyped (*)(gc_heap&, void*);
     using fixup_function = bool (*)(gc_heap&, void*);
 
-    static const fixup_function no_fixup_needed;
+    static const fixup_function no_fixup_needed; // special value (not callable!)
 
     explicit gc_type_info(destroy_function destroy, move_function move, fixup_function fixup, bool convertible_to_object, const char* name) : destroy_(destroy), move_(move), fixup_(fixup), convertible_to_object_(convertible_to_object), name_(name) {
         types_.push_back(this);
@@ -88,6 +80,14 @@ private:
     gc_type_info& operator=(gc_type_info&) = delete;
 
     static std::vector<const gc_type_info*> types_;
+
+    uint32_t get_index() const {
+        auto it = std::find(types_.begin(), types_.end(), this);
+        if (it == types_.end()) {
+            std::abort();
+        }
+        return static_cast<uint32_t>(it - types_.begin());
+    }
 };
 
 template<typename T>
@@ -98,8 +98,12 @@ public:
         return reg;
     }
 
+    bool is_convertible(const gc_type_info& t) const {
+        return &t == this || (std::is_same_v<object, T> && t.is_convertible_to_object());
+    }
+
 private:
-    explicit gc_type_info_registration() : gc_type_info(std::is_trivially_destructible_v<T>?nullptr:&destroy, &move, fixup_func(), std::is_convertible_v<T*, object*>, typeid(T).name()) {}
+    explicit gc_type_info_registration() : gc_type_info(std::is_trivially_destructible_v<T>?nullptr:&destroy, move_func(), fixup_func(), std::is_convertible_v<T*, object*>, typeid(T).name()) {}
 
     friend gc_heap;
 
@@ -114,6 +118,13 @@ private:
     }
 
     template<typename U, typename=void>
+    struct has_move_t : std::false_type{};
+
+    template<typename U>
+    struct has_move_t<U, std::void_t<decltype(std::declval<U>().move(std::declval<gc_heap&>()))>> : std::true_type{};
+
+
+    template<typename U, typename=void>
     struct has_fixup_t : std::false_type{};
 
     template<typename U>
@@ -125,6 +136,8 @@ private:
     template<typename U>
     struct has_trivial_fixup_t<U, std::void_t<decltype(std::declval<U>().trivial_fixup())>> : std::true_type{};
 
+    static move_function move_func();
+
     static fixup_function fixup_func() {
         if constexpr (has_trivial_fixup_t<T>::value) {
             return no_fixup_needed;
@@ -134,8 +147,6 @@ private:
             return nullptr;
         }
     }
-
-    static gc_heap_ptr_untyped move(gc_heap& new_heap, void* p);
 };
 
 class value_representation {
@@ -227,15 +238,10 @@ private:
         return reinterpret_cast<uintptr_t>(p) >= reinterpret_cast<uintptr_t>(storage_) && reinterpret_cast<uintptr_t>(p) < reinterpret_cast<uintptr_t>(storage_ + capacity_);
     }
 
-    static slot_allocation_header& allocation_header(const gc_heap_ptr_untyped& p);
-
     uint32_t gc_move(gc_heap& new_heap, uint32_t pos);
 
     template<typename T>
     gc_heap_ptr<T> unsafe_create_from_position(uint32_t pos);
-
-    template<typename T>
-    T& unsafe_dereference(uint32_t pos);
 
     uint32_t unsafe_gc_move(gc_heap& new_heap, uint32_t pos);
 };
@@ -342,8 +348,8 @@ public:
     explicit operator bool() const { return pos_; }
 
     T& dereference(gc_heap& h) const {
-        assert(pos_);
-        return h.unsafe_dereference<T>(pos_);
+        assert(pos_ > 0 && pos_ < h.next_free_ && gc_type_info_registration<T>::get().is_convertible(h.storage_[pos_-1].allocation.type_info()));
+        return *reinterpret_cast<T*>(&h.storage_[pos_]);
     }
 
     gc_heap_ptr<T> track(gc_heap& h) const {
@@ -358,34 +364,32 @@ public:
     }
 
 private:
-    uint32_t pos_ = 0;
+    uint32_t pos_;
 };
 
 template<typename T>
-gc_heap_ptr_untyped gc_type_info_registration<T>::move(gc_heap& new_heap, void* p) {
-    return static_cast<T*>(p)->move(new_heap);
+gc_type_info::move_function gc_type_info_registration<T>::move_func() {
+    if constexpr (has_move_t<T>::value) {
+        return [](gc_heap& new_heap, void* p) { return static_cast<T*>(p)->move(new_heap); };
+    } else {
+        return [](gc_heap& new_heap, void* p) { return gc_heap_ptr_untyped{new_heap.make<T>(std::move(*static_cast<T*>(p)))}; };
+    }
 }
 
 template<typename T, typename... Args>
 gc_heap_ptr<T> gc_heap::construct(const gc_heap_ptr_untyped& p, Args&&... args) {
-    assert(allocation_header(p).type == unallocated_type_index);
+    assert(p.heap_ && p.pos_ > 0 && p.pos_ < p.heap_->next_free_);
+    auto& a = p.heap().storage_[p.pos_ - 1].allocation;
+    assert(a.type == unallocated_type_index);
     gc_type_info_registration<T>::construct(p.get(), std::forward<Args>(args)...);
-    allocation_header(p).type = gc_type_info_registration<T>::get().get_index();
+    a.type = gc_type_info_registration<T>::get().get_index();
     return gc_heap_ptr<T>{p};
 }
 
-class object;
-
 template<typename T>
 gc_heap_ptr<T> gc_heap::unsafe_create_from_position(uint32_t pos) {
-    assert(pos > 0 && pos < next_free_ && ((std::is_same_v<object, T> && storage_[pos-1].allocation.type_info().is_convertible_to_object()) || storage_[pos-1].allocation.type == gc_type_info_registration<T>::get().get_index()));
+    assert(pos > 0 && pos < next_free_ && gc_type_info_registration<T>::get().is_convertible(storage_[pos-1].allocation.type_info()));
     return gc_heap_ptr<T>{gc_heap_ptr_untyped{*this, pos}};
-}
-
-template<typename T>
-T& gc_heap::unsafe_dereference(uint32_t pos) {
-    assert(pos > 0 && pos < next_free_ && ((std::is_same_v<object, T> && storage_[pos-1].allocation.type_info().is_convertible_to_object()) || storage_[pos-1].allocation.type == gc_type_info_registration<T>::get().get_index()));
-    return *reinterpret_cast<T*>(&storage_[pos]);
 }
 
 } // namespace mjs

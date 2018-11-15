@@ -174,10 +174,6 @@ private:
     explicit array_object(const object_ptr& prototype, uint32_t length) : object{string{"Array"}, prototype} {
         object::put(string{"length"}, value{static_cast<double>(length)}, property_attribute::dont_enum | property_attribute::dont_delete);
     }
-
-    gc_heap_ptr_untyped move(gc_heap& new_heap) {
-        return new_heap.make<array_object>(std::move(*this));
-    }
 };
 
 string join(const object_ptr& o, const std::wstring_view& sep) {
@@ -373,10 +369,6 @@ public:
 private:
     explicit date_object(const object_ptr& prototype, double val) : object{string{"Date"}, prototype} {
         internal_value(value{val});
-    }
-
-    gc_heap_ptr_untyped move(gc_heap& new_heap) {
-        return new_heap.make<date_object>(std::move(*this));
     }
 };
 
@@ -1140,10 +1132,6 @@ private:
     }
 
     global_object_impl(global_object_impl&& other) = default;
-
-    gc_heap_ptr_untyped move(gc_heap& new_heap) {
-        return new_heap.make<global_object_impl>(std::move(*this));
-    }
 
     bool fixup(gc_heap& new_heap) {
         object::fixup(new_heap);

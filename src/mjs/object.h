@@ -32,7 +32,7 @@ public:
     // The value of the [[Prototype]] property must be either an object or null , and every [[Prototype]] chain must have
     // finite  length  (that  is,  starting  from  any  object,  recursively  accessing  the  [[Prototype]]  property  must  eventually
     // lead to a null value). Whether or not a native object can have a host object as its [[Prototype]] depends on the implementation
-    object_ptr prototype() { return prototype_.track(heap_); }
+    object_ptr prototype() { return prototype_ ? prototype_.track(heap_) : nullptr; }
 
     //
     // [[Class]] ()
@@ -59,13 +59,13 @@ public:
 
     // [[Put]] (PropertyName, Value)
     virtual void put(const string& name, const value& val, property_attribute attr = property_attribute::none) {
+        if (!can_put(name)) {
+            return;
+        }
         auto& props = properties_.dereference(heap_);
         auto it = props.find(name);
         if (it != props.end()) {
-            // CanPut?
-            if (!it.has_attribute(property_attribute::read_only)) {
-                it.value(val);
-            }
+            it.value(val);
         } else {
             if (props.length() == props.capacity()) {
                 properties_ = props.copy_with_increased_capacity();
@@ -162,10 +162,6 @@ private:
         if (prototype_) {
             prototype_.dereference(heap()).add_property_names(names);
         }
-    }
-
-    gc_heap_ptr_untyped move(gc_heap& new_heap) {
-        return new_heap.make<object>(std::move(*this));
     }
 };
 

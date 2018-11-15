@@ -36,7 +36,6 @@ private:
 
     void trivial_fixup();
 };
-static_assert(std::is_trivially_destructible_v<gc_string>);
 
 // TODO: Try to eliminate (or lessen) use of local heap
 class string {

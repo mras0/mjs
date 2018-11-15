@@ -2,6 +2,8 @@
 
 namespace mjs {
 
+static_assert(std::is_trivially_destructible_v<gc_table>);
+
 gc_heap_ptr_untyped gc_table::move(gc_heap& new_heap) const {
     auto p = make(new_heap, capacity());
     p->heap_ = heap_;

@@ -10,9 +10,10 @@ class alignas(uint64_t) gc_table {
 private:
     struct entry_representation {
         gc_heap_ptr_untracked<gc_string> key;
-        uint32_t                         attributes;
+        property_attribute               attributes;
         value_representation             value;
     };
+    static_assert(sizeof(gc_table::entry_representation) == 2*sizeof(uint64_t));
 public:
     static gc_heap_ptr<gc_table> make(gc_heap& h, uint32_t capacity) {
         assert(capacity > 0);
@@ -49,7 +50,7 @@ public:
         }
 
         property_attribute property_attributes() const {
-            return static_cast<property_attribute>(e().attributes);
+            return e().attributes;
         }
 
         void value(const value& val) {
@@ -92,7 +93,7 @@ public:
         assert(find(key.view()) == end());
         entries()[length_++] = entry_representation{
             raw_key,
-            static_cast<uint32_t>(attr),
+            attr,
             value_representation{v}
         };
     }
@@ -138,7 +139,6 @@ private:
 
     bool fixup(gc_heap& new_heap);
 };
-static_assert(std::is_trivially_destructible_v<gc_table>);
 
 } // namespace mjs
 #endif
