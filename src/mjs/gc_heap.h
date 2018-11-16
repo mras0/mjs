@@ -39,11 +39,10 @@ public:
     }
 
     // Handle fixup of untacked pointers (happens after the object has been otherwise moved to avoid infite recursion)
-    bool fixup(void* p) const {
+    void fixup(void* p) const {
         if (fixup_) {
-            return fixup_ == no_fixup_needed || fixup_(p);
+            fixup_(p);
         }
-        return false;
     }
 
     // For debugging purposes only
@@ -58,11 +57,14 @@ public:
 protected:
     using destroy_function = void (*)(void*);
     using move_function = void (*)(void*, void*);
-    using fixup_function = bool (*)(void*);
+    using fixup_function = void (*)(void*);
 
-    static const fixup_function no_fixup_needed; // special value (not callable!)
-
-    explicit gc_type_info(destroy_function destroy, move_function move, fixup_function fixup, bool convertible_to_object, const char* name) : destroy_(destroy), move_(move), fixup_(fixup), convertible_to_object_(convertible_to_object), name_(name) {
+    explicit gc_type_info(destroy_function destroy, move_function move, fixup_function fixup, bool convertible_to_object, const char* name)
+        : destroy_(destroy)
+        , move_(move)
+        , fixup_(fixup)
+        , convertible_to_object_(convertible_to_object)
+        , name_(name) {
         types_.push_back(this);
         assert(move_);
         assert(name_);
@@ -124,21 +126,13 @@ private:
     template<typename U>
     struct has_fixup_t<U, std::void_t<decltype(std::declval<U>().fixup())>> : std::true_type{};
 
-    template<typename U, typename=void>
-    struct has_trivial_fixup_t : std::false_type{};
-
-    template<typename U>
-    struct has_trivial_fixup_t<U, std::void_t<decltype(std::declval<U>().trivial_fixup())>> : std::true_type{};
-
     static void move(void* to, void* from) {
         new (to) T (std::move(*static_cast<T*>(from)));
     }
 
     static fixup_function fixup_func() {
-        if constexpr (has_trivial_fixup_t<T>::value) {
-            return no_fixup_needed;
-        } else if constexpr(has_fixup_t<T>::value) {
-            return [](void* p) { return static_cast<T*>(p)->fixup(); };
+        if constexpr(has_fixup_t<T>::value) {
+            return [](void* p) { static_cast<T*>(p)->fixup(); };
         } else {
             return nullptr;
         }
@@ -262,8 +256,10 @@ private:
 
     // Only valid during GC
     struct gc_state {
-        uint32_t ptr_keep_count = 0; // active if <> 0
-        gc_heap* new_heap;           // the "new_heap" is only kept for allocation purposes, no references to it should be kept
+        uint32_t ptr_keep_count = 0;            // active if <> 0
+        gc_heap* new_heap;                      // the "new_heap" is only kept for allocation purposes, no references to it should be kept
+        uint32_t level;                         // recursion depth
+        std::vector<uint32_t*> pending_fixpus;
     } gc_state_;
 
     void run_destructors();
@@ -281,6 +277,7 @@ private:
 
     uint32_t gc_move(uint32_t pos);
     void gc_move(gc_heap_ptr_untyped& p);
+    void fixup(uint32_t& pos);
 
     template<typename T>
     gc_heap_ptr<T> unsafe_create_from_position(uint32_t pos);
@@ -403,7 +400,7 @@ public:
 
     void fixup_after_move(gc_heap& old_heap) {
         if (pos_) {
-            pos_ = old_heap.gc_move(pos_);
+            old_heap.fixup(pos_);
         }
     }
 

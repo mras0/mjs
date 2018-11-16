@@ -59,7 +59,6 @@ namespace mjs {
 //
 
 std::vector<const gc_type_info*> gc_type_info::types_;
-const gc_type_info::fixup_function gc_type_info::no_fixup_needed = reinterpret_cast<gc_type_info::fixup_function>(1);
 
 //
 // value_representation
@@ -145,7 +144,7 @@ void value_representation::fixup_after_move(gc_heap& old_heap) {
     case value_type::string:    [[fallthrough]];
     case value_type::object:
         // TODO: See note gc_heap_ptr_untracked about adding a (debug) check for whether fixup was done correctly
-        repr_ = make_repr(type, old_heap.gc_move(repr_ & UINT32_MAX));
+        old_heap.fixup(*reinterpret_cast<uint32_t*>(&repr_)); // FIXME: This only works on little endian!
         break;
     default:
         std::abort();
@@ -232,26 +231,33 @@ uint32_t gc_heap::calc_used() const {
 
 void gc_heap::garbage_collect() {
     // Determine roots and move them to the front of the pointers_ list
-    uint32_t num_roots = 0;
-    auto ps = pointers_.data();
-    for  (uint32_t i = 0, sz = pointers_.size(); i < sz; ++i) {
-        if (!is_internal(ps[i])) {
-            std::swap(ps[i], ps[num_roots]); // May be no-op
-            ++num_roots;
+    assert(gc_state_.ptr_keep_count == 0);
+    {
+        auto ps = pointers_.data();
+        for  (uint32_t i = 0, sz = pointers_.size(); i < sz; ++i) {
+            if (!is_internal(ps[i])) {
+                std::swap(ps[i], ps[gc_state_.ptr_keep_count]); // May be no-op
+                ++gc_state_.ptr_keep_count;
+            }
         }
     }
 
-    if (num_roots) {
+    if (gc_state_.ptr_keep_count) {
         gc_heap new_heap{capacity_}; // TODO: Allow resize
 
-        gc_state_.ptr_keep_count = num_roots;
         gc_state_.new_heap = &new_heap;
+        gc_state_.level = 0;
 
-        for (uint32_t i = 0; i < num_roots; ++i) {
-            auto p = pointers_.data()[i]; // pointers.data() may change between loop iterations
-            // If the assert fires a GC allocated object used something that captured gc_heap_ptr's (e.g. a raw std::function)
-            assert(!is_internal(p) && "Internal pointer was accidently classified as root!");
-            gc_move(*p);
+        // Keep going while we haven't moved all the pointers we have to.
+        // Note: both pointers_.data() and gc_state_.ptr_keep_count can change in the loop
+        for (uint32_t i = 0; i < gc_state_.ptr_keep_count; ++i) {
+            gc_move(*pointers_.data()[i]);
+            // Process pending fixups
+            while (!gc_state_.pending_fixpus.empty()) {
+                auto p = gc_state_.pending_fixpus.back();
+                gc_state_.pending_fixpus.pop_back();
+                *p = gc_move(*p);
+            }
         }
 
         std::swap(storage_, new_heap.storage_);
@@ -259,8 +265,8 @@ void gc_heap::garbage_collect() {
         gc_state_.new_heap = nullptr;
         // new_heap's destructor checks that it doesn't contain pointers
 
-        assert(gc_state_.ptr_keep_count >= num_roots);
         assert(gc_state_.ptr_keep_count <= pointers_.size());
+        assert(gc_state_.level == 0);
     } else {
         run_destructors();
         next_free_ = 0;
@@ -271,6 +277,12 @@ void gc_heap::garbage_collect() {
 }
 
 uint32_t gc_heap::gc_move(const uint32_t pos) {
+    struct auto_level {
+        auto_level(uint32_t& l) : l(l) { ++l; assert(l < 4 && "Arbitrary recursion level reached"); }
+        ~auto_level() { --l; }
+        uint32_t& l;
+    } al{gc_state_.level};
+
     assert(pos > 0 && pos < next_free_);
 
     auto& a = storage_[pos-1].allocation;
@@ -300,6 +312,7 @@ uint32_t gc_heap::gc_move(const uint32_t pos) {
     new_a.type = a.type;
 
     // Move any pointers that resulted from the move (construction) to the stable part of the pointers_ array (the front)
+    // They will then be moved by the main pointer moving loop.
     // The new pointers will be at the end of the pointer set since they were just added
     // Note this obviously makes assumption about the pointer_set implementation!
     const auto ip_size  = pointers_.size() - num_pointers_initially;
@@ -323,19 +336,16 @@ uint32_t gc_heap::gc_move(const uint32_t pos) {
     storage_[pos].new_position = new_pos;
 
     // After changing the allocation header infinite recursion can now be avoided when copying the internal pointers.
-    // Let the object do fixup on its own if it wants to.
-    if (!type_info.fixup(new_p)) {
-        // Handle it otherwise
-        for (uint32_t i = 0; i < ip_size; ++i) {
-            // pointers_.data() can change between iterations
-            gc_move(*pointers_.data()[ip_start+i]);
-        }
-    } else {
-        // Check that the object kept its promise
-        assert(!ip_size && "Object lied about its fixup capabilities!");
-    }
+
+    // Let the object register its fixup
+    type_info.fixup(new_p);
 
     return new_pos;
+}
+
+void gc_heap::fixup(uint32_t& pos) {
+    // TODO: Consider apply fixup directly if gc_state_.level isn't too big
+    gc_state_.pending_fixpus.push_back(&pos);
 }
 
 void gc_heap::gc_move(gc_heap_ptr_untyped& p) {

@@ -33,8 +33,6 @@ private:
     explicit gc_string(gc_string&& other) : length_(other.length_) {
         std::memcpy(data(), other.data(), other.length_ * sizeof(wchar_t));
     }
-
-    void trivial_fixup();
 };
 
 // TODO: Try to eliminate (or lessen) use of local heap

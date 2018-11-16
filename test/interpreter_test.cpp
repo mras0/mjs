@@ -622,6 +622,18 @@ x++; x //$ number 2
 )");
 }
 
+void test_long_object_chain() {
+    test(LR"(
+var l = null;
+for (var i = 0; i < 10000; ++i) {
+    n = new Object();
+    n.prev = l;
+    l = n;
+}
+null
+)", value::null);
+}
+
 int main() {
     try {
         eval_tests();
@@ -629,6 +641,7 @@ int main() {
         test_math_functions();
         test_date_functions();
         test_semicolon_insertion();
+        test_long_object_chain();
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';
         return 1;
