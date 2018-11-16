@@ -230,14 +230,14 @@ void gc_heap::garbage_collect() {
     {
         gc_heap new_heap{capacity_}; // TODO: Allow resize
 
-        std::vector<const gc_heap_ptr_untyped*> roots;
+        std::vector<gc_heap_ptr_untyped*> roots;
 
-        std::copy_if(pointers_.begin(), pointers_.end(), std::back_inserter(roots), [this](const gc_heap_ptr_untyped* p) { return !is_internal(p); });
+        std::copy_if(pointers_.begin(), pointers_.end(), std::back_inserter(roots), [this](gc_heap_ptr_untyped* p) { return !is_internal(p); });
 
         for (auto p: roots) {
             // If the assert fires a GC allocated object used something that captured gc_heap_ptr's (e.g. a raw std::function)
-            assert(pointers_.find(p) != pointers_.end() && "Internal pointer was accidently classified as root!");
-            const_cast<gc_heap_ptr_untyped*>(p)->pos_ = gc_move(new_heap, p->pos_);
+            assert(std::find(pointers_.begin(), pointers_.end(), p) != pointers_.end() && "Internal pointer was accidently classified as root!");
+            gc_move(new_heap, *p);
         }
 
         std::swap(storage_, new_heap.storage_);
@@ -264,14 +264,27 @@ uint32_t gc_heap::gc_move(gc_heap& new_heap, const uint32_t pos) {
     auto* const new_p = &new_heap.storage_[new_pos];
     assert(new_a.size == a.size);
 
+    // Record number of pointers that exist before constructing the new object
+    const auto num_pointers_initially = pointers_.size();
+
     // Move the object to its new position
     const auto& type_info = a.type_info();
     void* const p = &storage_[pos];
     type_info.move(new_p, p);
     new_a.type = a.type;
 
+    // Extract any pointers that resulted from the move (construction)
+    // They will be at the end of the pointer set since they were just added
+    // Note this obviously makes assumption about the pointer_set implementation!
+    // TODO: Could remove the internal_pointers here and reinsert them later (e.g. after destroying the object and/or moving the pointers)
+    // TODO: There will usually be very few internal pointers, could probably benefit from the small vector optimization
+    std::vector<gc_heap_ptr_untyped*> internal_pointers{pointers_.begin()  + num_pointers_initially, pointers_.end()};
+
     // And destroy it at the old position
     type_info.destroy(p);
+
+    // There should now be the same amount of pointers (otherwise something went wrong with moving/destroying the object)
+    assert(pointers_.size() == num_pointers_initially);
 
     // Record the object's new position at the old position
     a.type = gc_moved_type_index;
@@ -281,24 +294,20 @@ uint32_t gc_heap::gc_move(gc_heap& new_heap, const uint32_t pos) {
     // Let the object do fixup on its own if it wants to.
     if (!type_info.fixup(new_heap, new_p)) {
         // Handle it otherwise
-        pointers_.move_range(new_heap, *this, new_p, new_p + a.size - 1);
+        for (auto ip: internal_pointers) {
+            gc_move(new_heap, *ip);
+        }
     } else {
         // Check that the object kept its promise
-        assert(!pointers_.move_range(new_heap, *this, new_p, new_p + a.size - 1) && "Object lied about its fixup capabilities!");
+        assert(internal_pointers.empty() && "Object lied about its fixup capabilities!");
     }
 
     return new_pos;
 }
 
-uint32_t gc_heap::pointer_set::move_range(gc_heap& new_heap, gc_heap& old_heap, const void* l, const void* u) {
-    assert(l < u);
-    uint32_t count = 0;
-    for (auto it = set_.lower_bound(static_cast<const gc_heap_ptr_untyped*>(l)); it != set_.end() && (*it) < u; ++it, ++count) {
-        const_cast<gc_heap_ptr_untyped*>(*it)->pos_ = old_heap.gc_move(new_heap, (*it)->pos_);
-    }
-    return count;
+void gc_heap::gc_move(gc_heap& new_heap, gc_heap_ptr_untyped& p) {
+    p.pos_ = gc_move(new_heap, p.pos_);
 }
-
 
 uint32_t gc_heap::allocate(size_t num_bytes) {
     if (!num_bytes || num_bytes >= UINT32_MAX) {
@@ -318,12 +327,12 @@ uint32_t gc_heap::allocate(size_t num_bytes) {
     return pos;
 }
 
-void gc_heap::attach(const gc_heap_ptr_untyped& p) {
+void gc_heap::attach(gc_heap_ptr_untyped& p) {
     assert(p.heap_ == this && p.pos_ > 0 && p.pos_ < next_free_);
     pointers_.insert(p);
 }
 
-void gc_heap::detach(const gc_heap_ptr_untyped& p) {
+void gc_heap::detach(gc_heap_ptr_untyped& p) {
     assert(p.heap_ == this);
     pointers_.erase(p);
 }

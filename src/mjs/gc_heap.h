@@ -2,11 +2,9 @@
 #define MJS_GC_HEAP_H
 
 // TODO: gc_type_info_registration: Make sure all known classes are (thread-safely) registered.
-// TODO: Reduce uncecessary use of const_cast
 
 #include <string>
 #include <vector>
-#include <set>
 #include <algorithm>
 #include <ostream>
 #include <typeinfo>
@@ -222,24 +220,31 @@ private:
     static_assert(sizeof(slot) == slot_size);
 
     class pointer_set {
-        std::set<const gc_heap_ptr_untyped*> set_;
+        std::vector<gc_heap_ptr_untyped*> set_;
     public:
-        void insert(const gc_heap_ptr_untyped& p) {
-            [[maybe_unused]] const auto inserted = set_.insert(&p).second;
-            assert(inserted);
+        bool empty() const { return set_.empty(); }
+        uint32_t size() const { return static_cast<uint32_t>(set_.size()); }
+        auto begin() { return set_.begin(); }
+        auto end() { return set_.end(); }
+        auto begin() const { return set_.cbegin(); }
+        auto end() const { return set_.cend(); }
+
+        void insert(gc_heap_ptr_untyped& p) {
+            // Note: garbage_collect() assumes nodes are added to the back
+            // assert(std::find(begin(), end(), &p) == end()); // Other asserts should catch this
+            set_.push_back(&p);
         }
 
         void erase(const gc_heap_ptr_untyped& p) {
-            [[maybe_unused]] const auto deleted = set_.erase(&p);
-            assert(deleted);
+            // Search from the back since objects tend to be short lived
+            for (size_t i = set_.size(); i--;) {
+                if (set_[i] == &p) {
+                    set_.erase(set_.begin() + i);
+                    return;
+                }
+            }
+            assert(!"Pointer not found in set!");
         }
-
-        bool empty() const { return set_.empty(); }
-        auto begin() const { return set_.begin(); }
-        auto end() const { return set_.end(); }
-        auto find(const gc_heap_ptr_untyped* p) const { return set_.find(p); }
-
-        uint32_t move_range(gc_heap& new_heap, gc_heap& old_heap, const void* l, const void* u);
     };
 
     thread_local static gc_heap* local_heap_;
@@ -248,8 +253,8 @@ private:
     uint32_t capacity_;
     uint32_t next_free_ = 0;
 
-    void attach(const gc_heap_ptr_untyped& p);
-    void detach(const gc_heap_ptr_untyped& p);
+    void attach(gc_heap_ptr_untyped& p);
+    void detach(gc_heap_ptr_untyped& p);
 
     bool is_internal(const void* p) const {
         return reinterpret_cast<uintptr_t>(p) >= reinterpret_cast<uintptr_t>(storage_) && reinterpret_cast<uintptr_t>(p) < reinterpret_cast<uintptr_t>(storage_ + capacity_);
@@ -260,6 +265,7 @@ private:
     uint32_t allocate(size_t num_bytes);
 
     uint32_t gc_move(gc_heap& new_heap, uint32_t pos);
+    void gc_move(gc_heap& new_heap, gc_heap_ptr_untyped& p);
 
     template<typename T>
     gc_heap_ptr<T> unsafe_create_from_position(uint32_t pos);
