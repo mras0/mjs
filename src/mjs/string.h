@@ -10,7 +10,7 @@ namespace mjs {
 class gc_string {
 public:
     static gc_heap_ptr<gc_string> make(gc_heap& h, const std::wstring_view& s) {
-        return gc_heap::construct<gc_string>(h.allocate(sizeof(gc_string) + s.length() * sizeof(wchar_t)), s);
+        return h.allocate_and_construct<gc_string>(sizeof(gc_string) + s.length() * sizeof(wchar_t), s);
     }
 
     std::wstring_view view() const {

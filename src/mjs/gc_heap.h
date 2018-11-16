@@ -183,14 +183,12 @@ public:
 
     void garbage_collect();
 
-    gc_heap_ptr_untyped allocate(size_t num_bytes);
-
     template<typename T, typename... Args>
-    static gc_heap_ptr<T> construct(const gc_heap_ptr_untyped& p, Args&&... args);
+    gc_heap_ptr<T> allocate_and_construct(size_t num_bytes, Args&&... args);
 
     template<typename T, typename... Args>
     gc_heap_ptr<T> make(Args&&... args) {
-        return construct<T>(allocate(sizeof(T)), std::forward<Args>(args)...);
+        return allocate_and_construct<T>(sizeof(T), std::forward<Args>(args)...);
     }
 
     static gc_heap& local_heap() {
@@ -236,12 +234,14 @@ private:
         return reinterpret_cast<uintptr_t>(p) >= reinterpret_cast<uintptr_t>(storage_) && reinterpret_cast<uintptr_t>(p) < reinterpret_cast<uintptr_t>(storage_ + capacity_);
     }
 
+    // Allocate at least 'num_bytes' of storage, returns the offset (in slots) of the allocation (header) inside 'storage_'
+    // The object must be constructed one slot beyond the allocation header and the type field of the allocation header updated
+    uint32_t allocate(size_t num_bytes);
+
     uint32_t gc_move(gc_heap& new_heap, uint32_t pos);
 
     template<typename T>
     gc_heap_ptr<T> unsafe_create_from_position(uint32_t pos);
-
-    uint32_t unsafe_gc_move(gc_heap& new_heap, uint32_t pos);
 };
 
 class scoped_gc_heap : public gc_heap {
@@ -267,8 +267,8 @@ private:
 class gc_heap_ptr_untyped {
 public:
     friend gc_heap;
-    template<typename> friend class gc_heap_ptr_untracked;
     friend value_representation;
+    template<typename> friend class gc_heap_ptr_untracked;
 
     gc_heap_ptr_untyped() : heap_(nullptr), pos_(0) {
     }
@@ -307,13 +307,14 @@ public:
         return const_cast<void*>(static_cast<const void*>(&heap_->storage_[pos_]));
     }
 
-private:
-    gc_heap* heap_;
-    uint32_t pos_;
-
+protected:
     explicit gc_heap_ptr_untyped(gc_heap& heap, uint32_t pos) : heap_(&heap), pos_(pos) {
         heap_->attach(*this);
     }
+
+private:
+    gc_heap* heap_;
+    uint32_t pos_;
 };
 
 template<typename T>
@@ -331,8 +332,8 @@ public:
     T& operator*() const { return *get(); }
 
 private:
-    explicit gc_heap_ptr(const gc_heap_ptr_untyped& p) : gc_heap_ptr_untyped(p) {
-    }
+    explicit gc_heap_ptr(gc_heap& heap, uint32_t pos) : gc_heap_ptr_untyped(heap, pos) {}
+    explicit gc_heap_ptr(const gc_heap_ptr_untyped& p) : gc_heap_ptr_untyped(p) {}
 };
 
 template<typename T>
@@ -357,28 +358,31 @@ public:
 
     void fixup_after_move(gc_heap& new_heap, gc_heap& old_heap) {
         if (pos_) {
-            pos_ = old_heap.unsafe_gc_move(new_heap, pos_);
+            pos_ = old_heap.gc_move(new_heap, pos_);
         }
     }
+
+protected:
+    explicit gc_heap_ptr_untracked(uint32_t pos) : pos_(pos) {}
 
 private:
     uint32_t pos_;
 };
 
 template<typename T, typename... Args>
-gc_heap_ptr<T> gc_heap::construct(const gc_heap_ptr_untyped& p, Args&&... args) {
-    assert(p.heap_ && p.pos_ > 0 && p.pos_ < p.heap_->next_free_);
-    auto& a = p.heap().storage_[p.pos_ - 1].allocation;
+gc_heap_ptr<T> gc_heap::allocate_and_construct(size_t num_bytes, Args&&... args) {
+    const auto pos = allocate(num_bytes);
+    auto& a = storage_[pos].allocation;
     assert(a.type == unallocated_type_index);
-    gc_type_info_registration<T>::construct(p.get(), std::forward<Args>(args)...);
+    gc_type_info_registration<T>::construct(&storage_[pos+1], std::forward<Args>(args)...);
     a.type = gc_type_info_registration<T>::get().get_index();
-    return gc_heap_ptr<T>{p};
+    return gc_heap_ptr<T>{*this, pos+1};
 }
 
 template<typename T>
 gc_heap_ptr<T> gc_heap::unsafe_create_from_position(uint32_t pos) {
     assert(pos > 0 && pos < next_free_ && gc_type_info_registration<T>::get().is_convertible(storage_[pos-1].allocation.type_info()));
-    return gc_heap_ptr<T>{gc_heap_ptr_untyped{*this, pos}};
+    return gc_heap_ptr<T>{*this, pos};
 }
 
 } // namespace mjs

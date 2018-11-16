@@ -16,7 +16,7 @@ class alignas(uint64_t) gc_function {
 public:
     template<typename F>
     static gc_heap_ptr<gc_function> make(gc_heap& h, const F& f) {
-        auto p = gc_heap::construct<gc_function>(h.allocate(sizeof(gc_function) + sizeof(impl<F>)));
+        auto p = h.allocate_and_construct<gc_function>(sizeof(gc_function) + sizeof(impl<F>));
         new (p->get_model()) impl<F>{f};
         return p;
     }

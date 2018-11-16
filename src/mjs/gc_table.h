@@ -17,7 +17,7 @@ private:
 public:
     static gc_heap_ptr<gc_table> make(gc_heap& h, uint32_t capacity) {
         assert(capacity > 0);
-        return gc_heap::construct<gc_table>(h.allocate(sizeof(gc_table) + capacity * sizeof(entry_representation)), h, capacity);
+        return h.allocate_and_construct<gc_table>(sizeof(gc_table) + capacity * sizeof(entry_representation), h, capacity);
     }
 
     uint32_t capacity() const { return capacity_; }

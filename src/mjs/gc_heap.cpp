@@ -144,7 +144,7 @@ void value_representation::fixup_after_move(gc_heap& new_heap, gc_heap& old_heap
         return;
     case value_type::string:    [[fallthrough]];
     case value_type::object:
-        repr_ = make_repr(type, old_heap.unsafe_gc_move(new_heap, repr_ & UINT32_MAX));
+        repr_ = make_repr(type, old_heap.gc_move(new_heap, repr_ & UINT32_MAX));
         break;
     default:
         std::abort();
@@ -240,7 +240,9 @@ void gc_heap::garbage_collect() {
     }
 }
 
-uint32_t gc_heap::gc_move(gc_heap& new_heap, uint32_t pos) {
+uint32_t gc_heap::gc_move(gc_heap& new_heap, const uint32_t pos) {
+    assert(pos > 0 && pos < next_free_);
+
     auto& a = storage_[pos-1].allocation;
     assert(a.type != unallocated_type_index);
     assert(a.size > 1);
@@ -249,25 +251,31 @@ uint32_t gc_heap::gc_move(gc_heap& new_heap, uint32_t pos) {
         return storage_[pos].new_position;
     }
 
+    // Allocate memory block in new_heap of the same size
+    const auto new_pos = new_heap.allocate((a.size-1)*sizeof(uint64_t)) + 1;
+    auto& new_a = new_heap.storage_[new_pos - 1].allocation;
+    auto* const new_p = &new_heap.storage_[new_pos];
+    assert(new_a.size == a.size);
+
+    // Move the object to its new position
     const auto& type_info = a.type_info();
     void* const p = &storage_[pos];
+    type_info.move(new_p, p);
+    new_a.type = a.type;
 
-    auto new_o = new_heap.allocate((a.size-1)*sizeof(uint64_t));
-    const auto new_pos = new_o.pos_;
-    assert(new_heap.storage_[new_pos-1].allocation.size == a.size);
-    type_info.move(new_o.get(), p);
-    new_heap.storage_[new_pos-1].allocation.type = a.type;
+    // And destroy it at the old position
     type_info.destroy(p);
 
+    // Record the object's new position at the old position
     a.type = gc_moved_type_index;
     storage_[pos].new_position = new_pos;
 
     // After changing the allocation header, infinite recursion can now be avoided when copying the internal pointers.
-    auto l = reinterpret_cast<gc_heap_ptr_untyped*>(&new_heap.storage_[new_pos]);
-    auto u = reinterpret_cast<gc_heap_ptr_untyped*>(&new_heap.storage_[new_pos] + new_heap.storage_[new_pos-1].allocation.size - 1);
+    auto l = reinterpret_cast<gc_heap_ptr_untyped*>(new_p);
+    auto u = reinterpret_cast<gc_heap_ptr_untyped*>(new_p + a.size - 1);
 
     // Let the object do fixup on its own if it wants to
-    if (!type_info.fixup(new_heap, new_o.get())) {
+    if (!type_info.fixup(new_heap, new_p)) {
         // Handle it otherwise
         for (auto it = pointers_.lower_bound(l); it != pointers_.end() && (*it) < u; ++it) {
             const_cast<gc_heap_ptr_untyped*>(*it)->pos_ = gc_move(new_heap, (*it)->pos_);
@@ -279,11 +287,7 @@ uint32_t gc_heap::gc_move(gc_heap& new_heap, uint32_t pos) {
     return new_pos;
 }
 
-uint32_t gc_heap::unsafe_gc_move(gc_heap& new_heap, uint32_t pos) {
-    return gc_move(new_heap, pos);
-}
-
-gc_heap_ptr_untyped gc_heap::allocate(size_t num_bytes) {
+uint32_t gc_heap::allocate(size_t num_bytes) {
     if (!num_bytes || num_bytes >= UINT32_MAX) {
         assert(!"Invalid allocation size");
         std::abort();
@@ -298,7 +302,7 @@ gc_heap_ptr_untyped gc_heap::allocate(size_t num_bytes) {
     next_free_ += num_slots;
     storage_[pos].allocation.size = num_slots;
     storage_[pos].allocation.type = unallocated_type_index;
-    return gc_heap_ptr_untyped{*this, pos + 1};
+    return pos;
 }
 
 void gc_heap::attach(const gc_heap_ptr_untyped& p) {
