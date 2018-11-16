@@ -1186,15 +1186,15 @@ string global_object::native_function_body(const string& name) {
 void global_object_impl::put_function(const object_ptr& o, const native_function_type& f, const string& body_text, int named_args) {
     assert(o->class_name().view() == Function_str_.view());
     assert(!o->call_function());
-    assert(o->get(prototype_str_.view()).type() == value_type::object);
     o->put(length_str_, value{static_cast<double>(named_args)}, property_attribute::read_only | property_attribute::dont_delete | property_attribute::dont_enum);
     o->put(arguments_str_, value::null, property_attribute::read_only | property_attribute::dont_delete | property_attribute::dont_enum);
     o->call_function(f);
     o->construct_function(f);
     assert(o->internal_value().type() == value_type::undefined);
     o->internal_value(value{body_text});
-    auto p = o->get(prototype_str_.view()).object_value();
-    p->put(constructor_str_, value{o}, global_object_impl::default_attributes);
+    auto p = o->get(prototype_str_.view());
+    assert(p.type() == value_type::object);
+    p.object_value()->put(constructor_str_, value{o}, global_object_impl::default_attributes);
 }
 
 

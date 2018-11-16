@@ -38,19 +38,16 @@ private:
 };
 
 // TODO: Try to eliminate (or lessen) use of local heap
-class string {
+class string : private gc_heap_ptr<gc_string> {
 public:
-    string(const gc_heap_ptr<gc_string>& s) : s_(s) {}
-
+    string(const gc_heap_ptr<gc_string>& s) : gc_heap_ptr<gc_string>(s) {}
     explicit string() : string(L"") {}
     // TODO: Could optimize this constructor by providing appropriate overloads in gc_string
     explicit string(const char* str) : string(std::wstring(str, str+std::strlen(str))) {}
-    explicit string(const std::wstring_view& s) : string(gc_string::make(gc_heap::local_heap(),s)) {}
-    std::wstring_view view() const { return s_->view(); }
+    explicit string(const std::wstring_view& s) : gc_heap_ptr<gc_string>(gc_string::make(gc_heap::local_heap(),s)) {}
 
-    const gc_heap_ptr<gc_string>& unsafe_raw_get() const { return s_; }
-private:
-    gc_heap_ptr<gc_string> s_;
+    std::wstring_view view() const { return get()->view(); }
+    const gc_heap_ptr<gc_string>& unsafe_raw_get() const { return *this; }
 };
 std::ostream& operator<<(std::ostream& os, const string& s);
 std::wostream& operator<<(std::wostream& os, const string& s);
