@@ -10,7 +10,7 @@
 #include <unordered_map>
 #include <memory>
 
-// TODO: Re-use commonly used strings (e.g. "length", "prototype")
+// TODO: Use the well-known strings from global_object_impl in array_object
 // TODO: Use string pool for index_string()'s? (or at least the commonly used ones...)
 
 // TODO: Get rid of this stuff alltogether
@@ -141,8 +141,8 @@ public:
 
     static constexpr const std::wstring_view length_str{L"length", 6};
 
-    static gc_heap_ptr<array_object> make(const object_ptr& prototype, uint32_t length) {
-        return gc_heap::local_heap().make<array_object>(prototype, length);
+    static gc_heap_ptr<array_object> make(const string& class_name, const object_ptr& prototype, uint32_t length) {
+        return gc_heap::local_heap().make<array_object>(class_name, prototype, length);
     }
 
     void put(const string& name, const value& val, property_attribute attr) override {
@@ -180,7 +180,7 @@ private:
         return to_uint32(object::get(length_str));
     }
 
-    explicit array_object(const object_ptr& prototype, uint32_t length) : object{string{"Array"}, prototype} {
+    explicit array_object(const string& class_name, const object_ptr& prototype, uint32_t length) : object{class_name, prototype} {
         object::put(string{length_str}, value{static_cast<double>(length)}, property_attribute::dont_enum | property_attribute::dont_delete);
     }
 };
@@ -376,7 +376,7 @@ public:
     }
 
 private:
-    explicit date_object(const object_ptr& prototype, double val) : object{string{"Date"}, prototype} {
+    explicit date_object(const string& class_name, const object_ptr& prototype, double val) : object{class_name, prototype} {
         internal_value(value{val});
     }
 };
@@ -388,8 +388,8 @@ public:
     const object_ptr& object_prototype() const override { return object_prototype_; }
 
     object_ptr make_raw_function() override {
-        auto o = object::make(string{"Function"}, function_prototype_);
-        o->put(string{"prototype"}, value{object::make(string{"Object"}, object_prototype_)}, property_attribute::dont_enum);
+        auto o = object::make(Function_str_, function_prototype_);
+        o->put(prototype_str_, value{object::make(Object_str_, object_prototype_)}, property_attribute::dont_enum);
         return o;
     }
 
@@ -422,6 +422,23 @@ private:
     object_ptr date_prototype_;
     gc_heap_ptr<global_object_impl> self_;
 
+    // Well know, commonly used strings
+#define DEFINE_STRING(x) string x ## _str_{#x}
+    DEFINE_STRING(Object);
+    DEFINE_STRING(Function);
+    DEFINE_STRING(Array);
+    DEFINE_STRING(String);
+    DEFINE_STRING(Boolean);
+    DEFINE_STRING(Number);
+    DEFINE_STRING(Date);
+    DEFINE_STRING(prototype);
+    DEFINE_STRING(constructor);
+    DEFINE_STRING(length);
+    DEFINE_STRING(arguments);
+    DEFINE_STRING(toString);
+    DEFINE_STRING(valueOf);
+#undef DEFINE_STRING
+
     // FIXME: Is this sufficient to guard against clever users?
     static void validate_type(const value& v, const object_ptr& expected_prototype, const char* expected_type) {
         if (v.type() == value_type::object && v.object_value()->prototype().get() == expected_prototype.get()) {
@@ -445,14 +462,14 @@ private:
 
     object_ptr make_function_object() {
         auto o = make_raw_function(); // Note: function constructor is added by interpreter
-        o->put(string{"prototype"}, value{function_prototype_}, prototype_attributes);
+        o->put(prototype_str_, value{function_prototype_}, prototype_attributes);
 
         // §15.3.4
         function_prototype_->call_function(gc_function::make(gc_heap::local_heap(), [](const value&, const std::vector<value>&) {
             return value::undefined;
         }));
-        function_prototype_->put(string{"constructor"}, value{o}, default_attributes);
-        put_native_function(function_prototype_, "toString", [function_prototype = function_prototype_](const value& this_, const std::vector<value>&) {
+        function_prototype_->put(constructor_str_, value{o}, default_attributes);
+        put_native_function(function_prototype_, toString_str_, [function_prototype = function_prototype_](const value& this_, const std::vector<value>&) {
             validate_type(this_, function_prototype, "Function");
             assert(this_.object_value()->internal_value().type() == value_type::string);
             return this_.object_value()->internal_value();
@@ -467,19 +484,19 @@ private:
     object_ptr make_object_object() {
         auto o = make_function([global = self_](const value&, const std::vector<value>& args) {
             if (args.empty() || args.front().type() == value_type::undefined || args.front().type() == value_type::null) {
-                auto o = object::make(string{"Object"}, global->object_prototype_);
+                auto o = object::make(global->Object_str_, global->object_prototype_);
                 return value{o};
             }
             return value{global->to_object(args.front())};
-        }, native_function_body("Object"), 1);
-        o->put(string{"prototype"}, value{object_prototype_}, prototype_attributes);
+        }, native_function_body(Object_str_), 1);
+        o->put(prototype_str_, value{object_prototype_}, prototype_attributes);
 
         // §15.2.4
-        object_prototype_->put(string{"constructor"}, value{o}, default_attributes);
-        put_native_function(object_prototype_, "toString", [](const value& this_, const std::vector<value>&){
+        object_prototype_->put(constructor_str_, value{o}, default_attributes);
+        put_native_function(object_prototype_, toString_str_, [](const value& this_, const std::vector<value>&){
             return value{string{"[object "} + this_.object_value()->class_name() + string{"]"}};
         }, 0);
-        put_native_function(object_prototype_, "valueOf", [](const value& this_, const std::vector<value>&){
+        put_native_function(object_prototype_, valueOf_str_, [](const value& this_, const std::vector<value>&){
             return this_;
         }, 0);
         return o;
@@ -490,35 +507,35 @@ private:
     //
 
     object_ptr new_boolean(bool val) {
-        auto o = object::make(string{"Boolean"}, boolean_prototype_);
+        auto o = object::make(Boolean_str_, boolean_prototype_);
         o->internal_value(value{val});
         return o;
     }
 
     object_ptr make_boolean_object() {
-        boolean_prototype_ = object::make(string{"Boolean"}, object_prototype_);
+        boolean_prototype_ = object::make(Boolean_str_, object_prototype_);
         boolean_prototype_->internal_value(value{false});
 
         auto c = make_function([global = self_](const value&, const std::vector<value>& args) {
             return value{global->new_boolean(!args.empty() && to_boolean(args.front()))};
-        },  native_function_body("Boolean"), 1);
+        },  native_function_body(Boolean_str_), 1);
         c->call_function(gc_function::make(gc_heap::local_heap(), [](const value&, const std::vector<value>& args) {
             return value{!args.empty() && to_boolean(args.front())};
         }));
-        c->put(string{"prototype"}, value{boolean_prototype_}, prototype_attributes);
+        c->put(prototype_str_, value{boolean_prototype_}, prototype_attributes);
 
         auto check_type = [p = boolean_prototype_](const value& this_) {
             validate_type(this_, p, "Boolean");
         };
 
-        boolean_prototype_->put(string{"constructor"}, value{c}, default_attributes);
+        boolean_prototype_->put(constructor_str_, value{c}, default_attributes);
 
-        put_native_function(boolean_prototype_, "toString", [check_type](const value& this_, const std::vector<value>&){
+        put_native_function(boolean_prototype_, toString_str_, [check_type](const value& this_, const std::vector<value>&){
             check_type(this_);
             return value{string{this_.object_value()->internal_value().boolean_value() ? L"true" : L"false"}};
         }, 0);
 
-        put_native_function(boolean_prototype_, "valueOf", [check_type](const value& this_, const std::vector<value>&){
+        put_native_function(boolean_prototype_, valueOf_str_, [check_type](const value& this_, const std::vector<value>&){
             check_type(this_);
             return this_.object_value()->internal_value();
         }, 0);
@@ -531,22 +548,22 @@ private:
     //
 
     object_ptr new_number(double val) {
-        auto o = object::make(string{"Number"}, number_prototype_);
+        auto o = object::make(Number_str_, number_prototype_);
         o->internal_value(value{val});
         return o;
     }
 
     object_ptr make_number_object() {
-        number_prototype_ = object::make(string{"Number"}, object_prototype_);
+        number_prototype_ = object::make(Number_str_, object_prototype_);
         number_prototype_->internal_value(value{0.});
 
         auto c = make_function([global = self_](const value&, const std::vector<value>& args) {
             return value{global->new_number(args.empty() ? 0.0 : to_number(args.front()))};
-        }, native_function_body("Number"), 1);
+        }, native_function_body(Number_str_), 1);
         c->call_function(gc_function::make(gc_heap::local_heap(), [](const value&, const std::vector<value>& args) {
             return value{args.empty() ? 0.0 : to_number(args.front())};
         }));
-        c->put(string{L"prototype"}, value{number_prototype_}, prototype_attributes);
+        c->put(prototype_str_, value{number_prototype_}, prototype_attributes);
         c->put(string{"MAX_VALUE"}, value{1.7976931348623157e308}, default_attributes);
         c->put(string{"MIN_VALUE"}, value{5e-324}, default_attributes);
         c->put(string{"NaN"}, value{NAN}, default_attributes);
@@ -557,8 +574,8 @@ private:
             validate_type(this_, p, "Number");
         };
 
-        number_prototype_->put(string{L"constructor"}, value{c}, default_attributes);
-        put_native_function(number_prototype_, "toString", [check_type](const value& this_, const std::vector<value>& args){
+        number_prototype_->put(constructor_str_, value{c}, default_attributes);
+        put_native_function(number_prototype_, toString_str_, [check_type](const value& this_, const std::vector<value>& args){
             check_type(this_);
             const int radix = args.empty() ? 10 : to_int32(args.front());
             if (radix < 2 || radix > 36) {
@@ -571,7 +588,7 @@ private:
             }
             return value{to_string(this_.object_value()->internal_value())};
         }, 1);
-        put_native_function(number_prototype_, "valueOf",[check_type](const value& this_, const std::vector<value>&){
+        put_native_function(number_prototype_, valueOf_str_,[check_type](const value& this_, const std::vector<value>&){
             check_type(this_);
             return this_.object_value()->internal_value();
         }, 0);
@@ -585,24 +602,24 @@ private:
 
 
     object_ptr new_string(const string& val) {
-        auto o = object::make(string{"String"}, string_prototype_);
+        auto o = object::make(String_str_, string_prototype_);
         o->internal_value(value{val});
-        o->put(string{"length"}, value{static_cast<double>(val.view().length())}, prototype_attributes);
+        o->put(length_str_, value{static_cast<double>(val.view().length())}, prototype_attributes);
         return o;
     }
 
     object_ptr make_string_object() {
-        string_prototype_ = object::make(string{"String"}, object_prototype_);
+        string_prototype_ = object::make(String_str_, object_prototype_);
         string_prototype_->internal_value(value{string{""}});
 
         auto c = make_function([global = self_](const value&, const std::vector<value>& args) {
             return value{global->new_string(args.empty() ? string{""} : to_string(args.front()))};
-        }, native_function_body("String"), 1);
+        }, native_function_body(String_str_), 1);
         c->call_function(gc_function::make(gc_heap::local_heap(), [](const value&, const std::vector<value>& args) {
             return value{args.empty() ? string{""} : to_string(args.front())};
         }));
-        c->put(string{"prototype"}, value{string_prototype_}, prototype_attributes);
-        put_native_function(c, "fromCharCode", [](const value&, const std::vector<value>& args){
+        c->put(prototype_str_, value{string_prototype_}, prototype_attributes);
+        put_native_function(c, string{"fromCharCode"}, [](const value&, const std::vector<value>& args){
             std::wstring s;
             for (const auto& a: args) {
                 s.push_back(to_uint16(a));
@@ -614,19 +631,19 @@ private:
             validate_type(this_, p, "String");
         };
 
-        string_prototype_->put(string{"constructor"}, value{c}, default_attributes);
-        put_native_function(string_prototype_, "toString", [check_type](const value& this_, const std::vector<value>&){
+        string_prototype_->put(constructor_str_, value{c}, default_attributes);
+        put_native_function(string_prototype_, toString_str_, [check_type](const value& this_, const std::vector<value>&){
             check_type(this_);
             return this_.object_value()->internal_value();
         }, 0);
-        put_native_function(string_prototype_, "valueOf", [check_type](const value& this_, const std::vector<value>&){
+        put_native_function(string_prototype_, valueOf_str_, [check_type](const value& this_, const std::vector<value>&){
             check_type(this_);
             return this_.object_value()->internal_value();
         }, 0);
 
 
         auto make_string_function = [global = self_](const char* name, int num_args, auto f) {
-            global->put_native_function(global->string_prototype_, name, [f](const value& this_, const std::vector<value>& args){
+            global->put_native_function(global->string_prototype_, string{name}, [f](const value& this_, const std::vector<value>& args){
                 return value{f(to_string(this_).view(), args)};
             }, num_args);
         };
@@ -728,9 +745,9 @@ private:
 
     value array_constructor(const value&, const std::vector<value>& args) {
         if (args.size() == 1 && args[0].type() == value_type::number) {
-            return value{array_object::make(array_prototype_, to_uint32(args[0].number_value()))};
+            return value{array_object::make(Array_str_, array_prototype_, to_uint32(args[0].number_value()))};
         }
-        auto arr = array_object::make(array_prototype_, static_cast<uint32_t>(args.size()));
+        auto arr = array_object::make(Array_str_, array_prototype_, static_cast<uint32_t>(args.size()));
         for (uint32_t i = 0; i < args.size(); ++i) {
             arr->unchecked_put(i, args[i]);
         }
@@ -738,15 +755,15 @@ private:
     }
 
     object_ptr make_array_object() {
-        array_prototype_ = array_object::make(object_prototype_, 0);
+        array_prototype_ = array_object::make(Array_str_, object_prototype_, 0);
 
         auto o = make_function([global = self_](const value& this_, const std::vector<value>& args) {
             return global->array_constructor(this_, args);
-        }, native_function_body("Array"), 1);
-        o->put(string{"prototype"}, value{array_prototype_}, prototype_attributes);
+        }, native_function_body(Array_str_), 1);
+        o->put(prototype_str_, value{array_prototype_}, prototype_attributes);
 
-        array_prototype_->put(string{"constructor"}, value{o}, default_attributes);
-        put_native_function(array_prototype_, "toString", [](const value& this_, const std::vector<value>&) {
+        array_prototype_->put(constructor_str_, value{o}, default_attributes);
+        put_native_function(array_prototype_, toString_str_, [](const value& this_, const std::vector<value>&) {
             assert(this_.type() == value_type::object);
             return value{join(this_.object_value(), L",")};
         }, 0);
@@ -828,7 +845,7 @@ private:
     // Console
     //
     auto make_console_object() {
-        auto console = object::make(string{"Object"}, object_prototype_);
+        auto console = object::make(Object_str_, object_prototype_);
 
         using timer_clock = std::chrono::steady_clock;
 
@@ -877,7 +894,7 @@ private:
     // Math
     //
     auto make_math_object() {
-        auto math = object::make(string{"Object"}, object_prototype_);
+        auto math = object::make(Object_str_, object_prototype_);
 
         math->put(string{"E"},       value{2.7182818284590452354}, default_attributes);
         math->put(string{"LN10"},    value{2.302585092994046}, default_attributes);
@@ -942,13 +959,13 @@ private:
     //
 
     auto new_date(double val) {
-        return gc_heap::local_heap().make<date_object>(date_prototype_, val);
+        return gc_heap::local_heap().make<date_object>(Date_str_, date_prototype_, val);
     }
 
     auto make_date_object() {
         //const auto attr = property_attribute::dont_enum | property_attribute::dont_delete | property_attribute::read_only;
 
-        date_prototype_ = object::make(string{"Date"}, object_prototype_);
+        date_prototype_ = object::make(Date_str_, object_prototype_);
         date_prototype_->internal_value(value{NAN});
 
         auto c = make_function([global = self_](const value&, const std::vector<value>& args) {
@@ -965,12 +982,12 @@ private:
                 NOT_IMPLEMENTED("new Date(value)");
             }
             return value{date_helper::time_clip(date_helper::utc(date_helper::time_from_args(args)))};
-        }, native_function_body("Date"), 7);
+        }, native_function_body(Date_str_), 7);
         c->call_function(gc_function::make(gc_heap::local_heap(), [global = self_](const value&, const std::vector<value>&) {
             // Equivalent to (new Date()).toString()
             return value{to_string(value{global->new_date(date_helper::current_time_utc())})};
         }));
-        c->put(string{"prototype"}, value{date_prototype_}, prototype_attributes);
+        c->put(prototype_str_, value{date_prototype_}, prototype_attributes);
         put_native_function(c, "parse", [](const value&, const std::vector<value>& args) {
             if (1) NOT_IMPLEMENTED(get_arg(args, 0));
             return value::undefined;
@@ -982,7 +999,7 @@ private:
             return value{date_helper::time_clip(date_helper::time_from_args(args))};
         }, 7);
 
-        date_prototype_->put(string{L"constructor"}, value{c}, default_attributes);
+        date_prototype_->put(constructor_str_, value{c}, default_attributes);
         // TODO: Date.parse(string)
 
         auto check_type = [p = date_prototype_](const value& this_) {
@@ -1090,17 +1107,17 @@ private:
     //
     void popuplate_global() {
         object_prototype_   = object::make(string{"ObjectPrototype"}, nullptr);
-        function_prototype_ = object::make(string{"Function"}, object_prototype_);
+        function_prototype_ = object::make(Function_str_, object_prototype_);
 
         // §15.1
-        put(string{"Object"}, value{make_object_object()}, default_attributes);
-        put(string{"Function"}, value{make_function_object()}, default_attributes);
-        put(string{"Array"}, value{make_array_object()}, default_attributes);
-        put(string{"String"}, value{make_string_object()}, default_attributes);
-        put(string{"Boolean"}, value{make_boolean_object()}, default_attributes);
-        put(string{"Number"}, value{make_number_object()}, default_attributes);
+        put(Object_str_, value{make_object_object()}, default_attributes);
+        put(Function_str_, value{make_function_object()}, default_attributes);
+        put(Array_str_, value{make_array_object()}, default_attributes);
+        put(String_str_, value{make_string_object()}, default_attributes);
+        put(Boolean_str_, value{make_boolean_object()}, default_attributes);
+        put(Number_str_, value{make_number_object()}, default_attributes);
         put(string{"Math"}, value{make_math_object()}, default_attributes);
-        put(string{"Date"}, value{make_date_object()}, default_attributes);
+        put(Date_str_, value{make_date_object()}, default_attributes);
 
         put(string{"NaN"}, value{NAN}, default_attributes);
         put(string{"Infinity"}, value{INFINITY}, default_attributes);
@@ -1148,6 +1165,8 @@ private:
         return false; // This object is lazy
     }
 
+    void put_function(const object_ptr& o, const native_function_type& f, const string& body_text, int named_args) override;
+
     friend global_object;
 };
 
@@ -1158,26 +1177,25 @@ gc_heap_ptr<global_object> global_object::make() {
     return global;
 }
 
-void global_object::put_function(const object_ptr& o, const native_function_type& f, const string& body_text, int named_args) {
-    assert(o->class_name().view() == L"Function");
+string global_object::native_function_body(const string& name) {
+    std::wostringstream oss;
+    oss << "function " << name.view() << "() { [native code] }";
+    return string{oss.str()};
+}
+
+void global_object_impl::put_function(const object_ptr& o, const native_function_type& f, const string& body_text, int named_args) {
+    assert(o->class_name().view() == Function_str_.view());
     assert(!o->call_function());
-    assert(o->get(L"prototype").type() == value_type::object);
-    o->put(string{array_object::length_str}, value{static_cast<double>(named_args)}, property_attribute::read_only | property_attribute::dont_delete | property_attribute::dont_enum);
-    o->put(string{"arguments"}, value::null, property_attribute::read_only | property_attribute::dont_delete | property_attribute::dont_enum);
+    assert(o->get(prototype_str_.view()).type() == value_type::object);
+    o->put(length_str_, value{static_cast<double>(named_args)}, property_attribute::read_only | property_attribute::dont_delete | property_attribute::dont_enum);
+    o->put(arguments_str_, value::null, property_attribute::read_only | property_attribute::dont_delete | property_attribute::dont_enum);
     o->call_function(f);
     o->construct_function(f);
     assert(o->internal_value().type() == value_type::undefined);
     o->internal_value(value{body_text});
-    auto p = o->get(L"prototype").object_value();
-    p->put(string{"constructor"}, value{o}, global_object_impl::default_attributes);
+    auto p = o->get(prototype_str_.view()).object_value();
+    p->put(constructor_str_, value{o}, global_object_impl::default_attributes);
 }
-
-string global_object::native_function_body(const char* name) {
-    std::wostringstream oss;
-    oss << "function " << name << "() { [native code] }";
-    return string{oss.str()};
-}
-
 
 
 } // namespace mjs

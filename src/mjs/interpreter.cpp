@@ -130,7 +130,7 @@ public:
             return ret.result;
         }, 1);
 
-        global_object::put_function(global_->get(L"Function").object_value(), gc_function::make(gc_heap::local_heap(), [this](const value&, const std::vector<value>& args) {
+        global_->put_function(global_->get(L"Function").object_value(), gc_function::make(gc_heap::local_heap(), [this](const value&, const std::vector<value>& args) {
             std::wstring body{}, p{};
             if (args.empty()) {
             } else if (args.size() == 1) {
@@ -150,7 +150,7 @@ public:
             }
 
             return value{create_function(static_cast<const function_definition&>(*bs->l().front()), make_scope(global_, nullptr))};
-        }), global_object::native_function_body("Function"), 1);
+        }), global_object::native_function_body(string{L"Function"}), 1);
 
         for (const auto& id: hoisting_visitor::scan(program)) {
             global_->put(string{id}, value::undefined);
