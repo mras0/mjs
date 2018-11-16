@@ -644,10 +644,7 @@ private:
 
     private:
         explicit scope(const object_ptr& act, const scope_ptr& prev) : activation(act), prev(prev) {}
-
-        gc_heap_ptr_untyped move(gc_heap& new_heap) {
-            return new_heap.make<scope>(std::move(*this));
-        }
+        scope(scope&&) = default;
     };
     class auto_scope {
     public:

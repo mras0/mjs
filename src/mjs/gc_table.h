@@ -24,7 +24,7 @@ public:
     uint32_t length() const { return length_; }
 
     [[nodiscard]] gc_heap_ptr<gc_table> copy_with_increased_capacity() const {
-        auto nt = make(*heap_, capacity() * 2);
+        auto nt = make(heap_, capacity() * 2);
         nt->length_ = length();
         // Since it's the same heap the representation can just be copied
         std::memcpy(nt->entries(), entries(), length() * sizeof(entry_representation));
@@ -45,8 +45,8 @@ public:
         }
 
         gc_heap_ptr<gc_string> key() const {
-            assert(tab_ && tab_->heap_);
-            return e().key.track(*tab_->heap_);
+            assert(tab_);
+            return e().key.track(tab_->heap_);
         }
 
         property_attribute property_attributes() const {
@@ -59,8 +59,8 @@ public:
         }
 
         mjs::value value() const {
-            assert(tab_ && tab_->heap_);
-            return e().value.get_value(*tab_->heap_);
+            assert(tab_);
+            return e().value.get_value(tab_->heap_);
         }
 
         bool has_attribute(property_attribute a) const {
@@ -88,7 +88,7 @@ public:
 
     void insert(const string& key, const value& v, property_attribute attr) {
         auto& raw_key = key.unsafe_raw_get();
-        assert(&raw_key.heap() == heap_);
+        assert(&raw_key.heap() == &heap_);
         assert(length() < capacity());
         assert(find(key.view()) == end());
         entries()[length_++] = entry_representation{
@@ -124,7 +124,7 @@ public:
 private:
     friend gc_type_info_registration<gc_table>;
 
-    gc_heap* heap_;     // TODO: Deduce somehow?
+    gc_heap& heap_;     // TODO: Deduce somehow?
     uint32_t capacity_; // TODO: Get from allocation header
     uint32_t length_;
 
@@ -132,10 +132,10 @@ private:
         return reinterpret_cast<entry_representation*>(const_cast<std::byte*>(reinterpret_cast<const std::byte*>(this)) + sizeof(*this));
     }
 
-    explicit gc_table(gc_heap& h, uint32_t capacity) : heap_(&h), capacity_(capacity), length_(0) {
+    explicit gc_table(gc_heap& h, uint32_t capacity) : heap_(h), capacity_(capacity), length_(0) {
     }
 
-    gc_heap_ptr_untyped move(gc_heap& new_heap) const;
+    gc_table(gc_table&& from);
 
     bool fixup(gc_heap& new_heap);
 };

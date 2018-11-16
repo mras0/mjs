@@ -32,15 +32,16 @@ private:
     public:
         virtual void destroy() = 0;
         virtual value call(const value& this_, const std::vector<value>& args) = 0;
-        virtual gc_heap_ptr<gc_function> move(gc_heap& new_heap) = 0;
+        virtual void move(model* to) = 0;
     };
     template<typename F>
     class impl : public model {
     public:
         explicit impl(const F& f) : f(f) {}
+        explicit impl(F&& f) : f(std::move(f)) {}
         void destroy() override { f.~F(); }
         value call(const value& this_, const std::vector<value>& args) override { return f(this_, args); }
-        gc_heap_ptr<gc_function> move(gc_heap& new_heap) override { return make(new_heap, f); }
+        void move(model* to) override { new (to) impl<F>(std::move(*this)); }
     private:
         F f;
     };
@@ -52,12 +53,12 @@ private:
     explicit gc_function() {
     }
 
-    ~gc_function() {
-        get_model()->destroy();
+    gc_function(gc_function&& from) {
+        from.get_model()->move(get_model());
     }
 
-    gc_heap_ptr_untyped move(gc_heap& new_heap) const {
-        return get_model()->move(new_heap);
+    ~gc_function() {
+        get_model()->destroy();
     }
 };
 

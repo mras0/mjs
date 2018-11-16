@@ -61,10 +61,6 @@ namespace mjs {
 std::vector<const gc_type_info*> gc_type_info::types_;
 const gc_type_info::fixup_function gc_type_info::no_fixup_needed = reinterpret_cast<gc_type_info::fixup_function>(1);
 
-gc_heap_ptr_untyped gc_type_info::move(gc_heap& new_heap, void* p) const {
-    return move_(new_heap, p);
-}
-
 //
 // value_representation
 //
@@ -226,20 +222,22 @@ uint32_t gc_heap::calc_used() const {
 }
 
 void gc_heap::garbage_collect() {
-    gc_heap new_heap{capacity_}; // TODO: Allow resize
+    {
+        gc_heap new_heap{capacity_}; // TODO: Allow resize
 
-    std::vector<const gc_heap_ptr_untyped*> roots;
+        std::vector<const gc_heap_ptr_untyped*> roots;
 
-    std::copy_if(pointers_.begin(), pointers_.end(), std::back_inserter(roots), [this](const gc_heap_ptr_untyped* p) { return !is_internal(p); });
+        std::copy_if(pointers_.begin(), pointers_.end(), std::back_inserter(roots), [this](const gc_heap_ptr_untyped* p) { return !is_internal(p); });
 
-    for (auto p: roots) {
-        // If the assert fires a GC allocated object used something that captured gc_heap_ptr's (e.g. a raw std::function)
-        assert(pointers_.find(p) != pointers_.end() && "Internal pointer was accidently classified as root!");
-        const_cast<gc_heap_ptr_untyped*>(p)->pos_ = gc_move(new_heap, p->pos_);
+        for (auto p: roots) {
+            // If the assert fires a GC allocated object used something that captured gc_heap_ptr's (e.g. a raw std::function)
+            assert(pointers_.find(p) != pointers_.end() && "Internal pointer was accidently classified as root!");
+            const_cast<gc_heap_ptr_untyped*>(p)->pos_ = gc_move(new_heap, p->pos_);
+        }
+
+        std::swap(storage_, new_heap.storage_);
+        std::swap(next_free_, new_heap.next_free_);
     }
-
-    std::swap(storage_, new_heap.storage_);
-    std::swap(next_free_, new_heap.next_free_);
 }
 
 uint32_t gc_heap::gc_move(gc_heap& new_heap, uint32_t pos) {
@@ -254,7 +252,11 @@ uint32_t gc_heap::gc_move(gc_heap& new_heap, uint32_t pos) {
     const auto& type_info = a.type_info();
     void* const p = &storage_[pos];
 
-    const auto new_pos = type_info.move(new_heap, p).pos_;
+    auto new_o = new_heap.allocate((a.size-1)*sizeof(uint64_t));
+    const auto new_pos = new_o.pos_;
+    assert(new_heap.storage_[new_pos-1].allocation.size == a.size);
+    type_info.move(new_o.get(), p);
+    new_heap.storage_[new_pos-1].allocation.type = a.type;
     type_info.destroy(p);
 
     a.type = gc_moved_type_index;
@@ -265,8 +267,7 @@ uint32_t gc_heap::gc_move(gc_heap& new_heap, uint32_t pos) {
     auto u = reinterpret_cast<gc_heap_ptr_untyped*>(&new_heap.storage_[new_pos] + new_heap.storage_[new_pos-1].allocation.size - 1);
 
     // Let the object do fixup on its own if it wants to
-    if (!type_info.fixup(new_heap, &new_heap.storage_[new_pos])) {
-
+    if (!type_info.fixup(new_heap, new_o.get())) {
         // Handle it otherwise
         for (auto it = pointers_.lower_bound(l); it != pointers_.end() && (*it) < u; ++it) {
             const_cast<gc_heap_ptr_untyped*>(*it)->pos_ = gc_move(new_heap, (*it)->pos_);

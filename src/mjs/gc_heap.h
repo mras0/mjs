@@ -35,8 +35,10 @@ public:
         }
     }
 
-    // Move the object at 'p' to 'new_heap' (might be the same as the original heap in the future)
-    gc_heap_ptr_untyped move(gc_heap& new_heap, void* p) const;
+    // Move the object from 'from' to 'to'
+    void move(void* to, void* from) const {
+        move_(to, from);
+    }
 
     // Handle fixup of untacked pointers (happens after the object has been otherwise moved to avoid infite recursion)
     bool fixup(gc_heap& new_heap, void* p) const {
@@ -57,7 +59,7 @@ public:
     }
 protected:
     using destroy_function = void (*)(void*);
-    using move_function = gc_heap_ptr_untyped (*)(gc_heap&, void*);
+    using move_function = void (*)(void*, void*);
     using fixup_function = bool (*)(gc_heap&, void*);
 
     static const fixup_function no_fixup_needed; // special value (not callable!)
@@ -103,7 +105,7 @@ public:
     }
 
 private:
-    explicit gc_type_info_registration() : gc_type_info(std::is_trivially_destructible_v<T>?nullptr:&destroy, move_func(), fixup_func(), std::is_convertible_v<T*, object*>, typeid(T).name()) {}
+    explicit gc_type_info_registration() : gc_type_info(std::is_trivially_destructible_v<T>?nullptr:&destroy, &move, fixup_func(), std::is_convertible_v<T*, object*>, typeid(T).name()) {}
 
     friend gc_heap;
 
@@ -117,13 +119,7 @@ private:
         static_cast<T*>(p)->~T();
     }
 
-    template<typename U, typename=void>
-    struct has_move_t : std::false_type{};
-
-    template<typename U>
-    struct has_move_t<U, std::void_t<decltype(std::declval<U>().move(std::declval<gc_heap&>()))>> : std::true_type{};
-
-
+    // Detectors
     template<typename U, typename=void>
     struct has_fixup_t : std::false_type{};
 
@@ -136,7 +132,9 @@ private:
     template<typename U>
     struct has_trivial_fixup_t<U, std::void_t<decltype(std::declval<U>().trivial_fixup())>> : std::true_type{};
 
-    static move_function move_func();
+    static void move(void* to, void* from) {
+        new (to) T (std::move(*static_cast<T*>(from)));
+    }
 
     static fixup_function fixup_func() {
         if constexpr (has_trivial_fixup_t<T>::value) {
@@ -366,15 +364,6 @@ public:
 private:
     uint32_t pos_;
 };
-
-template<typename T>
-gc_type_info::move_function gc_type_info_registration<T>::move_func() {
-    if constexpr (has_move_t<T>::value) {
-        return [](gc_heap& new_heap, void* p) { return static_cast<T*>(p)->move(new_heap); };
-    } else {
-        return [](gc_heap& new_heap, void* p) { return gc_heap_ptr_untyped{new_heap.make<T>(std::move(*static_cast<T*>(p)))}; };
-    }
-}
 
 template<typename T, typename... Args>
 gc_heap_ptr<T> gc_heap::construct(const gc_heap_ptr_untyped& p, Args&&... args) {

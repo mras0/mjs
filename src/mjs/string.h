@@ -30,8 +30,8 @@ private:
         std::memcpy(data(), s.data(), s.length() * sizeof(wchar_t));
     }
 
-    gc_heap_ptr_untyped move(gc_heap& new_heap) const {
-        return make(new_heap, view());
+    explicit gc_string(gc_string&& other) : length_(other.length_) {
+        std::memcpy(data(), other.data(), other.length_ * sizeof(wchar_t));
     }
 
     void trivial_fixup();
