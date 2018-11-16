@@ -110,7 +110,7 @@ private:
 class interpreter::impl {
 public:
     explicit impl(const block_statement& program, const on_statement_executed_type& on_statement_executed) : global_(global_object::make()), on_statement_executed_(on_statement_executed) {
-        assert(!global_->has_property(string{"eval"}));
+        assert(!global_->has_property(L"eval"));
 
         global_->put_native_function(global_, "eval", [this](const value&, const std::vector<value>& args) {
             if (args.empty()) {
@@ -130,7 +130,7 @@ public:
             return ret.result;
         }, 1);
 
-        global_object::put_function(global_->get(string{"Function"}).object_value(), gc_function::make(gc_heap::local_heap(), [this](const value&, const std::vector<value>& args) {
+        global_object::put_function(global_->get(L"Function").object_value(), gc_function::make(gc_heap::local_heap(), [this](const value&, const std::vector<value>& args) {
             std::wstring body{}, p{};
             if (args.empty()) {
             } else if (args.size() == 1) {
@@ -235,7 +235,7 @@ public:
             if (!base) {
                 return value{true};
             }
-            return value{base->delete_property(prop)};
+            return value{base->delete_property(prop.view())};
         } else if (e.op() == token_type::void_) {
             (void)get_value(u);
             return value::undefined;
@@ -473,12 +473,11 @@ public:
 
     completion operator()(const variable_statement& s) {
         for (const auto& d: s.l()) {
-            auto id = string{d.id()};
-            assert(scopes_->activation->has_property(id));
+            assert(scopes_->activation->has_property(d.id()));
             if (d.init()) {
                 // Evaulate in two steps to avoid using stale activation object pointer in case the evaulation forces a garbage collection
                 auto init_val = eval(*d.init());
-                scopes_->activation->put(id, init_val);
+                scopes_->activation->put(string{d.id()}, init_val);
             }
         }
         return completion{};
@@ -628,7 +627,7 @@ private:
         friend gc_type_info_registration<scope>;
 
         reference lookup(const string& id) const {
-            if (!prev || activation->has_property(id)) {
+            if (!prev || activation->has_property(id.view())) {
                 return reference{activation, id};
             }
             return prev->lookup(id);
@@ -722,7 +721,7 @@ private:
             as->put(string{"callee"}, value{callee}, property_attribute::dont_enum);
             as->put(string{"length"}, value{static_cast<double>(args.size())}, property_attribute::dont_enum);
             for (uint32_t i = 0; i < args.size(); ++i) {
-                as->put(index_string(i), args[i], property_attribute::dont_enum);
+                as->put(string{index_string(i)}, args[i], property_attribute::dont_enum);
             }
 
             // Scope
@@ -735,7 +734,7 @@ private:
             }
             // Variables
             for (const auto& id: ids) {
-                assert(!activation->has_property(string{id})); // TODO: Handle this..
+                assert(!activation->has_property(id)); // TODO: Handle this..
                 activation->put(string{id}, value::undefined);
             }
             return eval(*block).result;
@@ -745,7 +744,7 @@ private:
         callee->construct_function(gc_function::make(gc_heap::local_heap(), [global = global_, callee, id](const value& unsused_this_, const std::vector<value>& args) {
             assert(unsused_this_.type() == value_type::undefined); (void)unsused_this_;
             assert(!id.view().empty());
-            auto p = callee->get(string("prototype"));
+            auto p = callee->get(L"prototype");
             auto o = value{object::make(id, p.type() == value_type::object ? p.object_value() : global->object_prototype())};
             auto r = callee->call_function()->call(o, args);
             return r.type() == value_type::object ? r : value{o};

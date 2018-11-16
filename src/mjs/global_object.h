@@ -47,7 +47,7 @@ protected:
     }
 };
 
-extern string index_string(uint32_t index);
+extern std::wstring index_string(uint32_t index);
 
 } // namespace mjs
 

@@ -33,7 +33,7 @@ const char* string_value(value_type t) {
 //
 
 value reference::get_value() const {
-    return base_->get(property_name_);
+    return base_->get(property_name_.view());
 }
 
 void reference::put_value(const value& val) const {
@@ -147,8 +147,8 @@ value to_primitive(const value& v, value_type hint) {
 
     assert(hint == value_type::number || hint == value_type::string);
     for (int i = 0; i < 2; ++i) {
-        const char* id = (hint == value_type::string) ^ i ? "toString" : "valueOf";
-        const auto fo = o->get(mjs::string{id});
+        const wchar_t* const id = (hint == value_type::string) ^ i ? L"toString" : L"valueOf";
+        const auto fo = o->get(id);
         if (fo.type() != value_type::object) {
             continue;
         }

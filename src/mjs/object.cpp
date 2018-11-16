@@ -41,5 +41,22 @@ bool object::fixup(gc_heap& new_heap) {
     return true;
 }
 
+std::vector<string> object::property_names() const {
+    std::vector<string> names;
+    add_property_names(names);
+    return names;
+}
+
+void object::add_property_names(std::vector<string>& names) const {
+    auto& props = properties_.dereference(heap_);
+    for (auto it = props.begin(); it != props.end(); ++it) {
+        if (!it.has_attribute(property_attribute::dont_enum)) {
+            names.push_back(it.key());
+        }
+    }
+    if (prototype_) {
+        prototype_.dereference(heap()).add_property_names(names);
+    }
+}
 
 } // namespace mjs

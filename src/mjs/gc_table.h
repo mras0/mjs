@@ -49,8 +49,8 @@ public:
             return e().key.track(tab_->heap_);
         }
 
-        bool key_equal(const std::wstring_view& k) const {
-            return e().key.dereference(tab_->heap_).view() == k;
+        std::wstring_view key_view() const {
+            return e().key.dereference(tab_->heap_).view();
         }
 
         property_attribute property_attributes() const {
@@ -105,7 +105,7 @@ public:
     entry find(const std::wstring_view& key) {
         auto it = begin(); 
         while (it != end()) {
-            if (it.key_equal(key)) {
+            if (it.key_view() == key) {
                 break;
             }
             ++it;

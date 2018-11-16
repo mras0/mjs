@@ -10,6 +10,9 @@
 #include <unordered_map>
 #include <memory>
 
+// TODO: Re-use commonly used strings (e.g. "length", "prototype")
+// TODO: Use string pool for index_string()'s? (or at least the commonly used ones...)
+
 // TODO: Get rid of this stuff alltogether
 #ifndef _WIN32
 #define _mkgmtime timegm
@@ -17,14 +20,14 @@
 
 namespace mjs {
 
-string index_string(uint32_t index) {
+std::wstring index_string(uint32_t index) {
     wchar_t buffer[10], *p = &buffer[10];
     *--p = '\0';
     do {
         *--p = '0' + index % 10;
         index /= 10;
     } while (index);
-    return string{p};
+    return std::wstring{p};
 }
 
 std::wstring_view ltrim(std::wstring_view s) {
@@ -136,52 +139,58 @@ class array_object : public object {
 public:
     friend gc_type_info_registration<array_object>;
 
+    static constexpr const std::wstring_view length_str{L"length", 6};
+
     static gc_heap_ptr<array_object> make(const object_ptr& prototype, uint32_t length) {
         return gc_heap::local_heap().make<array_object>(prototype, length);
     }
 
     void put(const string& name, const value& val, property_attribute attr) override {
-        if (!can_put(name)) {
+        if (!can_put(name.view())) {
             return;
         }
 
-        if (name.view() == L"length") {
-            const uint32_t length = to_uint32(object::get(string{"length"}));
+        if (name.view() == length_str) {
+            const uint32_t old_length = length();
             const uint32_t new_length = to_uint32(val);
-            if (new_length < length) {
-                for (uint32_t i = new_length; i < length; ++i) {
-                    const bool res = object::delete_property(index_string(i));
-                    assert(res); (void)res;
+            if (new_length < old_length) {
+                for (uint32_t i = new_length; i < old_length; ++i) {
+                    [[maybe_unused]] const bool res = object::delete_property(index_string(i));
+                    assert(res);
                 }
             }
-            object::put(string{"length"}, value{static_cast<double>(new_length)});
+            object::put(string{length_str}, value{static_cast<double>(new_length)});
         } else {
             object::put(name, val, attr);
             uint32_t index = to_uint32(value{name});
-            if (name.view() == to_string(index).view() && index != UINT32_MAX && index >= to_uint32(object::get(string{"length"}))) {
-                object::put(string{"length"}, value{static_cast<double>(index+1)});
+            if (name.view() == to_string(index).view() && index != UINT32_MAX && index >= length()) {
+                object::put(string{length_str}, value{static_cast<double>(index+1)});
             }
         }
     }
 
     void unchecked_put(uint32_t index, const value& val) {
         const auto name = index_string(index);
-        assert(index < to_uint32(get(string{"length"})) && can_put(name));
-        object::put(name, val);
+        assert(index < to_uint32(get(length_str)) && can_put(name));
+        object::put(string{name}, val);
     }
 
 private:
+    uint32_t length() {
+        return to_uint32(object::get(length_str));
+    }
+
     explicit array_object(const object_ptr& prototype, uint32_t length) : object{string{"Array"}, prototype} {
-        object::put(string{"length"}, value{static_cast<double>(length)}, property_attribute::dont_enum | property_attribute::dont_delete);
+        object::put(string{length_str}, value{static_cast<double>(length)}, property_attribute::dont_enum | property_attribute::dont_delete);
     }
 };
 
 string join(const object_ptr& o, const std::wstring_view& sep) {
-    const uint32_t l = to_uint32(o->get(string{"length"}));
+    const uint32_t l = to_uint32(o->get(array_object::length_str));
     std::wstring s;
     for (uint32_t i = 0; i < l; ++i) {
         if (i) s += sep;
-        const auto& oi = o->get(string{std::to_wstring(i)});
+        const auto& oi = o->get(index_string(i));
         if (oi.type() != value_type::undefined && oi.type() != value_type::null) {
             s += to_string(oi).view();
         }
@@ -419,7 +428,8 @@ private:
             return;
         }
         std::wostringstream woss;
-        woss << v << " is not a " << expected_type;
+        mjs::debug_print(woss, v, 2, 1);
+        woss << " is not a " << expected_type;
         THROW_RUNTIME_ERROR(woss.str());
     }
 
@@ -655,12 +665,12 @@ private:
         make_string_function("split", 1, [global = self_](const std::wstring_view& s, const std::vector<value>& args){
             auto a = global->array_constructor(value::null, {}).object_value();
             if (args.empty()) {
-                a->put(index_string(0), value{string{s}});
+                a->put(string{index_string(0)}, value{string{s}});
             } else {
                 const auto sep = to_string(args.front());
                 if (sep.view().empty()) {
                     for (uint32_t i = 0; i < s.length(); ++i) {
-                        a->put(index_string(i), value{string{ s.substr(i,1) }});
+                        a->put(string{index_string(i)}, value{string{ s.substr(i,1) }});
                     }
                 } else {
                     size_t pos = 0;
@@ -670,11 +680,11 @@ private:
                         if (next_pos == std::wstring_view::npos) {
                             break;
                         }
-                        a->put(index_string(i), value{string{ s.substr(pos, next_pos-pos) }});
+                        a->put(string{index_string(i)}, value{string{ s.substr(pos, next_pos-pos) }});
                         pos = next_pos + 1;
                     }
                     if (pos < s.length()) {
-                        a->put(index_string(i), value{string{ s.substr(pos) }});
+                        a->put(string{index_string(i)}, value{string{ s.substr(pos) }});
                     }
                 }
             }
@@ -751,21 +761,21 @@ private:
         put_native_function(array_prototype_, "reverse", [](const value& this_, const std::vector<value>&) {
             assert(this_.type() == value_type::object);
             const auto& o = this_.object_value();
-            const uint32_t length = to_uint32(o->get(string{L"length"}));
+            const uint32_t length = to_uint32(o->get(array_object::length_str));
             for (uint32_t k = 0; k != length / 2; ++k) {
                 const auto i1 = index_string(k);
                 const auto i2 = index_string(length - k - 1);
                 auto v1 = o->get(i1);
                 auto v2 = o->get(i2);
-                o->put(i1, v2);
-                o->put(i2, v1);
+                o->put(string{i1}, v2);
+                o->put(string{i2}, v1);
             }
             return this_;
         }, 0);
         put_native_function(array_prototype_, "sort", [](const value& this_, const std::vector<value>& args) {
             assert(this_.type() == value_type::object);
             const auto& o = this_.object_value();
-            const uint32_t length = to_uint32(o->get(string{L"length"}));
+            const uint32_t length = to_uint32(o->get(array_object::length_str));
 
             native_function_type comparefn{};
             if (!args.empty()) {
@@ -807,7 +817,7 @@ private:
                 return sort_compare(x, y) < 0;
             });
             for (uint32_t i = 0; i < length; ++i) {
-                o->put(index_string(i), values[i]);
+                o->put(string{index_string(i)}, values[i]);
             }
             return this_;
         }, 1);
@@ -1151,14 +1161,14 @@ gc_heap_ptr<global_object> global_object::make() {
 void global_object::put_function(const object_ptr& o, const native_function_type& f, const string& body_text, int named_args) {
     assert(o->class_name().view() == L"Function");
     assert(!o->call_function());
-    assert(o->get(string{"prototype"}).type() == value_type::object);
-    o->put(string{"length"}, value{static_cast<double>(named_args)}, property_attribute::read_only | property_attribute::dont_delete | property_attribute::dont_enum);
+    assert(o->get(L"prototype").type() == value_type::object);
+    o->put(string{array_object::length_str}, value{static_cast<double>(named_args)}, property_attribute::read_only | property_attribute::dont_delete | property_attribute::dont_enum);
     o->put(string{"arguments"}, value::null, property_attribute::read_only | property_attribute::dont_delete | property_attribute::dont_enum);
     o->call_function(f);
     o->construct_function(f);
     assert(o->internal_value().type() == value_type::undefined);
     o->internal_value(value{body_text});
-    auto p = o->get(string{"prototype"}).object_value();
+    auto p = o->get(L"prototype").object_value();
     p->put(string{"constructor"}, value{o}, global_object_impl::default_attributes);
 }
 

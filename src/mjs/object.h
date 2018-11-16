@@ -48,55 +48,55 @@ public:
     void internal_value(const value& v) { value_ = v; }
 
     // [[Get]] (PropertyName)
-    value get(const string& name) const {
-        auto& props = properties_.dereference(heap_);
-        auto it = props.find(name);
-        if (it != props.end()) {
-            return it.value();
-        }
-        return prototype_ ? prototype_.dereference(heap_).get(name) : value::undefined;
+    value get(const std::wstring_view& name) const {
+        auto [it, pp] = deep_find(name);
+        return it != pp->end() ? it.value() : value::undefined;
     }
 
     // [[Put]] (PropertyName, Value)
     virtual void put(const string& name, const value& val, property_attribute attr = property_attribute::none) {
-        if (!can_put(name)) {
-            return;
-        }
+        // See if there is already a property with this name
         auto& props = properties_.dereference(heap_);
-        auto it = props.find(name);
-        if (it != props.end()) {
-            it.value(val);
-        } else {
-            if (props.length() == props.capacity()) {
-                properties_ = props.copy_with_increased_capacity();
+        if (auto [it, pp] = deep_find(name.view()); it != pp->end()) {
+            // CanPut?
+            if (it.has_attribute(property_attribute::read_only)) {
+                return;
             }
-
-            // properties_ could have changed, so don't use props
+            // Did the property come from this object's property list?
+            if (pp == &props) {
+                // Yes, update
+                it.value(val);
+                return;
+            }
+            // Handle as insertion
+        }
+        // Room to insert another element?
+        if (props.length() != props.capacity()) {
+            // Yes, insert into existing table
+            props.insert(name, val, attr);
+        } else {
+            // No, increase the capacity
+            properties_ = props.copy_with_increased_capacity();
+            // let props (old properties_) be collected
+            // MUST dereference again here
             properties_.dereference(heap_).insert(name, val, attr);
         }
     }
 
     // [[CanPut]] (PropertyName)
-    bool can_put(const string& name) const {
-        auto& props = properties_.dereference(heap_);
-        auto it = props.find(name);
-        if (it != props.end()) {
-            return !it.has_attribute(property_attribute::read_only);
-        }
-        return prototype_ ? prototype_.dereference(heap_).can_put(name) : true;
+    bool can_put(const std::wstring_view& name) const {
+        auto [it, pp] = deep_find(name);
+        return it != pp->end() ? !it.has_attribute(property_attribute::read_only) : true;
     }
 
     // [[HasProperty]] (PropertyName)
-    bool has_property(const string& name) const {
-        auto& props = properties_.dereference(heap_);
-        if (props.find(name) != props.end()) {
-            return true;
-        }
-        return prototype_ ? prototype_.dereference(heap_).has_property(name) : false;
+    bool has_property(const std::wstring_view& name) const {
+        auto [it, pp] = deep_find(name);
+        return it != pp->end();
     }
 
     // [[Delete]] (PropertyName)
-    bool delete_property(const string& name) {
+    bool delete_property(const std::wstring_view& name) {
         auto& props = properties_.dereference(heap_);
         auto it = props.find(name);
         if (it == props.end()) {
@@ -123,11 +123,7 @@ public:
     void call_function(const native_function_type& f) { call_ = f; }
     native_function_type call_function() const { return call_ ? call_.track(heap_) : nullptr; }
 
-    std::vector<string> property_names() const {
-        std::vector<string> names;
-        add_property_names(names);
-        return names;
-    }
+    std::vector<string> property_names() const;
 
     virtual void debug_print(std::wostream& os, int indent_incr, int max_nest = INT_MAX, int indent = 0) const;
 
@@ -152,16 +148,12 @@ private:
     gc_heap_ptr_untracked<gc_table>     properties_;
     value_representation                value_;
 
-    void add_property_names(std::vector<string>& names) const {
+    void add_property_names(std::vector<string>& names) const;
+
+    std::pair<gc_table::entry, gc_table*> deep_find(const std::wstring_view& key) const {
         auto& props = properties_.dereference(heap_);
-        for (auto it = props.begin(); it != props.end(); ++it) {
-            if (!it.has_attribute(property_attribute::dont_enum)) {
-                names.push_back(it.key());
-            }
-        }
-        if (prototype_) {
-            prototype_.dereference(heap()).add_property_names(names);
-        }
+        auto it = props.find(key);
+        return it != props.end() || !prototype_ ? std::make_pair(it, &props) : prototype_.dereference(heap_).deep_find(key);
     }
 };
 
