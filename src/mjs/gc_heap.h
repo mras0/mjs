@@ -221,8 +221,29 @@ private:
     };
     static_assert(sizeof(slot) == slot_size);
 
+    class pointer_set {
+        std::set<const gc_heap_ptr_untyped*> set_;
+    public:
+        void insert(const gc_heap_ptr_untyped& p) {
+            [[maybe_unused]] const auto inserted = set_.insert(&p).second;
+            assert(inserted);
+        }
+
+        void erase(const gc_heap_ptr_untyped& p) {
+            [[maybe_unused]] const auto deleted = set_.erase(&p);
+            assert(deleted);
+        }
+
+        bool empty() const { return set_.empty(); }
+        auto begin() const { return set_.begin(); }
+        auto end() const { return set_.end(); }
+        auto find(const gc_heap_ptr_untyped* p) const { return set_.find(p); }
+
+        uint32_t move_range(gc_heap& new_heap, gc_heap& old_heap, const void* l, const void* u);
+    };
+
     thread_local static gc_heap* local_heap_;
-    std::set<const gc_heap_ptr_untyped*> pointers_;
+    pointer_set pointers_;
     slot* storage_;
     uint32_t capacity_;
     uint32_t next_free_ = 0;

@@ -250,11 +250,13 @@ uint32_t gc_heap::gc_move(gc_heap& new_heap, const uint32_t pos) {
 
     auto& a = storage_[pos-1].allocation;
     assert(a.type != unallocated_type_index);
-    assert(a.size > 1);
+    assert(a.size > 1 && a.size <= next_free_ - (pos - 1));
 
     if (a.type == gc_moved_type_index) {
         return storage_[pos].new_position;
     }
+
+    assert(a.type < gc_type_info::types_.size());
 
     // Allocate memory block in new_heap of the same size
     const auto new_pos = new_heap.allocate((a.size-1)*sizeof(uint64_t)) + 1;
@@ -275,22 +277,28 @@ uint32_t gc_heap::gc_move(gc_heap& new_heap, const uint32_t pos) {
     a.type = gc_moved_type_index;
     storage_[pos].new_position = new_pos;
 
-    // After changing the allocation header, infinite recursion can now be avoided when copying the internal pointers.
-    auto l = reinterpret_cast<gc_heap_ptr_untyped*>(new_p);
-    auto u = reinterpret_cast<gc_heap_ptr_untyped*>(new_p + a.size - 1);
-
-    // Let the object do fixup on its own if it wants to
+    // After changing the allocation header infinite recursion can now be avoided when copying the internal pointers.
+    // Let the object do fixup on its own if it wants to.
     if (!type_info.fixup(new_heap, new_p)) {
         // Handle it otherwise
-        for (auto it = pointers_.lower_bound(l); it != pointers_.end() && (*it) < u; ++it) {
-            const_cast<gc_heap_ptr_untyped*>(*it)->pos_ = gc_move(new_heap, (*it)->pos_);
-        }
+        pointers_.move_range(new_heap, *this, new_p, new_p + a.size - 1);
     } else {
-        assert((pointers_.lower_bound(l) == pointers_.end() || *pointers_.lower_bound(l) >= u) && "Object lied about its fixup capabilities!");
+        // Check that the object kept its promise
+        assert(!pointers_.move_range(new_heap, *this, new_p, new_p + a.size - 1) && "Object lied about its fixup capabilities!");
     }
 
     return new_pos;
 }
+
+uint32_t gc_heap::pointer_set::move_range(gc_heap& new_heap, gc_heap& old_heap, const void* l, const void* u) {
+    assert(l < u);
+    uint32_t count = 0;
+    for (auto it = set_.lower_bound(static_cast<const gc_heap_ptr_untyped*>(l)); it != set_.end() && (*it) < u; ++it, ++count) {
+        const_cast<gc_heap_ptr_untyped*>(*it)->pos_ = old_heap.gc_move(new_heap, (*it)->pos_);
+    }
+    return count;
+}
+
 
 uint32_t gc_heap::allocate(size_t num_bytes) {
     if (!num_bytes || num_bytes >= UINT32_MAX) {
@@ -311,14 +319,13 @@ uint32_t gc_heap::allocate(size_t num_bytes) {
 }
 
 void gc_heap::attach(const gc_heap_ptr_untyped& p) {
-    assert(p.pos_ > 0 && p.pos_ < next_free_);
-    [[maybe_unused]] const auto inserted = pointers_.insert(&p).second;
-    assert(inserted);
+    assert(p.heap_ == this && p.pos_ > 0 && p.pos_ < next_free_);
+    pointers_.insert(p);
 }
 
 void gc_heap::detach(const gc_heap_ptr_untyped& p) {
-    [[maybe_unused]] const auto deleted = pointers_.erase(&p);
-    assert(deleted);
+    assert(p.heap_ == this);
+    pointers_.erase(p);
 }
 
 } // namespace mjs
