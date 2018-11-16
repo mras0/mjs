@@ -60,7 +60,8 @@ TEST_CASE("value - string") {
 }
 
 TEST_CASE("object") {
-    auto o = object::make(string{"Object"}, nullptr);
+    scoped_gc_heap obj_heap{128};
+    auto o = object::make(obj_heap, string{"Object"}, nullptr);
     REQUIRE(o->property_names() == (std::vector<string>{}));
     const auto n = string{"test"};
     const auto n2 = string{"foo"};
@@ -107,7 +108,8 @@ TEST_CASE("Type Converions") {
     REQUIRE(to_boolean(value{42.0}));
     REQUIRE(!to_boolean(value{string{""}}));
     REQUIRE(to_boolean(value{string{"test"}}));
-    REQUIRE(to_boolean(value{object::make(string{"Object"}, nullptr)}));
+    gc_heap obj_heap{128};
+    REQUIRE(to_boolean(value{object::make(obj_heap, string{"Object"}, nullptr)}));
 
     REQUIRE(value{to_number(value::undefined)} == value{NAN});
     REQUIRE(to_number(value::null) == 0);

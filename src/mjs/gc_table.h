@@ -141,7 +141,7 @@ private:
 
     gc_table(gc_table&& from);
 
-    bool fixup();
+    void fixup();
 };
 
 } // namespace mjs

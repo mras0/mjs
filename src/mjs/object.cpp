@@ -1,6 +1,41 @@
 #include "object.h"
 
 namespace mjs {
+object::object(gc_heap& heap, const string& class_name, const object_ptr& prototype)
+    : heap_(heap)
+    , class_(class_name.unsafe_raw_get())
+    , prototype_(prototype)
+    , properties_(gc_table::make(heap_, 32))
+    , value_(value::undefined) {
+}
+
+
+void object::fixup() {
+    class_.fixup_after_move(heap_);
+    prototype_.fixup_after_move(heap_);
+    construct_.fixup_after_move(heap_);
+    call_.fixup_after_move(heap_);
+    properties_.fixup_after_move(heap_);
+    value_.fixup_after_move(heap_);
+}
+
+std::vector<string> object::property_names() const {
+    std::vector<string> names;
+    add_property_names(names);
+    return names;
+}
+
+void object::add_property_names(std::vector<string>& names) const {
+    auto& props = properties_.dereference(heap_);
+    for (auto it = props.begin(); it != props.end(); ++it) {
+        if (!it.has_attribute(property_attribute::dont_enum)) {
+            names.push_back(it.key());
+        }
+    }
+    if (prototype_) {
+        prototype_.dereference(heap()).add_property_names(names);
+    }
+}
 
 void object::debug_print(std::wostream& os, int indent_incr, int max_nest, int indent) const {
     if (indent / indent_incr > 4 || max_nest <= 0) {
@@ -29,34 +64,6 @@ void object::debug_print(std::wostream& os, int indent_incr, int max_nest, int i
         print_prop("[[Value]]", val, true);
     }
     os << std::wstring(indent, ' ') << "}";
-}
-
-bool object::fixup() {
-    class_.fixup_after_move(heap_);
-    prototype_.fixup_after_move(heap_);
-    construct_.fixup_after_move(heap_);
-    call_.fixup_after_move(heap_);
-    properties_.fixup_after_move(heap_);
-    value_.fixup_after_move(heap_);
-    return true;
-}
-
-std::vector<string> object::property_names() const {
-    std::vector<string> names;
-    add_property_names(names);
-    return names;
-}
-
-void object::add_property_names(std::vector<string>& names) const {
-    auto& props = properties_.dereference(heap_);
-    for (auto it = props.begin(); it != props.end(); ++it) {
-        if (!it.has_attribute(property_attribute::dont_enum)) {
-            names.push_back(it.key());
-        }
-    }
-    if (prototype_) {
-        prototype_.dereference(heap()).add_property_names(names);
-    }
 }
 
 } // namespace mjs

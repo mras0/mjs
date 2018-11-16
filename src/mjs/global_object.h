@@ -8,7 +8,7 @@ namespace mjs {
 
 class global_object : public object {
 public:
-    static gc_heap_ptr<global_object> make();
+    static gc_heap_ptr<global_object> make(gc_heap& h);
     virtual ~global_object() {}
 
     virtual const object_ptr& object_prototype() const = 0;
@@ -45,7 +45,7 @@ protected:
 
     template<typename F>
     object_ptr make_function(const F& f, const string& body_text, int named_args) {
-        return do_make_function(gc_function::make(gc_heap::local_heap(), f), body_text, named_args);
+        return do_make_function(gc_function::make(heap(), f), body_text, named_args);
     }
 
     object_ptr make_function(const native_function_type& f, const string& body_text, int named_args) {

@@ -35,11 +35,10 @@ private:
     }
 };
 
-// TODO: Try to eliminate (or lessen) use of local heap
+// TODO: Try to eliminate (or lessen) use of local heap - have string literal pools?
 class string : private gc_heap_ptr<gc_string> {
 public:
     string(const gc_heap_ptr<gc_string>& s) : gc_heap_ptr<gc_string>(s) {}
-    explicit string() : string(L"") {}
     // TODO: Could optimize this constructor by providing appropriate overloads in gc_string
     explicit string(const char* str) : string(std::wstring(str, str+std::strlen(str))) {}
     explicit string(const std::wstring_view& s) : gc_heap_ptr<gc_string>(gc_string::make(gc_heap::local_heap(),s)) {}

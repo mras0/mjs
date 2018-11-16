@@ -101,7 +101,7 @@ struct test_spec {
 
 class test_spec_runner {
 public:
-    static size_t run(const std::vector<test_spec>& specs, const block_statement& statements) {
+    static size_t run(gc_heap& h, const std::vector<test_spec>& specs, const block_statement& statements) {
 #ifdef TEST_SPEC_DEBUG
         std::wcout << "Running test spec for " << statements.extend().file->text << "\nSpecs:\n";
         for (const auto& s: specs) {
@@ -109,7 +109,7 @@ public:
         }
         std::wcout << "\n";
 #endif
-        test_spec_runner tsr{specs, statements};
+        test_spec_runner tsr{h, specs, statements};
         tsr.i_.eval(statements);
         tsr.check_test_spec_done(statements.extend().end);
 #ifdef TEST_SPEC_DEBUG
@@ -126,10 +126,10 @@ private:
     uint32_t last_line_ = 0;
     completion last_result_{};
 
-    explicit test_spec_runner(const std::vector<test_spec>& specs, const block_statement& statements)
+    explicit test_spec_runner(gc_heap& h, const std::vector<test_spec>& specs, const block_statement& statements)
         : specs_(specs)
         , source_(statements.extend().file)
-        , i_(statements, [this](const statement& s, const completion& res) {
+        , i_(h, statements, [&h, this](const statement& s, const completion& res) {
 #ifdef TEST_SPEC_DEBUG
             std::wcout << pos_w << s.extend().start << "-" << pos_w << s.extend().end << ": ";
             print(std::wcout, s);
@@ -140,7 +140,7 @@ private:
                 last_result_ = res;
                 last_line_ = s.extend().start;
             }
-            gc_heap::local_heap().garbage_collect(); // Run garbage collection after each statement to help catch bugs
+            h.garbage_collect(); // Run garbage collection after each statement to help catch bugs
         }) {
     }
 
@@ -197,7 +197,7 @@ void run_test_spec(const std::string_view& source_text, const std::string_view& 
         }
 
         auto bs = parse(std::make_shared<source_file>(std::wstring(name.begin(), name.end()), std::wstring(source_text.begin(), source_text.end())));
-        const auto index = test_spec_runner::run(specs, *bs);
+        const auto index = test_spec_runner::run(heap, specs, *bs);
         if (index != specs.size()) {
             throw std::runtime_error("Invalid test spec." + std::string(name) + ": Only " + std::to_string(index) + " of " + std::to_string(specs.size()) + " specs ran");
         }

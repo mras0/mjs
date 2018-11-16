@@ -141,8 +141,8 @@ public:
 
     static constexpr const std::wstring_view length_str{L"length", 6};
 
-    static gc_heap_ptr<array_object> make(const string& class_name, const object_ptr& prototype, uint32_t length) {
-        return gc_heap::local_heap().make<array_object>(class_name, prototype, length);
+    static gc_heap_ptr<array_object> make(gc_heap& h, const string& class_name, const object_ptr& prototype, uint32_t length) {
+        return h.make<array_object>(h, class_name, prototype, length);
     }
 
     void put(const string& name, const value& val, property_attribute attr) override {
@@ -180,7 +180,7 @@ private:
         return to_uint32(object::get(length_str));
     }
 
-    explicit array_object(const string& class_name, const object_ptr& prototype, uint32_t length) : object{class_name, prototype} {
+    explicit array_object(gc_heap& h, const string& class_name, const object_ptr& prototype, uint32_t length) : object{h, class_name, prototype} {
         object::put(string{length_str}, value{static_cast<double>(length)}, property_attribute::dont_enum | property_attribute::dont_delete);
     }
 };
@@ -376,7 +376,7 @@ public:
     }
 
 private:
-    explicit date_object(const string& class_name, const object_ptr& prototype, double val) : object{class_name, prototype} {
+    explicit date_object(gc_heap& h, const string& class_name, const object_ptr& prototype, double val) : object{h, class_name, prototype} {
         internal_value(value{val});
     }
 };
@@ -388,8 +388,8 @@ public:
     const object_ptr& object_prototype() const override { return object_prototype_; }
 
     object_ptr make_raw_function() override {
-        auto o = object::make(Function_str_, function_prototype_);
-        o->put(prototype_str_, value{object::make(Object_str_, object_prototype_)}, property_attribute::dont_enum);
+        auto o = object::make(heap(), Function_str_, function_prototype_);
+        o->put(prototype_str_, value{object::make(heap(), Object_str_, object_prototype_)}, property_attribute::dont_enum);
         return o;
     }
 
@@ -465,7 +465,7 @@ private:
         o->put(prototype_str_, value{function_prototype_}, prototype_attributes);
 
         // §15.3.4
-        function_prototype_->call_function(gc_function::make(gc_heap::local_heap(), [](const value&, const std::vector<value>&) {
+        function_prototype_->call_function(gc_function::make(heap(), [](const value&, const std::vector<value>&) {
             return value::undefined;
         }));
         function_prototype_->put(constructor_str_, value{o}, default_attributes);
@@ -484,7 +484,7 @@ private:
     object_ptr make_object_object() {
         auto o = make_function([global = self_](const value&, const std::vector<value>& args) {
             if (args.empty() || args.front().type() == value_type::undefined || args.front().type() == value_type::null) {
-                auto o = object::make(global->Object_str_, global->object_prototype_);
+                auto o = object::make(global->heap(), global->Object_str_, global->object_prototype_);
                 return value{o};
             }
             return value{global->to_object(args.front())};
@@ -507,19 +507,19 @@ private:
     //
 
     object_ptr new_boolean(bool val) {
-        auto o = object::make(Boolean_str_, boolean_prototype_);
+        auto o = object::make(heap(), Boolean_str_, boolean_prototype_);
         o->internal_value(value{val});
         return o;
     }
 
     object_ptr make_boolean_object() {
-        boolean_prototype_ = object::make(Boolean_str_, object_prototype_);
+        boolean_prototype_ = object::make(heap(), Boolean_str_, object_prototype_);
         boolean_prototype_->internal_value(value{false});
 
         auto c = make_function([global = self_](const value&, const std::vector<value>& args) {
             return value{global->new_boolean(!args.empty() && to_boolean(args.front()))};
         },  native_function_body(Boolean_str_), 1);
-        c->call_function(gc_function::make(gc_heap::local_heap(), [](const value&, const std::vector<value>& args) {
+        c->call_function(gc_function::make(heap(), [](const value&, const std::vector<value>& args) {
             return value{!args.empty() && to_boolean(args.front())};
         }));
         c->put(prototype_str_, value{boolean_prototype_}, prototype_attributes);
@@ -548,19 +548,19 @@ private:
     //
 
     object_ptr new_number(double val) {
-        auto o = object::make(Number_str_, number_prototype_);
+        auto o = object::make(heap(), Number_str_, number_prototype_);
         o->internal_value(value{val});
         return o;
     }
 
     object_ptr make_number_object() {
-        number_prototype_ = object::make(Number_str_, object_prototype_);
+        number_prototype_ = object::make(heap(), Number_str_, object_prototype_);
         number_prototype_->internal_value(value{0.});
 
         auto c = make_function([global = self_](const value&, const std::vector<value>& args) {
             return value{global->new_number(args.empty() ? 0.0 : to_number(args.front()))};
         }, native_function_body(Number_str_), 1);
-        c->call_function(gc_function::make(gc_heap::local_heap(), [](const value&, const std::vector<value>& args) {
+        c->call_function(gc_function::make(heap(), [](const value&, const std::vector<value>& args) {
             return value{args.empty() ? 0.0 : to_number(args.front())};
         }));
         c->put(prototype_str_, value{number_prototype_}, prototype_attributes);
@@ -602,20 +602,20 @@ private:
 
 
     object_ptr new_string(const string& val) {
-        auto o = object::make(String_str_, string_prototype_);
+        auto o = object::make(heap(), String_str_, string_prototype_);
         o->internal_value(value{val});
         o->put(length_str_, value{static_cast<double>(val.view().length())}, prototype_attributes);
         return o;
     }
 
     object_ptr make_string_object() {
-        string_prototype_ = object::make(String_str_, object_prototype_);
+        string_prototype_ = object::make(heap(), String_str_, object_prototype_);
         string_prototype_->internal_value(value{string{""}});
 
         auto c = make_function([global = self_](const value&, const std::vector<value>& args) {
             return value{global->new_string(args.empty() ? string{""} : to_string(args.front()))};
         }, native_function_body(String_str_), 1);
-        c->call_function(gc_function::make(gc_heap::local_heap(), [](const value&, const std::vector<value>& args) {
+        c->call_function(gc_function::make(heap(), [](const value&, const std::vector<value>& args) {
             return value{args.empty() ? string{""} : to_string(args.front())};
         }));
         c->put(prototype_str_, value{string_prototype_}, prototype_attributes);
@@ -745,9 +745,9 @@ private:
 
     value array_constructor(const value&, const std::vector<value>& args) {
         if (args.size() == 1 && args[0].type() == value_type::number) {
-            return value{array_object::make(Array_str_, array_prototype_, to_uint32(args[0].number_value()))};
+            return value{array_object::make(heap(), Array_str_, array_prototype_, to_uint32(args[0].number_value()))};
         }
-        auto arr = array_object::make(Array_str_, array_prototype_, static_cast<uint32_t>(args.size()));
+        auto arr = array_object::make(heap(), Array_str_, array_prototype_, static_cast<uint32_t>(args.size()));
         for (uint32_t i = 0; i < args.size(); ++i) {
             arr->unchecked_put(i, args[i]);
         }
@@ -755,7 +755,7 @@ private:
     }
 
     object_ptr make_array_object() {
-        array_prototype_ = array_object::make(Array_str_, object_prototype_, 0);
+        array_prototype_ = array_object::make(heap(), Array_str_, object_prototype_, 0);
 
         auto o = make_function([global = self_](const value& this_, const std::vector<value>& args) {
             return global->array_constructor(this_, args);
@@ -845,7 +845,7 @@ private:
     // Console
     //
     auto make_console_object() {
-        auto console = object::make(Object_str_, object_prototype_);
+        auto console = object::make(heap(), Object_str_, object_prototype_);
 
         using timer_clock = std::chrono::steady_clock;
 
@@ -894,7 +894,7 @@ private:
     // Math
     //
     auto make_math_object() {
-        auto math = object::make(Object_str_, object_prototype_);
+        auto math = object::make(heap(), Object_str_, object_prototype_);
 
         math->put(string{"E"},       value{2.7182818284590452354}, default_attributes);
         math->put(string{"LN10"},    value{2.302585092994046}, default_attributes);
@@ -959,13 +959,13 @@ private:
     //
 
     auto new_date(double val) {
-        return gc_heap::local_heap().make<date_object>(Date_str_, date_prototype_, val);
+        return heap().make<date_object>(heap(), Date_str_, date_prototype_, val);
     }
 
     auto make_date_object() {
         //const auto attr = property_attribute::dont_enum | property_attribute::dont_delete | property_attribute::read_only;
 
-        date_prototype_ = object::make(Date_str_, object_prototype_);
+        date_prototype_ = object::make(heap(), Date_str_, object_prototype_);
         date_prototype_->internal_value(value{NAN});
 
         auto c = make_function([global = self_](const value&, const std::vector<value>& args) {
@@ -983,7 +983,7 @@ private:
             }
             return value{date_helper::time_clip(date_helper::utc(date_helper::time_from_args(args)))};
         }, native_function_body(Date_str_), 7);
-        c->call_function(gc_function::make(gc_heap::local_heap(), [global = self_](const value&, const std::vector<value>&) {
+        c->call_function(gc_function::make(heap(), [global = self_](const value&, const std::vector<value>&) {
             // Equivalent to (new Date()).toString()
             return value{to_string(value{global->new_date(date_helper::current_time_utc())})};
         }));
@@ -1106,8 +1106,8 @@ private:
     // Global
     //
     void popuplate_global() {
-        object_prototype_   = object::make(string{"ObjectPrototype"}, nullptr);
-        function_prototype_ = object::make(Function_str_, object_prototype_);
+        object_prototype_   = object::make(heap(), string{"ObjectPrototype"}, nullptr);
+        function_prototype_ = object::make(heap(), Function_str_, object_prototype_);
 
         // §15.1
         put(Object_str_, value{make_object_object()}, default_attributes);
@@ -1155,23 +1155,18 @@ private:
         put(string{"console"}, value{make_console_object()}, default_attributes);
     }
 
-    explicit global_object_impl() : global_object(string{"Global"}, object_ptr{}) {
+    explicit global_object_impl(gc_heap& h) : global_object(h, string{"Global"}, object_ptr{}) {
     }
 
     global_object_impl(global_object_impl&& other) = default;
-
-    bool fixup() {
-        object::fixup();
-        return false; // This object is lazy
-    }
 
     void put_function(const object_ptr& o, const native_function_type& f, const string& body_text, int named_args) override;
 
     friend global_object;
 };
 
-gc_heap_ptr<global_object> global_object::make() {
-    auto global = gc_heap::local_heap().make<global_object_impl>();
+gc_heap_ptr<global_object> global_object::make(gc_heap& h) {
+    auto global = h.make<global_object_impl>(h);
     global->self_ = global;
     global->popuplate_global(); // Populate here so the safe_ptr() won't fail the assert
     return global;

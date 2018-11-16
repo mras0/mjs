@@ -30,7 +30,7 @@ class interpreter {
 public:
     using on_statement_executed_type = std::function<void (const statement&, const completion& c)>;
 
-    explicit interpreter(const block_statement& program, const on_statement_executed_type& on_statement_executed = on_statement_executed_type{});
+    explicit interpreter(gc_heap& h, const block_statement& program, const on_statement_executed_type& on_statement_executed = on_statement_executed_type{});
     ~interpreter();
 
     value eval(const expression& e);

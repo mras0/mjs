@@ -15,7 +15,7 @@ using namespace mjs;
 void test(const std::wstring_view& text, const value& expected) {
     scoped_gc_heap h{1<<20}; // Use local heap, even if expected lives in another heap
 
-    const auto used_before = gc_heap::local_heap().calc_used();
+    const auto used_before = h.calc_used();
     {
 
         decltype(parse(nullptr)) bs;
@@ -33,11 +33,10 @@ void test(const std::wstring_view& text, const value& expected) {
             }
         };
         try {
-            interpreter i{*bs};
+            interpreter i{h, *bs};
             value res{};
             for (const auto& s: bs->l()) {
                 res = i.eval(*s).result;
-                gc_heap::local_heap().garbage_collect(); // Make sure the heap can be GC'd after every statement
             }
             if (res != expected) {
                 std::wcout << "Test failed: " << text << " expecting " << debug_string(expected) << " got " << debug_string(res) << "\n";
@@ -310,7 +309,7 @@ function f(x) {
     test(L"''+Array('March', 'Jan', 'Feb', 'Dec').sort()", value{string{"Dec,Feb,Jan,March"}});
     test(L"''+Array(1,30,4,21).sort()", value{string{"1,21,30,4"}});
     test(L"function c(x,y) { return x-y; }; ''+Array(1,30,4,21).sort(c)", value{string{"1,4,21,30"}});
-    test(L"new Array(1).toString()", value{string{}});
+    test(L"new Array(1).toString()", value{string{""}});
     test(L"new Array(1,2).toString()", value{string{"1,2"}});
     test(L"+new Array(1)", value{0.});
     test(L"+new Array(1,2)", value{NAN});
@@ -344,7 +343,7 @@ function f(x) {
     test(L"'testfesthest'.lastIndexOf('est',3)", value{1.});
     test(L"'testfesthest'.lastIndexOf('est',7)", value{5.});
     test(L"'testfesthest'.lastIndexOf('est', 22)", value{9.});
-    test(L"''.split()+''", value{string{}});
+    test(L"''.split()+''", value{string{""}});
     test(L"'1 2 3'.split()+''", value{string{"1 2 3"}});
     test(L"'abcd'.split('')+''", value{string{"a,b,c,d"}});
     test(L"'1 2 3'.split('not found')+''", value{string{"1 2 3"}});

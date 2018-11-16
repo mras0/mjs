@@ -18,8 +18,8 @@ public:
     }
 
     // TODO: Remove this
-    static auto make(const string& class_name, const object_ptr& prototype) {
-        return class_name.unsafe_raw_get().heap().make<object>(class_name, prototype);
+    static auto make(gc_heap& h, const string& class_name, const object_ptr& prototype) {
+        return h.make<object>(h, class_name, prototype);
     }
 
     virtual ~object() {}
@@ -128,17 +128,10 @@ public:
     virtual void debug_print(std::wostream& os, int indent_incr, int max_nest = INT_MAX, int indent = 0) const;
 
 protected:
-    explicit object(const string& class_name, const object_ptr& prototype)
-        : heap_(class_name.unsafe_raw_get().heap())
-        , class_(class_name.unsafe_raw_get())
-        , prototype_(prototype)
-        , properties_(gc_table::make(heap_, 32))
-        , value_(value::undefined) {
-    }
-
+    explicit object(gc_heap& heap, const string& class_name, const object_ptr& prototype);
     object(object&& o) = default;
+    void fixup();
 
-    bool fixup();
 private:
     gc_heap& heap_;
     gc_heap_ptr_untracked<gc_string>    class_;

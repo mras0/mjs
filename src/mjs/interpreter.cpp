@@ -109,7 +109,7 @@ private:
 
 class interpreter::impl {
 public:
-    explicit impl(const block_statement& program, const on_statement_executed_type& on_statement_executed) : global_(global_object::make()), on_statement_executed_(on_statement_executed) {
+    explicit impl(gc_heap& h, const block_statement& program, const on_statement_executed_type& on_statement_executed) : global_(global_object::make(h)), on_statement_executed_(on_statement_executed) {
         assert(!global_->has_property(L"eval"));
 
         global_->put_native_function(global_, "eval", [this](const value&, const std::vector<value>& args) {
@@ -130,7 +130,7 @@ public:
             return ret.result;
         }, 1);
 
-        global_->put_function(global_->get(L"Function").object_value(), gc_function::make(gc_heap::local_heap(), [this](const value&, const std::vector<value>& args) {
+        global_->put_function(global_->get(L"Function").object_value(), gc_function::make(global_->heap(), [this](const value&, const std::vector<value>& args) {
             std::wstring body{}, p{};
             if (args.empty()) {
             } else if (args.size() == 1) {
@@ -648,7 +648,7 @@ private:
     class auto_scope {
     public:
         explicit auto_scope(impl& parent, const object_ptr& act, const scope_ptr& prev) : parent(parent), old_scopes(parent.scopes_) {
-            parent.scopes_ = gc_heap::local_heap().make<scope>(act, prev);
+            parent.scopes_ = act.heap().make<scope>(act, prev);
         }
         ~auto_scope() {
             parent.scopes_ = old_scopes;
@@ -662,7 +662,7 @@ private:
     on_statement_executed_type     on_statement_executed_;
 
     static scope_ptr make_scope(const object_ptr& act, const scope_ptr& prev) {
-        return gc_heap::local_heap().make<scope>(act, prev);
+        return act.heap().make<scope>(act, prev);
     }
 
     std::vector<source_extend> stack_trace(const source_extend& current_extend) const {
@@ -717,7 +717,7 @@ private:
         auto callee = global_->make_raw_function();
         auto func = [this, block, param_names, prev_scope, callee, ids = hoisting_visitor::scan(*block)](const value& this_, const std::vector<value>& args) {
             // Arguments array
-            auto as = object::make(string{"Object"}, global_->object_prototype());
+            auto as = object::make(global_->heap(), string{"Object"}, global_->object_prototype());
             as->put(string{"callee"}, value{callee}, property_attribute::dont_enum);
             as->put(string{"length"}, value{static_cast<double>(args.size())}, property_attribute::dont_enum);
             for (uint32_t i = 0; i < args.size(); ++i) {
@@ -725,7 +725,7 @@ private:
             }
 
             // Scope
-            auto activation = object::make(string{"Activation"}, nullptr); // TODO
+            auto activation = object::make(global_->heap(), string{"Activation"}, nullptr); // TODO
             auto_scope auto_scope_{*this, activation, prev_scope};
             activation->put(string{"this"}, this_, property_attribute::dont_delete | property_attribute::dont_enum | property_attribute::read_only);
             activation->put(string{"arguments"}, value{as}, property_attribute::dont_delete);
@@ -739,13 +739,13 @@ private:
             }
             return eval(*block).result;
         };
-        global_->put_function(callee, gc_function::make(gc_heap::local_heap(), func), string{L"function " + std::wstring{id.view()} + body_text}, static_cast<int>(param_names.size()));
+        global_->put_function(callee, gc_function::make(global_->heap(), func), string{L"function " + std::wstring{id.view()} + body_text}, static_cast<int>(param_names.size()));
 
-        callee->construct_function(gc_function::make(gc_heap::local_heap(), [global = global_, callee, id](const value& unsused_this_, const std::vector<value>& args) {
+        callee->construct_function(gc_function::make(global_->heap(), [global = global_, callee, id](const value& unsused_this_, const std::vector<value>& args) {
             assert(unsused_this_.type() == value_type::undefined); (void)unsused_this_;
             assert(!id.view().empty());
             auto p = callee->get(L"prototype");
-            auto o = value{object::make(id, p.type() == value_type::object ? p.object_value() : global->object_prototype())};
+            auto o = value{object::make(global->heap(), id, p.type() == value_type::object ? p.object_value() : global->object_prototype())};
             auto r = callee->call_function()->call(o, args);
             return r.type() == value_type::object ? r : value{o};
         }));
@@ -758,7 +758,7 @@ private:
     }
 };
 
-interpreter::interpreter(const block_statement& program, const on_statement_executed_type& on_statement_executed) : impl_(new impl{program, on_statement_executed}) {
+interpreter::interpreter(gc_heap& h, const block_statement& program, const on_statement_executed_type& on_statement_executed) : impl_(new impl{h, program, on_statement_executed}) {
 }
 
 interpreter::~interpreter() = default;
