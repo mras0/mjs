@@ -8,11 +8,11 @@ gc_table::gc_table(gc_table&& other) : heap_(other.heap_), capacity_(other.capac
     std::memcpy(entries(), other.entries(), length() * sizeof(entry_representation));
 }
 
-bool gc_table::fixup(gc_heap& new_heap) {
+bool gc_table::fixup() {
     for (uint32_t i = 0; i < length(); ++i) {
         auto& e = entries()[i];
-        e.key.fixup_after_move(new_heap, heap_);
-        e.value.fixup_after_move(new_heap, heap_);
+        e.key.fixup_after_move(heap_);
+        e.value.fixup_after_move(heap_);
     }
     return true;
 }

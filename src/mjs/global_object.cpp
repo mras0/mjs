@@ -1160,8 +1160,8 @@ private:
 
     global_object_impl(global_object_impl&& other) = default;
 
-    bool fixup(gc_heap& new_heap) {
-        object::fixup(new_heap);
+    bool fixup() {
+        object::fixup();
         return false; // This object is lazy
     }
 

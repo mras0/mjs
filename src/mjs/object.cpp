@@ -31,13 +31,13 @@ void object::debug_print(std::wostream& os, int indent_incr, int max_nest, int i
     os << std::wstring(indent, ' ') << "}";
 }
 
-bool object::fixup(gc_heap& new_heap) {
-    class_.fixup_after_move(new_heap, heap());
-    prototype_.fixup_after_move(new_heap, heap());
-    construct_.fixup_after_move(new_heap, heap());
-    call_.fixup_after_move(new_heap, heap());
-    properties_.fixup_after_move(new_heap, heap());
-    value_.fixup_after_move(new_heap, heap());
+bool object::fixup() {
+    class_.fixup_after_move(heap_);
+    prototype_.fixup_after_move(heap_);
+    construct_.fixup_after_move(heap_);
+    call_.fixup_after_move(heap_);
+    properties_.fixup_after_move(heap_);
+    value_.fixup_after_move(heap_);
     return true;
 }
 

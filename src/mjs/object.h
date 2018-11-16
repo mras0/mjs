@@ -138,7 +138,7 @@ protected:
 
     object(object&& o) = default;
 
-    bool fixup(gc_heap& new_heap);
+    bool fixup();
 private:
     gc_heap& heap_;
     gc_heap_ptr_untracked<gc_string>    class_;

@@ -39,9 +39,9 @@ public:
     }
 
     // Handle fixup of untacked pointers (happens after the object has been otherwise moved to avoid infite recursion)
-    bool fixup(gc_heap& new_heap, void* p) const {
+    bool fixup(void* p) const {
         if (fixup_) {
-            return fixup_ == no_fixup_needed || fixup_(new_heap, p);
+            return fixup_ == no_fixup_needed || fixup_(p);
         }
         return false;
     }
@@ -58,7 +58,7 @@ public:
 protected:
     using destroy_function = void (*)(void*);
     using move_function = void (*)(void*, void*);
-    using fixup_function = bool (*)(gc_heap&, void*);
+    using fixup_function = bool (*)(void*);
 
     static const fixup_function no_fixup_needed; // special value (not callable!)
 
@@ -122,7 +122,7 @@ private:
     struct has_fixup_t : std::false_type{};
 
     template<typename U>
-    struct has_fixup_t<U, std::void_t<decltype(std::declval<U>().fixup(std::declval<gc_heap&>()))>> : std::true_type{};
+    struct has_fixup_t<U, std::void_t<decltype(std::declval<U>().fixup())>> : std::true_type{};
 
     template<typename U, typename=void>
     struct has_trivial_fixup_t : std::false_type{};
@@ -138,7 +138,7 @@ private:
         if constexpr (has_trivial_fixup_t<T>::value) {
             return no_fixup_needed;
         } else if constexpr(has_fixup_t<T>::value) {
-            return [](gc_heap& new_heap, void* p) { return static_cast<T*>(p)->fixup(new_heap); };
+            return [](void* p) { return static_cast<T*>(p)->fixup(); };
         } else {
             return nullptr;
         }
@@ -154,7 +154,7 @@ public:
         return *this;
     }
     value get_value(gc_heap& heap) const;
-    void fixup_after_move(gc_heap& new_heap, gc_heap& old_heap);
+    void fixup_after_move(gc_heap& old_heap);
 private:
     uint64_t repr_;
 
@@ -263,7 +263,10 @@ private:
     // Only valid during GC
     struct gc_state {
         uint32_t ptr_keep_count = 0; // active if <> 0
+        gc_heap* new_heap;           // the "new_heap" is only kept for allocation purposes, no references to it should be kept
     } gc_state_;
+
+    void run_destructors();
 
     void attach(gc_heap_ptr_untyped& p);
     void detach(gc_heap_ptr_untyped& p);
@@ -276,8 +279,8 @@ private:
     // The object must be constructed one slot beyond the allocation header and the type field of the allocation header updated
     uint32_t allocate(size_t num_bytes);
 
-    uint32_t gc_move(gc_heap& new_heap, uint32_t pos);
-    void gc_move(gc_heap& new_heap, gc_heap_ptr_untyped& p);
+    uint32_t gc_move(uint32_t pos);
+    void gc_move(gc_heap_ptr_untyped& p);
 
     template<typename T>
     gc_heap_ptr<T> unsafe_create_from_position(uint32_t pos);
@@ -377,6 +380,9 @@ private:
 
 template<typename T>
 class gc_heap_ptr_untracked {
+    // TODO: Add debug mode where e.g. the MSB of pos_ is set when the pointer is copied
+    //       Then check that 1) it is set in fixup_after_move 2) NOT set in the destructor
+    //       Should also do something similar for value_representation
 public:
     gc_heap_ptr_untracked() : pos_(0) {}
     gc_heap_ptr_untracked(const gc_heap_ptr<T>& p) : pos_(p.pos_) {}
@@ -395,9 +401,9 @@ public:
         return h.unsafe_create_from_position<T>(pos_);
     }
 
-    void fixup_after_move(gc_heap& new_heap, gc_heap& old_heap) {
+    void fixup_after_move(gc_heap& old_heap) {
         if (pos_) {
-            pos_ = old_heap.gc_move(new_heap, pos_);
+            pos_ = old_heap.gc_move(pos_);
         }
     }
 

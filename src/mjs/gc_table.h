@@ -141,7 +141,7 @@ private:
 
     gc_table(gc_table&& from);
 
-    bool fixup(gc_heap& new_heap);
+    bool fixup();
 };
 
 } // namespace mjs
