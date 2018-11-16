@@ -229,17 +229,24 @@ private:
         auto begin() const { return set_.cbegin(); }
         auto end() const { return set_.cend(); }
 
+        gc_heap_ptr_untyped** data() { return set_.data(); }
+
         void insert(gc_heap_ptr_untyped& p) {
             // Note: garbage_collect() assumes nodes are added to the back
             // assert(std::find(begin(), end(), &p) == end()); // Other asserts should catch this
             set_.push_back(&p);
         }
 
-        void erase(const gc_heap_ptr_untyped& p) {
+        void erase(const gc_heap_ptr_untyped& p
+#ifndef NDEBUG
+            ,uint32_t ptr_keep_count
+#endif
+        ) {
             // Search from the back since objects tend to be short lived
             for (size_t i = set_.size(); i--;) {
                 if (set_[i] == &p) {
                     set_.erase(set_.begin() + i);
+                    assert(i >= ptr_keep_count);
                     return;
                 }
             }
@@ -252,6 +259,11 @@ private:
     slot* storage_;
     uint32_t capacity_;
     uint32_t next_free_ = 0;
+
+    // Only valid during GC
+    struct gc_state {
+        uint32_t ptr_keep_count = 0; // active if <> 0
+    } gc_state_;
 
     void attach(gc_heap_ptr_untyped& p);
     void detach(gc_heap_ptr_untyped& p);
@@ -280,8 +292,8 @@ public:
         assert(gc_heap::local_heap_ == this);
         gc_heap::local_heap_ = old_heap_;
 
-        garbage_collect();
 #ifndef  NDEBUG
+        garbage_collect();
         assert(calc_used() == 0);
 #endif
     }
