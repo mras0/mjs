@@ -182,8 +182,13 @@ void gc_heap::debug_print(std::wostream& os) const {
         const auto a = storage_[pos].allocation;
         os << fmt(pos+1).width(pos_w) << " size: " << fmt(a.size).width(size_w) << " type: " << fmt(a.type).width(2) << " ";
         if (a.active()) {
-            save_stream_state sss{os};
-            os << std::left << std::setw(tt_width) << a.type_info().name();
+            {
+                save_stream_state sss{os};
+                os << std::left << std::setw(tt_width) << a.type_info().name();
+            }
+            if (a.type == gc_type_info_registration<gc_string>::get().get_index()) {
+                os << " '" << reinterpret_cast<const gc_string*>(&storage_[pos+1])->view() << "'";
+            }
         }
         os << "\n";
         pos += a.size;

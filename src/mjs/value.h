@@ -67,7 +67,6 @@ private:
     string property_name_;
 };
 
-
 class value {
 public:
     explicit value() : type_(value_type::undefined) {}
