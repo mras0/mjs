@@ -119,14 +119,14 @@ value value_representation::get_value(gc_heap& heap) const {
     THROW_RUNTIME_ERROR(woss.str());
 }
 
-uint64_t value_representation::to_representation(const value& v) {
+value_representation::value_representation(const value& v) {
     switch (v.type()) {
     case value_type::undefined: [[fallthrough]];
-    case value_type::null:      return make_repr(v.type(), 0);
-    case value_type::boolean:   return make_repr(v.type(), v.boolean_value());
-    case value_type::number:    return number_repr(v.number_value());
-    case value_type::string:    return make_repr(v.type(), v.string_value().unsafe_raw_get().pos_);
-    case value_type::object:    return make_repr(v.type(), v.object_value().pos_);
+    case value_type::null:      repr_ = make_repr(v.type(), 0); return;
+    case value_type::boolean:   repr_ = make_repr(v.type(), v.boolean_value()); return;
+    case value_type::number:    repr_ = number_repr(v.number_value()); return;
+    case value_type::string:    repr_ = make_repr(v.type(), v.string_value().unsafe_raw_get().pos_); return;
+    case value_type::object:    repr_ = make_repr(v.type(), v.object_value().pos_); return;
     case value_type::reference: break; // Not legal here
     }
     std::wostringstream woss;
@@ -135,7 +135,7 @@ uint64_t value_representation::to_representation(const value& v) {
     THROW_RUNTIME_ERROR(woss.str());
 }
 
-void value_representation::fixup_after_move(gc_heap& old_heap) {
+void value_representation::fixup(gc_heap& old_heap) {
     if (!is_special(repr_)) {
         return;
     }
@@ -262,9 +262,9 @@ void gc_heap::garbage_collect() {
             auto p = pointers_.data()[i];
             p->pos_ = gc_move(p->pos_);
             // Process pending fixups
-            while (!gc_state_.pending_fixpus.empty()) {
-                auto fp = gc_state_.pending_fixpus.back();
-                gc_state_.pending_fixpus.pop_back();
+            while (!gc_state_.pending_fixups.empty()) {
+                auto fp = gc_state_.pending_fixups.back();
+                gc_state_.pending_fixups.pop_back();
                 *fp = gc_move(*fp);
             }
         }
@@ -355,7 +355,7 @@ uint32_t gc_heap::gc_move(const uint32_t pos) {
 
 void gc_heap::register_fixup(uint32_t& pos) {
     // TODO: Consider apply fixup directly if gc_state_.level isn't too big
-    gc_state_.pending_fixpus.push_back(&pos);
+    gc_state_.pending_fixups.push_back(&pos);
 }
 
 uint32_t gc_heap::allocate(size_t num_bytes) {

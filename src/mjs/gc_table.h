@@ -58,7 +58,7 @@ public:
 
         void value(const value& val) {
             assert(tab_);
-            e().value = val;
+            e().value = value_representation{val};
         }
 
         mjs::value value() const {

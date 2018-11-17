@@ -14,12 +14,12 @@ object::object(gc_heap& heap, const string& class_name, const object_ptr& protot
 
 
 void object::fixup() {
-    class_.fixup_after_move(heap_);
-    prototype_.fixup_after_move(heap_);
-    construct_.fixup_after_move(heap_);
-    call_.fixup_after_move(heap_);
-    properties_.fixup_after_move(heap_);
-    value_.fixup_after_move(heap_);
+    class_.fixup(heap_);
+    prototype_.fixup(heap_);
+    construct_.fixup(heap_);
+    call_.fixup(heap_);
+    properties_.fixup(heap_);
+    value_.fixup(heap_);
 }
 
 std::vector<string> object::property_names() const {

@@ -45,7 +45,7 @@ public:
 
     // [[Value]] ()
     value internal_value() const { return value_.get_value(heap_); }
-    void internal_value(const value& v) { value_ = v; }
+    void internal_value(const value& v) { value_ = value_representation{v}; }
 
     // [[Get]] (PropertyName)
     value get(const std::wstring_view& name) const {

@@ -657,8 +657,8 @@ private:
         scope(scope&&) = default;
 
         void fixup() {
-            activation_.fixup_after_move(heap_);
-            prev_.fixup_after_move(heap_);
+            activation_.fixup(heap_);
+            prev_.fixup(heap_);
         }
 
         gc_heap& heap_;

@@ -233,33 +233,6 @@ uint16_t to_uint16(const value& v) {
     return to_uint16(to_number(v));
 }
 
-double blah(double n, int incr) {
-    uint64_t i;
-    memcpy(&i, &n, sizeof(double));
-    i += incr;
-    memcpy(&n, &i, sizeof(double));
-    return n;
-}
-
-#if 0
-printf("Converting %.17g\n", m);
-printf("%s\n", foo(blah(m, -1)).c_str());
-printf("%s\n", foo(blah(m, 0)).c_str());
-printf("%s\n", foo(blah(m, 1)).c_str());
-
-std::string foo(double m) {
-    std::ostringstream oss;
-    oss.precision(17);
-    char buffer[_CVTBUFSIZE + 1];
-    int decimal_point, sign;
-    _ecvt_s(buffer, m, 22, &decimal_point, &sign);
-    assert(sign == 0);
-    oss.width(40);
-    oss  << std::defaultfloat << m << " -> '" << buffer << "' decimal_point " << decimal_point;
-    return oss.str();
-}
-#endif
-
 std::wstring do_format_double(double m, int k) {
     assert(k >= 1);             // k is the number of decimal digits in the representation
     int n;                      // n is the position of the decimal point in s

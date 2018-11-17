@@ -115,6 +115,8 @@ public:
     static constexpr bool needs_destroy = !std::is_trivially_destructible_v<T>;
     static constexpr bool needs_fixup   = has_fixup_t<T>::value;
 
+    static_assert(!std::is_convertible_v<T*, object*> || (needs_destroy && needs_fixup), "Classes deriving from object MUST be properly destroyed and will need fixup");
+
     static const gc_type_info_registration& get() {
         return reg;
     }
@@ -161,17 +163,11 @@ const gc_type_info_registration<T> gc_type_info_registration<T>::reg;
 class value_representation {
 public:
     value_representation() = default;
-    explicit value_representation(const value& v) : repr_(to_representation(v)) {}
-    value_representation& operator=(const value& v) {
-        repr_ = to_representation(v);
-        return *this;
-    }
+    explicit value_representation(const value& v);
     value get_value(gc_heap& heap) const;
-    void fixup_after_move(gc_heap& old_heap);
+    void fixup(gc_heap& old_heap);
 private:
     uint64_t repr_;
-
-    static uint64_t to_representation(const value& v);
 };
 
 class gc_heap {
@@ -220,10 +216,11 @@ private:
     union slot {
         uint64_t               representation;
         uint32_t               new_position;   // Only ever valid during garbage collection (and then only in the first slot after the allocation header)
-        slot_allocation_header allocation;     // Only valid in the 
+        slot_allocation_header allocation;     // Only valid for allocation header slots
     };
     static_assert(sizeof(slot) == slot_size);
 
+    struct gc_state;
     class pointer_set {
         std::vector<gc_heap_ptr_untyped*> set_;
     public:
@@ -269,7 +266,7 @@ private:
         uint32_t ptr_keep_count = 0;            // active if <> 0
         gc_heap* new_heap;                      // the "new_heap" is only kept for allocation purposes, no references to it should be kept
         uint32_t level;                         // recursion depth
-        std::vector<uint32_t*> pending_fixpus;  // pending fixup addresses
+        std::vector<uint32_t*> pending_fixups;  // pending fixup addresses
     } gc_state_;
 
     void run_destructors();
@@ -368,8 +365,9 @@ private:
 template<typename T>
 class gc_heap_ptr_untracked {
     // TODO: Add debug mode where e.g. the MSB of pos_ is set when the pointer is copied
-    //       Then check that 1) it is set in fixup_after_move 2) NOT set in the destructor
+    //       Then check that 1) it is set in fixup 2) NOT set in the destructor
     //       Should also do something similar for value_representation
+    //       NOTE: this will probably make gc_table have a non-trivial destructor, so will need global flag/define
 public:
     gc_heap_ptr_untracked() : pos_(0) {}
     gc_heap_ptr_untracked(const gc_heap_ptr<T>& p) : pos_(p.pos_) {}
@@ -388,7 +386,7 @@ public:
         return h.unsafe_create_from_position<T>(pos_);
     }
 
-    void fixup_after_move(gc_heap& old_heap) {
+    void fixup(gc_heap& old_heap) {
         if (pos_) {
             old_heap.register_fixup(pos_);
         }

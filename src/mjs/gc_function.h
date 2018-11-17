@@ -6,7 +6,7 @@
 
 namespace mjs {
 
-// Alignment needed so impl<F> will be construct with proper alignment
+// alignas needed so impl<F> will be construct with proper alignment
 class alignas(uint64_t) gc_function {
 public:
     template<typename F>
