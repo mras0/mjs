@@ -183,11 +183,6 @@ public:
         return allocate_and_construct<T>(sizeof(T), std::forward<Args>(args)...);
     }
 
-    static gc_heap& local_heap() {
-        assert(local_heap_);
-        return *local_heap_;
-    }
-
 private:
     static constexpr uint32_t unallocated_type_index = UINT32_MAX;
     static constexpr uint32_t gc_moved_type_index    = unallocated_type_index-1;
@@ -248,7 +243,6 @@ private:
         }
     };
 
-    thread_local static gc_heap* local_heap_;
     pointer_set pointers_;
     slot* storage_;
     uint32_t capacity_;
@@ -281,26 +275,6 @@ private:
 
     template<typename T>
     gc_heap_ptr<T> unsafe_create_from_position(uint32_t pos);
-};
-
-class scoped_gc_heap : public gc_heap {
-public:
-    explicit scoped_gc_heap(uint32_t capacity) : gc_heap(capacity), old_heap_(gc_heap::local_heap_) {
-        gc_heap::local_heap_ = this;
-    }
-    ~scoped_gc_heap() {
-        assert(gc_heap::local_heap_ == this);
-        gc_heap::local_heap_ = old_heap_;
-
-#ifndef  NDEBUG
-        garbage_collect();
-        assert(calc_used() == 0);
-#endif
-    }
-    scoped_gc_heap(scoped_gc_heap&) = delete;
-    scoped_gc_heap& operator=(scoped_gc_heap&) = delete;
-private:
-    gc_heap* old_heap_;
 };
 
 class gc_heap_ptr_untyped {

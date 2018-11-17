@@ -27,7 +27,7 @@ std::shared_ptr<mjs::source_file> make_source(const std::wstring_view& s) {
 }
 
 int interpret_file(const std::shared_ptr<mjs::source_file>& source) {
-    mjs::scoped_gc_heap heap{1<<24}; // TODO: Do something sane
+    mjs::gc_heap heap{1<<24}; // TODO: Do something sane
     auto bs = mjs::parse(source);
     mjs::interpreter i{heap, *bs};
     mjs::value res{};
@@ -43,7 +43,7 @@ int main(int argc, char* argv[]) {
             return interpret_file(read_ascii_file(argv[1]));
         }
 
-        mjs::scoped_gc_heap heap{1<<22}; // TODO: Do something sane
+        mjs::gc_heap heap{1<<22}; // TODO: Do something sane
         mjs::interpreter i{heap, *mjs::parse(make_source(L""))};
         for (;;) {
             std::wcout << "> " << std::flush;

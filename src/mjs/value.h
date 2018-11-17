@@ -106,8 +106,6 @@ private:
         reference r_;
     };
 };
-std::ostream& operator<<(std::ostream& os, const value& v);
-std::wostream& operator<<(std::wostream& os, const value& v);
 bool operator==(const value& l, const value& r);
 inline bool operator!=(const value& l, const value& r) {
     return !(l == r);
@@ -135,8 +133,8 @@ uint32_t to_uint32(double n);
 uint32_t to_uint32(const value& v);
 uint16_t to_uint16(double n);
 uint16_t to_uint16(const value& v);
-string to_string(double n);
-string to_string(const value& v);
+string to_string(gc_heap& h, double n);
+string to_string(gc_heap& h, const value& v);
 
 void debug_print(std::wostream& os, const value& v, int indent_incr, int max_nest = INT_MAX, int indent = 0);
 std::wstring debug_string(const value& v);

@@ -94,14 +94,6 @@ void value::destroy() {
     type_ = value_type::undefined;
 }
 
-std::ostream& operator<<(std::ostream& os, const value& v) {
-    return os << to_string(v);
-}
-
-std::wostream& operator<<(std::wostream& os, const value& v) {
-    return os << to_string(v);
-}
-
 bool operator==(const value& l, const value& r) {
     if (l.type() != r.type()) {
         return false;
@@ -268,7 +260,7 @@ std::string foo(double m) {
 }
 #endif
 
-string do_format_double(double m, int k) {
+std::wstring do_format_double(double m, int k) {
     assert(k >= 1);             // k is the number of decimal digits in the representation
     int n;                      // n is the position of the decimal point in s
     int sign;                   // sign is set if the value is negative (never true since to_string handles that)
@@ -311,22 +303,22 @@ string do_format_double(double m, int k) {
         // (with no leading zeros)
         woss << s[0] << '.' << s+1 << 'e' << (n-1>=0?'+':'-') << std::abs(n-1);
     }
-    return string{woss.str()};
+    return woss.str();
 }
 
-string to_string(double m) {
+std::wstring to_string(double m) {
     // Handle special cases
     if (std::isnan(m)) {
-        return string{"NaN"};
+        return L"NaN";
     }
     if (m == 0) {
-        return string{"0"};
+        return L"0";
     }
     if (m < 0) {
-        return string{"-"} + to_string(-m);
+        return L"-" + to_string(-m);
     }
     if (std::isinf(m)) {
-        return string{"Infinity"};
+        return L"Infinity";
     }
 
     assert(std::isfinite(m) && m > 0);
@@ -347,14 +339,18 @@ string to_string(double m) {
     NOT_IMPLEMENTED(m);
 }
 
-string to_string(const value& v) {
+string to_string(gc_heap& h, double m) {
+    return string{h, to_string(m)};
+}
+
+string to_string(gc_heap& h, const value& v) {
     switch (v.type()) {
-    case value_type::undefined: return string{"undefined"};
-    case value_type::null:      return string{"null"};
-    case value_type::boolean:   return string{v.boolean_value() ? "true" : "false"};
-    case value_type::number:    return to_string(v.number_value());
+    case value_type::undefined: return string{h, "undefined"};
+    case value_type::null:      return string{h, "null"};
+    case value_type::boolean:   return string{h, v.boolean_value() ? "true" : "false"};
+    case value_type::number:    return to_string(h, v.number_value());
     case value_type::string:    return v.string_value();
-    case value_type::object:    return to_string(to_primitive(v, value_type::string));
+    case value_type::object:    return to_string(h, to_primitive(v, value_type::string));
     case value_type::reference: break;
     }
     NOT_IMPLEMENTED(v.type());
@@ -366,9 +362,11 @@ void debug_print(std::wostream& os, const value& v, int indent_incr, int max_nes
     case value_type::null:
         os << v.type();
         break;
-    case value_type::boolean: [[fallthrough]];
+    case value_type::boolean:
+        os << v.boolean_value() ? "true" : "false";
+        break;
     case value_type::number:
-        os << to_string(v);
+        os << to_string(v.number_value());
         break;
     case value_type::string:
         os << "'";
@@ -391,7 +389,8 @@ void debug_print(std::wostream& os, const value& v, int indent_incr, int max_nes
         v.object_value()->debug_print(os, indent_incr, max_nest, indent);
         break;
     default:
-        os << "[" << v.type() << " " <<  v << "]";
+        assert(false);
+        os << "[Unhandled type " << v.type() << "]";
     }
 }
 

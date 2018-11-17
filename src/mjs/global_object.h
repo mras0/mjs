@@ -29,7 +29,7 @@ public:
 
     template<typename F>
     void put_native_function(object& obj, const char* name, const F& f, int named_args) {
-        put_native_function(obj, string{name}, f, named_args);
+        put_native_function(obj, string{obj.heap(), name}, f, named_args);
     }
 
     template<typename F, typename String>

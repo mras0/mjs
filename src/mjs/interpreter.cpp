@@ -23,7 +23,7 @@ std::wostream& operator<<(std::wostream& os, const completion_type& t) {
 }
 
 std::wostream& operator<<(std::wostream& os, const completion& c) {
-    return os << c.type << " " << c.result;
+    return os << c.type << " value type: " << c.result.type();
 }
 
 class hoisting_visitor {
@@ -109,7 +109,7 @@ private:
 
 class interpreter::impl {
 public:
-    explicit impl(gc_heap& h, const block_statement& program, const on_statement_executed_type& on_statement_executed) : global_(global_object::make(h)), on_statement_executed_(on_statement_executed) {
+    explicit impl(gc_heap& h, const block_statement& program, const on_statement_executed_type& on_statement_executed) : heap_(h), global_(global_object::make(h)), on_statement_executed_(on_statement_executed) {
         assert(!global_->has_property(L"eval"));
 
         global_->put_native_function(global_, "eval", [this](const value&, const std::vector<value>& args) {
@@ -130,18 +130,18 @@ public:
             return ret.result;
         }, 1);
 
-        global_->put_function(global_->get(L"Function").object_value(), gc_function::make(global_->heap(), [this](const value&, const std::vector<value>& args) {
+        global_->put_function(global_->get(L"Function").object_value(), gc_function::make(h, [this](const value&, const std::vector<value>& args) {
             std::wstring body{}, p{};
             if (args.empty()) {
             } else if (args.size() == 1) {
-                body = to_string(args.front()).view();
+                body = to_string(heap_, args.front()).view();
             } else {
-                p = to_string(args.front()).view();
+                p = to_string(heap_, args.front()).view();
                 for (size_t k = 1; k < args.size() - 1; ++k) {
                     p += ',';
-                    p += to_string(args[k]).view();
+                    p += to_string(heap_, args[k]).view();
                 }
-                body = to_string(args.back()).view();
+                body = to_string(heap_, args.back()).view();
             }
 
             auto bs = parse(std::make_shared<source_file>(L"Function definition", L"function anonymous(" + p + L") {\n" + body + L"\n}"));
@@ -150,10 +150,10 @@ public:
             }
 
             return value{create_function(static_cast<const function_definition&>(*bs->l().front()), make_scope(global_, nullptr))};
-        }), global_object::native_function_body(string{L"Function"}), 1);
+        }), global_object::native_function_body(string{heap_, L"Function"}), 1);
 
         for (const auto& id: hoisting_visitor::scan(program)) {
-            global_->put(string{id}, value::undefined);
+            global_->put(string{heap_, id}, value::undefined);
         }
 
         scopes_ = make_scope(global_, nullptr);
@@ -187,7 +187,7 @@ public:
         case token_type::true_:           return value{true};
         case token_type::false_:          return value{false};
         case token_type::numeric_literal: return value{e.t().dvalue()};
-        case token_type::string_literal:  return value{string{e.t().text()}};
+        case token_type::string_literal:  return value{string{heap_, e.t().text()}};
         default: NOT_IMPLEMENTED(e);
         }
     }
@@ -228,7 +228,7 @@ public:
         auto u = eval(e.e());
         if (e.op() == token_type::delete_) {
             if (u.type() != value_type::reference) {
-                NOT_IMPLEMENTED(u);
+                NOT_IMPLEMENTED(u.type());
             }
             const auto& base = u.reference_value().base();
             const auto& prop = u.reference_value().property_name();
@@ -241,26 +241,26 @@ public:
             return value::undefined;
         } else if (e.op() == token_type::typeof_) {
             if (u.type() == value_type::reference && !u.reference_value().base()) {
-                return value{string{"undefined"}};
+                return value{string{heap_, "undefined"}};
             }
             u = get_value(u);
             switch (u.type()) {
-            case value_type::undefined: return value{string{"undefined"}};
-            case value_type::null: return value{string{"object"}};
-            case value_type::boolean: return value{string{"boolean"}};
-            case value_type::number: return value{string{"number"}};
-            case value_type::string: return value{string{"string"}};
-            case value_type::object: return value{string{u.object_value()->call_function() ? "function" : "object"}};
+            case value_type::undefined: return value{string{heap_, "undefined"}};
+            case value_type::null: return value{string{heap_, "object"}};
+            case value_type::boolean: return value{string{heap_, "boolean"}};
+            case value_type::number: return value{string{heap_, "number"}};
+            case value_type::string: return value{string{heap_, "string"}};
+            case value_type::object: return value{string{heap_, u.object_value()->call_function() ? "function" : "object"}};
             default:
                 NOT_IMPLEMENTED(u.type());
             }
         } else if (e.op() == token_type::plusplus || e.op() == token_type::minusminus) {
             if (u.type() != value_type::reference) {
-                NOT_IMPLEMENTED(u);
+                NOT_IMPLEMENTED(to_string(heap_, u));
             }
             auto num = to_number(get_value(u)) + (e.op() == token_type::plusplus ? 1 : -1);
             if (!put_value(u, value{num})) {
-                NOT_IMPLEMENTED(u);
+                NOT_IMPLEMENTED(to_string(heap_, u));
             }
             return value{num};
         } else if (e.op() == token_type::plus) {
@@ -356,13 +356,13 @@ public:
         return false;
     }
 
-    static value do_binary_op(const token_type op, value& l, value& r) {
+    value do_binary_op(const token_type op, value& l, value& r) {
         if (op == token_type::plus) {
             l = to_primitive(l);
             r = to_primitive(r);
             if (l.type() == value_type::string || r.type() == value_type::string) {
-                auto ls = to_string(l);
-                auto rs = to_string(r);
+                auto ls = to_string(heap_, l);
+                auto rs = to_string(heap_, r);
                 return value{ls + rs};
             }
             // Otherwise handle like the other operators
@@ -441,7 +441,7 @@ public:
             return r;
         }
         if (e.op() == token_type::dot || e.op() == token_type::lbracket) {
-            return value{reference{global_->to_object(l), to_string(r)}};
+            return value{reference{global_->to_object(l), to_string(heap_, r)}};
         }
         return do_binary_op(e.op(), l, r);
     }
@@ -477,7 +477,7 @@ public:
             if (d.init()) {
                 // Evaulate in two steps to avoid using stale activation object pointer in case the evaulation forces a garbage collection
                 auto init_val = eval(*d.init());
-                scopes_->activation->put(string{d.id()}, init_val);
+                scopes_->activation->put(string{heap_, d.id()}, init_val);
             }
         }
         return completion{};
@@ -611,7 +611,7 @@ public:
     }
 
     completion operator()(const function_definition& s) {
-        scopes_->activation->put(string{s.id()}, value{create_function(s, scopes_)});
+        scopes_->activation->put(string{heap_, s.id()}, value{create_function(s, scopes_)});
         return completion{};
     }
 
@@ -634,7 +634,7 @@ private:
         }
 
         reference lookup(const std::wstring& id) const {
-            return lookup(string{id});
+            return lookup(string{activation.heap(), id});
         }
 
         object_ptr activation;
@@ -657,6 +657,7 @@ private:
         impl& parent;
         scope_ptr old_scopes;
     };
+    gc_heap&                       heap_;
     scope_ptr                      scopes_;
     gc_heap_ptr<global_object>     global_;
     on_statement_executed_type     on_statement_executed_;
@@ -717,31 +718,31 @@ private:
         auto callee = global_->make_raw_function();
         auto func = [this, block, param_names, prev_scope, callee, ids = hoisting_visitor::scan(*block)](const value& this_, const std::vector<value>& args) {
             // Arguments array
-            auto as = object::make(global_->heap(), string{"Object"}, global_->object_prototype());
-            as->put(string{"callee"}, value{callee}, property_attribute::dont_enum);
-            as->put(string{"length"}, value{static_cast<double>(args.size())}, property_attribute::dont_enum);
+            auto as = object::make(heap_, string{heap_, "Object"}, global_->object_prototype());
+            as->put(string{heap_, "callee"}, value{callee}, property_attribute::dont_enum);
+            as->put(string{heap_, "length"}, value{static_cast<double>(args.size())}, property_attribute::dont_enum);
             for (uint32_t i = 0; i < args.size(); ++i) {
-                as->put(string{index_string(i)}, args[i], property_attribute::dont_enum);
+                as->put(string{heap_, index_string(i)}, args[i], property_attribute::dont_enum);
             }
 
             // Scope
-            auto activation = object::make(global_->heap(), string{"Activation"}, nullptr); // TODO
+            auto activation = object::make(heap_, string{heap_, "Activation"}, nullptr); // TODO
             auto_scope auto_scope_{*this, activation, prev_scope};
-            activation->put(string{"this"}, this_, property_attribute::dont_delete | property_attribute::dont_enum | property_attribute::read_only);
-            activation->put(string{"arguments"}, value{as}, property_attribute::dont_delete);
+            activation->put(string{heap_, "this"}, this_, property_attribute::dont_delete | property_attribute::dont_enum | property_attribute::read_only);
+            activation->put(string{heap_, "arguments"}, value{as}, property_attribute::dont_delete);
             for (size_t i = 0; i < param_names.size(); ++i) {
-                activation->put(string{param_names[i]}, i < args.size() ? args[i] : value::undefined);
+                activation->put(string{heap_, param_names[i]}, i < args.size() ? args[i] : value::undefined);
             }
             // Variables
             for (const auto& id: ids) {
                 assert(!activation->has_property(id)); // TODO: Handle this..
-                activation->put(string{id}, value::undefined);
+                activation->put(string{heap_, id}, value::undefined);
             }
             return eval(*block).result;
         };
-        global_->put_function(callee, gc_function::make(global_->heap(), func), string{L"function " + std::wstring{id.view()} + body_text}, static_cast<int>(param_names.size()));
+        global_->put_function(callee, gc_function::make(heap_, func), string{heap_, L"function " + std::wstring{id.view()} + body_text}, static_cast<int>(param_names.size()));
 
-        callee->construct_function(gc_function::make(global_->heap(), [global = global_, callee, id](const value& unsused_this_, const std::vector<value>& args) {
+        callee->construct_function(gc_function::make(heap_, [global = global_, callee, id](const value& unsused_this_, const std::vector<value>& args) {
             assert(unsused_this_.type() == value_type::undefined); (void)unsused_this_;
             assert(!id.view().empty());
             auto p = callee->get(L"prototype");
@@ -754,7 +755,7 @@ private:
     }
 
     object_ptr create_function(const function_definition& s, const scope_ptr& prev_scope) {
-        return create_function(string{s.id()}, s.block_ptr(), s.params(), std::wstring{s.body_extend().source_view()}, prev_scope);
+        return create_function(string{heap_, s.id()}, s.block_ptr(), s.params(), std::wstring{s.body_extend().source_view()}, prev_scope);
     }
 };
 

@@ -13,7 +13,7 @@
 using namespace mjs;
 
 void test(const std::wstring_view& text, const value& expected) {
-    scoped_gc_heap h{1<<20}; // Use local heap, even if expected lives in another heap
+    gc_heap h{1<<20}; // Use local heap, even if expected lives in another heap
 
     const auto used_before = h.calc_used();
     {
@@ -60,7 +60,7 @@ void test(const std::wstring_view& text, const value& expected) {
 }
 
 void eval_tests() {
-    scoped_gc_heap h{1<<20};
+    gc_heap h{1<<20};
 
     test(L"undefined", value::undefined);
     test(L"null", value::null);
@@ -69,22 +69,22 @@ void eval_tests() {
     test(L"123", value{123.});
     test(L"0123", value{83.});
     test(L"0x123", value{291.});
-    test(L"'te\"st'", value{string{"te\"st"}});
-    test(L"\"te'st\"", value{string{"te'st"}});
+    test(L"'te\"st'", value{string{h, "te\"st"}});
+    test(L"\"te'st\"", value{string{h, "te'st"}});
     test(L"/*42*/60", value{60.0});
     test(L"x=12//\n+34;x", value{46.0});
     test(L"-7.5 % 2", value{-1.5});
     test(L"1+2*3", value{7.});
-    test(L"''+(0.1+0.2)", value{string{"0.30000000000000004"}});
-    test(L"x = 42; 'test ' + 2 * (6 - 4 + 1) + ' ' + x", value{string{"test 6 42"}});
-    test(L"y=1/2; z='string'; y+z", value{string{"0.5string"}});
+    test(L"''+(0.1+0.2)", value{string{h, "0.30000000000000004"}});
+    test(L"x = 42; 'test ' + 2 * (6 - 4 + 1) + ' ' + x", value{string{h, "test 6 42"}});
+    test(L"y=1/2; z='string'; y+z", value{string{h, "0.5string"}});
     test(L"var x=2; x++;", value{2.0});
     test(L"var x=2; x++; x", value{3.0});
     test(L"var x=2; x--;", value{2.0});
     test(L"var x=2; x--; x", value{1.0});
     test(L"var x = 42; delete x; x", value::undefined);
     test(L"void(2+2)", value::undefined);
-    test(L"typeof(2)", value{string{"number"}});
+    test(L"typeof(2)", value{string{h, "number"}});
     test(L"x=4.5; ++x", value{5.5});
     test(L"x=4.5; --x", value{3.5});
     test(L"x=42; +x;", value{42.0});
@@ -197,13 +197,13 @@ with(42) {
 
     test(L"function sum() {  var s = 0; for (var i = 0; i < arguments.length; ++i) s += arguments[i]; return s; } sum(1,2,3)", value{6.0});
     // Object
-    test(L"''+Object(null)", value{string{"[object Object]"}});
+    test(L"''+Object(null)", value{string{h, "[object Object]"}});
     test(L"o=Object(null); o.x=42; o.y=60; o.x+o['y']", value{102.0});
     test(L"a=Object(null);b=Object(null);a.x=b;a.x.y=42;a['x']['y']", value{42.0});
-    test(L"'' + new Object", value{string{L"[object Object]"}});
-    test(L"'' + new Object()", value{string{L"[object Object]"}});
-    test(L"'' + new Object(null)", value{string{L"[object Object]"}});
-    test(L"'' + new Object(undefined)", value{string{L"[object Object]"}});
+    test(L"'' + new Object", value{string{h, "[object Object]"}});
+    test(L"'' + new Object()", value{string{h, "[object Object]"}});
+    test(L"'' + new Object(null)", value{string{h, "[object Object]"}});
+    test(L"'' + new Object(undefined)", value{string{h, "[object Object]"}});
     test(L"o = new Object;o.x=42; new Object(o).x", value{42.0});
 
     // Function. Note: toString() rendering isn't specified (exactly)
@@ -285,8 +285,8 @@ function f(x) {
 ''+f(43); //$ string '43,1,2'
 )");
 
-    test(L"function  f ( x   ,\ny )  { return x + y;  }; f.toString()", value{string{"function f( x   ,\ny )  { return x + y;  }"}});
-    test(L"a=parseInt;a.toString()", value{string{"function parseInt() { [native code] }"}});
+    test(L"function  f ( x   ,\ny )  { return x + y;  }; f.toString()", value{string{h, "function f( x   ,\ny )  { return x + y;  }"}});
+    test(L"a=parseInt;a.toString()", value{string{h, "function parseInt() { [native code] }"}});
     // Array
     test(L"Array.length", value{1.0});
     test(L"Array.prototype.length", value{0.0});
@@ -299,34 +299,34 @@ function f(x) {
     test(L"a=new Array(); a[5]=42; a[3]=2; a.length", value{6.0});
     test(L"a=new Array(1,2,3,4); a.length=2; a.length", value{2.0});
     test(L"a=new Array(1,2,3,4); a.length=2; a[3]", value::undefined);
-    test(L"''+Array()", value{string{""}});
-    test(L"a=Array();a[0]=1;''+a", value{string{"1"}});
-    test(L"''+Array(1,2,3,4)", value{string{"1,2,3,4"}});
-    test(L"Array(1,2,3,4).join()", value{string{"1,2,3,4"}});
-    test(L"Array(1,2,3,4).join('')", value{string{"1234"}});
-    test(L"Array(4).join()", value{string{",,,"}});
-    test(L"Array(1,2,3,4).reverse()+''", value{string{"4,3,2,1"}});
-    test(L"''+Array('March', 'Jan', 'Feb', 'Dec').sort()", value{string{"Dec,Feb,Jan,March"}});
-    test(L"''+Array(1,30,4,21).sort()", value{string{"1,21,30,4"}});
-    test(L"function c(x,y) { return x-y; }; ''+Array(1,30,4,21).sort(c)", value{string{"1,4,21,30"}});
-    test(L"new Array(1).toString()", value{string{""}});
-    test(L"new Array(1,2).toString()", value{string{"1,2"}});
+    test(L"''+Array()", value{string{h, ""}});
+    test(L"a=Array();a[0]=1;''+a", value{string{h, "1"}});
+    test(L"''+Array(1,2,3,4)", value{string{h, "1,2,3,4"}});
+    test(L"Array(1,2,3,4).join()", value{string{h, "1,2,3,4"}});
+    test(L"Array(1,2,3,4).join('')", value{string{h, "1234"}});
+    test(L"Array(4).join()", value{string{h, ",,,"}});
+    test(L"Array(1,2,3,4).reverse()+''", value{string{h, "4,3,2,1"}});
+    test(L"''+Array('March', 'Jan', 'Feb', 'Dec').sort()", value{string{h, "Dec,Feb,Jan,March"}});
+    test(L"''+Array(1,30,4,21).sort()", value{string{h, "1,21,30,4"}});
+    test(L"function c(x,y) { return x-y; }; ''+Array(1,30,4,21).sort(c)", value{string{h, "1,4,21,30"}});
+    test(L"new Array(1).toString()", value{string{h, ""}});
+    test(L"new Array(1,2).toString()", value{string{h, "1,2"}});
     test(L"+new Array(1)", value{0.});
     test(L"+new Array(1,2)", value{NAN});
     // Make sure we handle "large" arrays
     test(L"a=new Array(500);for (var i=0; i<a.length; ++i) a[i] = i; sum=0; for (var i=0; i<a.length; ++i) sum += a[i]; sum", value{499*500/2.});
 
     // String
-    test(L"String()", value{string{""}});
-    test(L"String('test')", value{string{"test"}});
-    test(L"''+new String()", value{string{""}});
-    test(L"''+new String('test')", value{string{"test"}});
-    test(L"Object('testXX').valueOf()", value{string{"testXX"}});
-    test(L"String.fromCharCode()", value{string{""}});
-    test(L"String.fromCharCode(65,66,67+32)", value{string{"ABc"}});
-    test(L"'test'.charAt(0)", value{string{"t"}});
-    test(L"'test'.charAt(2)", value{string{"s"}});
-    test(L"'test'.charAt(5)", value{string{""}});
+    test(L"String()", value{string{h, ""}});
+    test(L"String('test')", value{string{h, "test"}});
+    test(L"''+new String()", value{string{h, ""}});
+    test(L"''+new String('test')", value{string{h, "test"}});
+    test(L"Object('testXX').valueOf()", value{string{h, "testXX"}});
+    test(L"String.fromCharCode()", value{string{h, ""}});
+    test(L"String.fromCharCode(65,66,67+32)", value{string{h, "ABc"}});
+    test(L"'test'.charAt(0)", value{string{h, "t"}});
+    test(L"'test'.charAt(2)", value{string{h, "s"}});
+    test(L"'test'.charAt(5)", value{string{h, ""}});
     test(L"'test'.charCodeAt(0)", value{(double)'t'});
     test(L"'test'.charCodeAt(2)", value{(double)'s'});
     test(L"'test'.charCodeAt(5)", value{NAN});
@@ -343,21 +343,21 @@ function f(x) {
     test(L"'testfesthest'.lastIndexOf('est',3)", value{1.});
     test(L"'testfesthest'.lastIndexOf('est',7)", value{5.});
     test(L"'testfesthest'.lastIndexOf('est', 22)", value{9.});
-    test(L"''.split()+''", value{string{""}});
-    test(L"'1 2 3'.split()+''", value{string{"1 2 3"}});
-    test(L"'abcd'.split('')+''", value{string{"a,b,c,d"}});
-    test(L"'1 2 3'.split('not found')+''", value{string{"1 2 3"}});
-    test(L"'1 2 3'.split(' ')+''", value{string{"1,2,3"}});
-    test(L"'foo bar'.substring()", value{string{"foo bar"}});
-    test(L"'foo bar'.substring(-1)", value{string{"foo bar"}});
-    test(L"'foo bar'.substring(42)", value{string{""}});
-    test(L"'foo bar'.substring(3)", value{string{" bar"}});
-    test(L"'foo bar'.substring(0, 1)", value{string{"f"}});
-    test(L"'foo bar'.substring(1, 0)", value{string{"f"}});
-    test(L"'foo bar'.substring(1000, -1)", value{string{"foo bar"}});
-    test(L"'foo bar'.substring(1, 4)", value{string{"oo "}});
-    test(L"'ABc'.toLowerCase()", value{string{"abc"}});
-    test(L"'ABc'.toUpperCase()", value{string{"ABC"}});
+    test(L"''.split()+''", value{string{h, ""}});
+    test(L"'1 2 3'.split()+''", value{string{h, "1 2 3"}});
+    test(L"'abcd'.split('')+''", value{string{h, "a,b,c,d"}});
+    test(L"'1 2 3'.split('not found')+''", value{string{h, "1 2 3"}});
+    test(L"'1 2 3'.split(' ')+''", value{string{h, "1,2,3"}});
+    test(L"'foo bar'.substring()", value{string{h, "foo bar"}});
+    test(L"'foo bar'.substring(-1)", value{string{h, "foo bar"}});
+    test(L"'foo bar'.substring(42)", value{string{h, ""}});
+    test(L"'foo bar'.substring(3)", value{string{h, " bar"}});
+    test(L"'foo bar'.substring(0, 1)", value{string{h, "f"}});
+    test(L"'foo bar'.substring(1, 0)", value{string{h, "f"}});
+    test(L"'foo bar'.substring(1000, -1)", value{string{h, "foo bar"}});
+    test(L"'foo bar'.substring(1, 4)", value{string{h, "oo "}});
+    test(L"'ABc'.toLowerCase()", value{string{h, "abc"}});
+    test(L"'ABc'.toUpperCase()", value{string{h, "ABC"}});
     // Boolean
     test(L"Boolean()", value{false});
     test(L"Boolean(true)", value{true});
@@ -368,19 +368,19 @@ function f(x) {
     test(L"new Boolean('x').valueOf()", value{true});
     test(L"0 + new Boolean()", value{0.});
     test(L"0 + new Boolean(1)", value{1.});
-    test(L"'' + new Boolean(0)", value{string{"false"}});
-    test(L"'' + new Boolean(1)", value{string{"true"}});
-    test(L"Object(true).toString()", value{string{"true"}});
+    test(L"'' + new Boolean(0)", value{string{h, "false"}});
+    test(L"'' + new Boolean(1)", value{string{h, "true"}});
+    test(L"Object(true).toString()", value{string{h, "true"}});
     // Number
     test(L"Number()", value{0.});
     test(L"Number(42.42)", value{42.42});
     test(L"Number.MIN_VALUE", value{5e-324});
     test(L"Number('1.2')", value{1.2});
     test(L"Number('1,2')", value{NAN});
-    test(L"new Number(42.42).toString()", value{string{"42.42"}});
-    test(L"''+new Number(60)", value{string{"60"}});
+    test(L"new Number(42.42).toString()", value{string{h, "42.42"}});
+    test(L"''+new Number(60)", value{string{h, "60"}});
     test(L"new Number(123).valueOf()", value{123.0});
-    test(L"Object(42).toString(10)", value{string{"42"}});
+    test(L"Object(42).toString(10)", value{string{h, "42"}});
     // TODO: Math
     // TODO: Date
 
@@ -395,15 +395,15 @@ function f(x) {
     test(L"function X() { this.val = 42; }; new X().val", value{42.0});
     test(L"function A() { this.n=1; }; function B() { this.n=2;} function g() { return this.n; } A.prototype.foo = g; new A().foo()", value{1.});
     test(L"function A() { this.n=1; }; function B() { this.n=2;} function g() { return this.n; } A.prototype.foo = g; new B().foo", value::undefined);
-    test(L"function f() { this.a = 1; this.b = 2; } var o = new f(); f.prototype.b = 3; f.prototype.c = 4; '' + new Array(o.a,o.b,o.c,o.d)", value{string{"1,2,4,"}});
+    test(L"function f() { this.a = 1; this.b = 2; } var o = new f(); f.prototype.b = 3; f.prototype.c = 4; '' + new Array(o.a,o.b,o.c,o.d)", value{string{h, "1,2,4,"}});
     test(L"var o = new Object(); o.a = 2; function m(){return this.a+1; }; o.m = m; o.m()", value{3.});
 
-    test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; si.prop", value{string{"some value"}});
-    test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; si.foo", value{string{"bar"}});
+    test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; si.prop", value{string{h, "some value"}});
+    test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; si.foo", value{string{h, "bar"}});
     test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; s.prop", value::undefined);
     test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; s.foo", value::undefined);
     test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; s.prototype.prop", value::undefined);
-    test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; s.prototype.foo", value{string{"bar"}});
+    test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; s.prototype.foo", value{string{h, "bar"}});
 }
 
 void test_global_functions() {
@@ -570,7 +570,7 @@ d3.setTime(5678); d3.getTime() //$ number 5678
 
 // TODO: Create seperate parse_test
 void test_semicolon_insertion() {
-    scoped_gc_heap heap{8192};
+    gc_heap heap{8192};
     struct parse_failure {};
 
     auto test_parse_fails = [](const char* text) {

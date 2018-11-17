@@ -159,12 +159,12 @@ public:
                     assert(res);
                 }
             }
-            object::put(string{length_str}, value{static_cast<double>(new_length)});
+            object::put(string{heap(), length_str}, value{static_cast<double>(new_length)});
         } else {
             object::put(name, val, attr);
             uint32_t index = to_uint32(value{name});
-            if (name.view() == to_string(index).view() && index != UINT32_MAX && index >= length()) {
-                object::put(string{length_str}, value{static_cast<double>(index+1)});
+            if (name.view() == to_string(heap(), index).view() && index != UINT32_MAX && index >= length()) {
+                object::put(string{heap(), length_str}, value{static_cast<double>(index+1)});
             }
         }
     }
@@ -172,7 +172,7 @@ public:
     void unchecked_put(uint32_t index, const value& val) {
         const auto name = index_string(index);
         assert(index < to_uint32(get(length_str)) && can_put(name));
-        object::put(string{name}, val);
+        object::put(string{heap(), name}, val);
     }
 
 private:
@@ -181,21 +181,22 @@ private:
     }
 
     explicit array_object(gc_heap& h, const string& class_name, const object_ptr& prototype, uint32_t length) : object{h, class_name, prototype} {
-        object::put(string{length_str}, value{static_cast<double>(length)}, property_attribute::dont_enum | property_attribute::dont_delete);
+        object::put(string{heap(), length_str}, value{static_cast<double>(length)}, property_attribute::dont_enum | property_attribute::dont_delete);
     }
 };
 
 string join(const object_ptr& o, const std::wstring_view& sep) {
+    auto& h = o.heap();
     const uint32_t l = to_uint32(o->get(array_object::length_str));
     std::wstring s;
     for (uint32_t i = 0; i < l; ++i) {
         if (i) s += sep;
         const auto& oi = o->get(index_string(i));
         if (oi.type() != value_type::undefined && oi.type() != value_type::null) {
-            s += to_string(oi).view();
+            s += to_string(h, oi).view();
         }
     }
-    return string{s};
+    return string{h, s};
 }
 
 struct duration_printer {
@@ -350,10 +351,10 @@ struct date_helper {
         return date_helper::make_date(date_helper::make_day(year, month, day), date_helper::make_time(hours, minutes, seconds, ms));
     }
 
-    static string to_string(double t) {
+    static string to_string(gc_heap& h, double t) {
         std::wostringstream woss;
         woss << "[Date: " << t << "]";
-        return string{woss.str()};
+        return string{h, woss.str()};
     }
 
     static double utc(double t) {
@@ -408,7 +409,7 @@ public:
         case value_type::string:  return new_string(v.string_value());
         case value_type::object:  return v.object_value();
         default:
-            NOT_IMPLEMENTED(v);
+            NOT_IMPLEMENTED(v.type());
         }
     }
 
@@ -423,7 +424,7 @@ private:
     gc_heap_ptr<global_object_impl> self_;
 
     // Well know, commonly used strings
-#define DEFINE_STRING(x) string x ## _str_{#x}
+#define DEFINE_STRING(x) string x ## _str_{heap(), #x}
     DEFINE_STRING(Object);
     DEFINE_STRING(Function);
     DEFINE_STRING(Array);
@@ -493,8 +494,8 @@ private:
 
         // §15.2.4
         object_prototype_->put(constructor_str_, value{o}, default_attributes);
-        put_native_function(object_prototype_, toString_str_, [](const value& this_, const std::vector<value>&){
-            return value{string{"[object "} + this_.object_value()->class_name() + string{"]"}};
+        put_native_function(object_prototype_, toString_str_, [&h=heap()](const value& this_, const std::vector<value>&){
+            return value{string{h, "[object "} + this_.object_value()->class_name() + string{h, "]"}};
         }, 0);
         put_native_function(object_prototype_, valueOf_str_, [](const value& this_, const std::vector<value>&){
             return this_;
@@ -530,9 +531,9 @@ private:
 
         boolean_prototype_->put(constructor_str_, value{c}, default_attributes);
 
-        put_native_function(boolean_prototype_, toString_str_, [check_type](const value& this_, const std::vector<value>&){
+        put_native_function(boolean_prototype_, toString_str_, [check_type, &h=heap()](const value& this_, const std::vector<value>&){
             check_type(this_);
-            return value{string{this_.object_value()->internal_value().boolean_value() ? L"true" : L"false"}};
+            return value{string{h, this_.object_value()->internal_value().boolean_value() ? L"true" : L"false"}};
         }, 0);
 
         put_native_function(boolean_prototype_, valueOf_str_, [check_type](const value& this_, const std::vector<value>&){
@@ -564,11 +565,11 @@ private:
             return value{args.empty() ? 0.0 : to_number(args.front())};
         }));
         c->put(prototype_str_, value{number_prototype_}, prototype_attributes);
-        c->put(string{"MAX_VALUE"}, value{1.7976931348623157e308}, default_attributes);
-        c->put(string{"MIN_VALUE"}, value{5e-324}, default_attributes);
-        c->put(string{"NaN"}, value{NAN}, default_attributes);
-        c->put(string{"NEGATIVE_INFINITY"}, value{-INFINITY}, default_attributes);
-        c->put(string{"POSITIVE_INFINITY"}, value{INFINITY}, default_attributes);
+        c->put(string{heap(), "MAX_VALUE"}, value{1.7976931348623157e308}, default_attributes);
+        c->put(string{heap(), "MIN_VALUE"}, value{5e-324}, default_attributes);
+        c->put(string{heap(), "NaN"}, value{NAN}, default_attributes);
+        c->put(string{heap(), "NEGATIVE_INFINITY"}, value{-INFINITY}, default_attributes);
+        c->put(string{heap(), "POSITIVE_INFINITY"}, value{INFINITY}, default_attributes);
 
         auto check_type = [p = number_prototype_](const value& this_) {
             validate_type(this_, p, "Number");
@@ -580,13 +581,14 @@ private:
             const int radix = args.empty() ? 10 : to_int32(args.front());
             if (radix < 2 || radix > 36) {
                 std::wostringstream woss;
-                woss << "Invalid radix in Number.toString: " << args.front();
+                woss << "Invalid radix in Number.toString: " << to_string(this_.object_value().heap(), args.front());
                 THROW_RUNTIME_ERROR(woss.str());
             }
             if (radix != 10) {
                 NOT_IMPLEMENTED(radix);
             }
-            return value{to_string(this_.object_value()->internal_value())};
+            auto o = this_.object_value();
+            return value{to_string(o.heap(), o->internal_value())};
         }, 1);
         put_native_function(number_prototype_, valueOf_str_,[check_type](const value& this_, const std::vector<value>&){
             check_type(this_);
@@ -610,21 +612,22 @@ private:
 
     object_ptr make_string_object() {
         string_prototype_ = object::make(heap(), String_str_, object_prototype_);
-        string_prototype_->internal_value(value{string{""}});
+        string_prototype_->internal_value(value{string{heap(), ""}});
 
         auto c = make_function([global = self_](const value&, const std::vector<value>& args) {
-            return value{global->new_string(args.empty() ? string{""} : to_string(args.front()))};
+            auto& h = global->heap();
+            return value{global->new_string(args.empty() ? string{h, ""} : to_string(h, args.front()))};
         }, native_function_body(String_str_), 1);
-        c->call_function(gc_function::make(heap(), [](const value&, const std::vector<value>& args) {
-            return value{args.empty() ? string{""} : to_string(args.front())};
+        c->call_function(gc_function::make(heap(), [&h = heap()](const value&, const std::vector<value>& args) {
+            return value{args.empty() ? string{h, ""} : to_string(h, args.front())};
         }));
         c->put(prototype_str_, value{string_prototype_}, prototype_attributes);
-        put_native_function(c, string{"fromCharCode"}, [](const value&, const std::vector<value>& args){
+        put_native_function(c, string{heap(), "fromCharCode"}, [&h = heap()](const value&, const std::vector<value>& args){
             std::wstring s;
             for (const auto& a: args) {
                 s.push_back(to_uint16(a));
             }
-            return value{string{s}};
+            return value{string{h, s}};
         }, 0);
 
         auto check_type = [p = string_prototype_](const value& this_) {
@@ -642,18 +645,19 @@ private:
         }, 0);
 
 
-        auto make_string_function = [global = self_](const char* name, int num_args, auto f) {
-            global->put_native_function(global->string_prototype_, string{name}, [f](const value& this_, const std::vector<value>& args){
-                return value{f(to_string(this_).view(), args)};
+        auto make_string_function = [&](const char* name, int num_args, auto f) {
+            auto& h = heap();
+            put_native_function(string_prototype_, string{heap(), name}, [&h, f](const value& this_, const std::vector<value>& args){
+                return value{f(to_string(h, this_).view(), args)};
             }, num_args);
         };
 
-        make_string_function("charAt", 1, [](const std::wstring_view& s, const std::vector<value>& args){
+        make_string_function("charAt", 1, [&h = heap()](const std::wstring_view& s, const std::vector<value>& args){
             const int position = to_int32(get_arg(args, 0));
             if (position < 0 || position >= static_cast<int>(s.length())) {
-                return string{""};
+                return string{h, ""};
             }
-            return string{s.substr(position, 1)};
+            return string{h, s.substr(position, 1)};
         });
 
         make_string_function("charCodeAt", 1, [](const std::wstring_view& s, const std::vector<value>& args){
@@ -664,15 +668,15 @@ private:
             return static_cast<double>(s[position]);
         });
 
-        make_string_function("indexOf", 2, [](const std::wstring_view& s, const std::vector<value>& args){
-            const auto& search_string = to_string(get_arg(args, 0));
+        make_string_function("indexOf", 2, [&h=heap()](const std::wstring_view& s, const std::vector<value>& args){
+            const auto& search_string = to_string(h, get_arg(args, 0));
             const int position = to_int32(get_arg(args, 1));
             auto index = s.find(search_string.view(), position);
             return index == std::wstring_view::npos ? -1. : static_cast<double>(index);
         });
 
-        make_string_function("lastIndexOf", 2, [](const std::wstring_view& s, const std::vector<value>& args){
-            const auto& search_string = to_string(get_arg(args, 0));
+        make_string_function("lastIndexOf", 2, [&h=heap()](const std::wstring_view& s, const std::vector<value>& args){
+            const auto& search_string = to_string(h, get_arg(args, 0));
             double position = to_number(get_arg(args, 1));
             const int ipos = std::isnan(position) ? INT_MAX : to_int32(position);
             auto index = s.rfind(search_string.view(), ipos);
@@ -680,14 +684,15 @@ private:
         });
 
         make_string_function("split", 1, [global = self_](const std::wstring_view& s, const std::vector<value>& args){
+            auto& h = global->heap();
             auto a = global->array_constructor(value::null, {}).object_value();
             if (args.empty()) {
-                a->put(string{index_string(0)}, value{string{s}});
+                a->put(string{h, index_string(0)}, value{string{h, s}});
             } else {
-                const auto sep = to_string(args.front());
+                const auto sep = to_string(h, args.front());
                 if (sep.view().empty()) {
                     for (uint32_t i = 0; i < s.length(); ++i) {
-                        a->put(string{index_string(i)}, value{string{ s.substr(i,1) }});
+                        a->put(string{h, index_string(i)}, value{string{ h, s.substr(i,1) }});
                     }
                 } else {
                     size_t pos = 0;
@@ -697,43 +702,43 @@ private:
                         if (next_pos == std::wstring_view::npos) {
                             break;
                         }
-                        a->put(string{index_string(i)}, value{string{ s.substr(pos, next_pos-pos) }});
+                        a->put(string{h, index_string(i)}, value{string{ h, s.substr(pos, next_pos-pos) }});
                         pos = next_pos + 1;
                     }
                     if (pos < s.length()) {
-                        a->put(string{index_string(i)}, value{string{ s.substr(pos) }});
+                        a->put(string{h, index_string(i)}, value{string{ h, s.substr(pos) }});
                     }
                 }
             }
             return a;
         });
 
-        make_string_function("substring", 1, [](const std::wstring_view& s, const std::vector<value>& args){
+        make_string_function("substring", 1, [&h = heap()](const std::wstring_view& s, const std::vector<value>& args){
             int start = std::min(std::max(to_int32(get_arg(args, 0)), 0), static_cast<int>(s.length()));
             if (args.size() < 2) {
-                return string{s.substr(start)};
+                return string{h, s.substr(start)};
             }
             int end = std::min(std::max(to_int32(get_arg(args, 1)), 0), static_cast<int>(s.length()));
             if (start > end) {
                 std::swap(start, end);
             }
-            return string{s.substr(start, end-start)};
+            return string{h, s.substr(start, end-start)};
         });
 
-        make_string_function("toLowerCase", 0, [](const std::wstring_view& s, const std::vector<value>&){
+        make_string_function("toLowerCase", 0, [&h = heap()](const std::wstring_view& s, const std::vector<value>&){
             std::wstring res;
             for (auto c: s) {
                 res.push_back(towlower(c));
             }
-            return string{res};
+            return string{h, res};
         });
 
-        make_string_function("toUpperCase", 0, [](const std::wstring_view& s, const std::vector<value>&){
+        make_string_function("toUpperCase", 0, [&h = heap()](const std::wstring_view& s, const std::vector<value>&){
             std::wstring res;
             for (auto c: s) {
                 res.push_back(towupper(c));
             }
-            return string{res};
+            return string{h, res};
         });
 
         return object_ptr{c};
@@ -767,15 +772,15 @@ private:
             assert(this_.type() == value_type::object);
             return value{join(this_.object_value(), L",")};
         }, 0);
-        put_native_function(array_prototype_, "join", [](const value& this_, const std::vector<value>& args) {
+        put_native_function(array_prototype_, "join", [&h=heap()](const value& this_, const std::vector<value>& args) {
             assert(this_.type() == value_type::object);
-            string sep{L","};
+            string sep{h, L","};
             if (!args.empty()) {
-                sep = to_string(args.front());
+                sep = to_string(h, args.front());
             }
             return value{join(this_.object_value(), sep.view())};
         }, 1);
-        put_native_function(array_prototype_, "reverse", [](const value& this_, const std::vector<value>&) {
+        put_native_function(array_prototype_, "reverse", [&h = heap()](const value& this_, const std::vector<value>&) {
             assert(this_.type() == value_type::object);
             const auto& o = this_.object_value();
             const uint32_t length = to_uint32(o->get(array_object::length_str));
@@ -784,12 +789,12 @@ private:
                 const auto i2 = index_string(length - k - 1);
                 auto v1 = o->get(i1);
                 auto v2 = o->get(i2);
-                o->put(string{i1}, v2);
-                o->put(string{i2}, v1);
+                o->put(string{h, i1}, v2);
+                o->put(string{h, i2}, v1);
             }
             return this_;
         }, 0);
-        put_native_function(array_prototype_, "sort", [](const value& this_, const std::vector<value>& args) {
+        put_native_function(array_prototype_, "sort", [&h=heap()](const value& this_, const std::vector<value>& args) {
             assert(this_.type() == value_type::object);
             const auto& o = this_.object_value();
             const uint32_t length = to_uint32(o->get(array_object::length_str));
@@ -804,7 +809,7 @@ private:
                 }
             }
 
-            auto sort_compare = [comparefn](const value& x, const value& y) {
+            auto sort_compare = [comparefn, &h](const value& x, const value& y) {
                 if (x.type() == value_type::undefined && y.type() == value_type::undefined) {
                     return 0;
                 } else if (x.type() == value_type::undefined) {
@@ -818,8 +823,8 @@ private:
                     if (r > 0) return 1;
                     return 0;
                 } else {
-                    const auto xs = to_string(x);
-                    const auto ys = to_string(y);
+                    const auto xs = to_string(h, x);
+                    const auto ys = to_string(h, y);
                     if (xs.view() < ys.view()) return -1;
                     if (xs.view() > ys.view()) return 1;
                     return 0;
@@ -834,7 +839,7 @@ private:
                 return sort_compare(x, y) < 0;
             });
             for (uint32_t i = 0; i < length; ++i) {
-                o->put(string{index_string(i)}, values[i]);
+                o->put(string{h, index_string(i)}, values[i]);
             }
             return this_;
         }, 1);
@@ -862,20 +867,20 @@ private:
             std::wcout << '\n';
             return value::undefined;
         }, 1);
-        put_native_function(console, "time", [timers](const value&, const std::vector<value>& args) {
+        put_native_function(console, "time", [timers, &h=heap()](const value&, const std::vector<value>& args) {
             if (args.empty()) {
                 THROW_RUNTIME_ERROR("Missing argument to console.time()");
             }
-            auto label = to_string(args.front());
+            auto label = to_string(h, args.front());
             (*timers)[std::wstring{label.view()}] = timer_clock::now();
             return value::undefined;
         }, 1);
-        put_native_function(console, "timeEnd", [timers](const value&, const std::vector<value>& args) {
+        put_native_function(console, "timeEnd", [timers, &h=heap()](const value&, const std::vector<value>& args) {
             const auto end_time = timer_clock::now();
             if (args.empty()) {
                 THROW_RUNTIME_ERROR("Missing argument to console.timeEnd()");
             }
-            auto label = to_string(args.front());
+            auto label = to_string(h, args.front());
             auto it = timers->find(std::wstring{label.view()});
             if (it == timers->end()) {
                 std::wostringstream woss;
@@ -896,14 +901,14 @@ private:
     auto make_math_object() {
         auto math = object::make(heap(), Object_str_, object_prototype_);
 
-        math->put(string{"E"},       value{2.7182818284590452354}, default_attributes);
-        math->put(string{"LN10"},    value{2.302585092994046}, default_attributes);
-        math->put(string{"LN2"},     value{0.6931471805599453}, default_attributes);
-        math->put(string{"LOG2E"},   value{1.4426950408889634}, default_attributes);
-        math->put(string{"LOG10E"},  value{0.4342944819032518}, default_attributes);
-        math->put(string{"PI"},      value{3.14159265358979323846}, default_attributes);
-        math->put(string{"SQRT1_2"}, value{0.7071067811865476}, default_attributes);
-        math->put(string{"SQRT2"},   value{1.4142135623730951}, default_attributes);
+        math->put(string{heap(), "E"},       value{2.7182818284590452354}, default_attributes);
+        math->put(string{heap(), "LN10"},    value{2.302585092994046}, default_attributes);
+        math->put(string{heap(), "LN2"},     value{0.6931471805599453}, default_attributes);
+        math->put(string{heap(), "LOG2E"},   value{1.4426950408889634}, default_attributes);
+        math->put(string{heap(), "LOG10E"},  value{0.4342944819032518}, default_attributes);
+        math->put(string{heap(), "PI"},      value{3.14159265358979323846}, default_attributes);
+        math->put(string{heap(), "SQRT1_2"}, value{0.7071067811865476}, default_attributes);
+        math->put(string{heap(), "SQRT2"},   value{1.4142135623730951}, default_attributes);
 
 
         auto make_math_function1 = [&](const char* name, auto f) {
@@ -985,11 +990,11 @@ private:
         }, native_function_body(Date_str_), 7);
         c->call_function(gc_function::make(heap(), [global = self_](const value&, const std::vector<value>&) {
             // Equivalent to (new Date()).toString()
-            return value{to_string(value{global->new_date(date_helper::current_time_utc())})};
+            return value{to_string(global->heap(), value{global->new_date(date_helper::current_time_utc())})};
         }));
         c->put(prototype_str_, value{date_prototype_}, prototype_attributes);
-        put_native_function(c, "parse", [](const value&, const std::vector<value>& args) {
-            if (1) NOT_IMPLEMENTED(get_arg(args, 0));
+        put_native_function(c, "parse", [&h=heap()](const value&, const std::vector<value>& args) {
+            if (1) NOT_IMPLEMENTED(to_string(h, get_arg(args, 0)));
             return value::undefined;
         }, 1);
         put_native_function(c, "UTC", [](const value&, const std::vector<value>& args) {
@@ -1093,7 +1098,8 @@ private:
 
         put_native_function(date_prototype_, "toString", [check_type](const value& this_, const std::vector<value>&) {
             check_type(this_);
-            return value{date_helper::to_string(this_.object_value()->internal_value().number_value())};
+            auto o = this_.object_value();
+            return value{date_helper::to_string(o.heap(), o->internal_value().number_value())};
         }, 0);
         // TODO: toLocaleString()
         // TODO: toUTCString()
@@ -1106,7 +1112,7 @@ private:
     // Global
     //
     void popuplate_global() {
-        object_prototype_   = object::make(heap(), string{"ObjectPrototype"}, nullptr);
+        object_prototype_   = object::make(heap(), string{heap(), "ObjectPrototype"}, nullptr);
         function_prototype_ = object::make(heap(), Function_str_, object_prototype_);
 
         // §15.1
@@ -1116,28 +1122,28 @@ private:
         put(String_str_, value{make_string_object()}, default_attributes);
         put(Boolean_str_, value{make_boolean_object()}, default_attributes);
         put(Number_str_, value{make_number_object()}, default_attributes);
-        put(string{"Math"}, value{make_math_object()}, default_attributes);
+        put(string{heap(), "Math"}, value{make_math_object()}, default_attributes);
         put(Date_str_, value{make_date_object()}, default_attributes);
 
-        put(string{"NaN"}, value{NAN}, default_attributes);
-        put(string{"Infinity"}, value{INFINITY}, default_attributes);
+        put(string{heap(), "NaN"}, value{NAN}, default_attributes);
+        put(string{heap(), "Infinity"}, value{INFINITY}, default_attributes);
         // Note: eval is added by the interpreter
-        put_native_function(*this, "parseInt", [](const value&, const std::vector<value>& args) {
-            const auto input = to_string(get_arg(args, 0));
+        put_native_function(*this, "parseInt", [&h=heap()](const value&, const std::vector<value>& args) {
+            const auto input = to_string(h, get_arg(args, 0));
             int radix = to_int32(get_arg(args, 1));
             return value{parse_int(input.view(), radix)};
         }, 2);
-        put_native_function(*this, "parseFloat", [](const value&, const std::vector<value>& args) {
-            const auto input = to_string(get_arg(args, 0));
+        put_native_function(*this, "parseFloat", [&h=heap()](const value&, const std::vector<value>& args) {
+            const auto input = to_string(h, get_arg(args, 0));
             return value{parse_float(input.view())};
         }, 1);
-        put_native_function(*this, "escape", [](const value&, const std::vector<value>& args) {
-            const auto input = to_string(get_arg(args, 0));
-            return value{string{escape(input.view())}};
+        put_native_function(*this, "escape", [&h=heap()](const value&, const std::vector<value>& args) {
+            const auto input = to_string(h, get_arg(args, 0));
+            return value{string{h, escape(input.view())}};
         }, 1);
-        put_native_function(*this, "unescape", [](const value&, const std::vector<value>& args) {
-            const auto input = to_string(get_arg(args, 0));
-            return value{string{unescape(input.view())}};
+        put_native_function(*this, "unescape", [&h=heap()](const value&, const std::vector<value>& args) {
+            const auto input = to_string(h, get_arg(args, 0));
+            return value{string{h, unescape(input.view())}};
         }, 1);
         put_native_function(*this, "isNaN", [](const value&, const std::vector<value>& args) {
             return value(std::isnan(to_number(args.empty() ? value::undefined : args.front())));
@@ -1145,17 +1151,19 @@ private:
         put_native_function(*this, "isFinite", [](const value&, const std::vector<value>& args) {
             return value(std::isfinite(to_number(args.empty() ? value::undefined : args.front())));
         }, 1);
-        put_native_function(*this, "alert", [](const value&, const std::vector<value>& args) {
+        put_native_function(*this, "alert", [&h=heap()](const value&, const std::vector<value>& args) {
             std::wcout << "ALERT";
-            if (!args.empty()) std::wcout << ": " << args[0];
+            for (auto& a: args) {
+                std::wcout << "\t" << to_string(h, a);
+            }
             std::wcout << "\n";
             return value::undefined;
         }, 1);
 
-        put(string{"console"}, value{make_console_object()}, default_attributes);
+        put(string{heap(), "console"}, value{make_console_object()}, default_attributes);
     }
 
-    explicit global_object_impl(gc_heap& h) : global_object(h, string{"Global"}, object_ptr{}) {
+    explicit global_object_impl(gc_heap& h) : global_object(h, string{h, "Global"}, object_ptr{}) {
     }
 
     global_object_impl(global_object_impl&& other) = default;
@@ -1175,7 +1183,7 @@ gc_heap_ptr<global_object> global_object::make(gc_heap& h) {
 string global_object::native_function_body(const string& name) {
     std::wostringstream oss;
     oss << "function " << name.view() << "() { [native code] }";
-    return string{oss.str()};
+    return string{name.heap(), oss.str()};
 }
 
 void global_object_impl::put_function(const object_ptr& o, const native_function_type& f, const string& body_text, int named_args) {

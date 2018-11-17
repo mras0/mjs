@@ -29,7 +29,7 @@ std::string_view trim(const std::string_view& s) {
     return s.substr(pos, len);
 }
 
-value parse_value(const std::string& s) {
+value parse_value(gc_heap& h, const std::string& s) {
     std::istringstream iss{s};
     std::string type;
     if (iss >> type) {
@@ -84,7 +84,7 @@ value parse_value(const std::string& s) {
                     escape = true;
                 } else if (ch == '\'') {
                     assert(!iss.rdbuf()->in_avail());
-                    return value{mjs::string{res}};
+                    return value{mjs::string{h, res}};
                 } else {
                     res.push_back(ch);
                 }
@@ -173,7 +173,7 @@ void run_test_spec(const std::string_view& source_text, const std::string_view& 
     constexpr const int delim_len = sizeof(delim)-1;
 
 
-    scoped_gc_heap heap{1<<20};
+    gc_heap heap{1<<20};
 
     {
         std::vector<test_spec> specs;
@@ -189,7 +189,7 @@ void run_test_spec(const std::string_view& source_text, const std::string_view& 
             }
 
             delim_pos += delim_len;
-            specs.push_back(test_spec{static_cast<uint32_t>(delim_pos), parse_value(std::string(trim(source_text.substr(delim_pos, next_pos - delim_pos))))});
+            specs.push_back(test_spec{static_cast<uint32_t>(delim_pos), parse_value(heap, std::string(trim(source_text.substr(delim_pos, next_pos - delim_pos))))});
         }
 
         if (specs.empty()) {

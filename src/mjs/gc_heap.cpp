@@ -155,8 +155,6 @@ void value_representation::fixup_after_move(gc_heap& old_heap) {
 // gc_heap
 //
 
-thread_local gc_heap* gc_heap::local_heap_ = nullptr;
-
 gc_heap::gc_heap(uint32_t capacity) : storage_(static_cast<slot*>(std::malloc(capacity * sizeof(slot)))), capacity_(capacity) {
 }
 

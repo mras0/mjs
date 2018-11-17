@@ -11,11 +11,7 @@
 using namespace mjs;
 
 int main( int argc, char* argv[] ) {
-    scoped_gc_heap heap{4096};
-    const int ret = Catch::Session().run( argc, argv );
-    heap.garbage_collect();
-    assert(heap.calc_used() == 0);
-    return ret;
+    return Catch::Session().run( argc, argv );
 }
 
 std::ostream& operator<<(std::ostream& os, const std::vector<string>& vs) {
@@ -53,50 +49,60 @@ TEST_CASE("value - number") {
 }
 
 TEST_CASE("value - string") {
-    REQUIRE(value{string{""}}.type() == value_type::string);
-    REQUIRE(value{string{"Hello"}}.type() == value_type::string);
-    REQUIRE(value{string{std::wstring_view{L"test"}}}.type() == value_type::string);
-    REQUIRE(string{"test "} + string{"42"} == string{"test 42"});
+    gc_heap h{128};
+    REQUIRE(value{string{h,""}}.type() == value_type::string);
+    REQUIRE(value{string{h,"Hello"}}.type() == value_type::string);
+    REQUIRE(value{string{h,std::wstring_view{L"test"}}}.type() == value_type::string);
+    REQUIRE(string{h,"test "} + string{h,"42"} == string{h,"test 42"});
+
+    h.garbage_collect();
+    assert(h.calc_used() == 0);
 }
 
 TEST_CASE("object") {
-    scoped_gc_heap obj_heap{128};
-    auto o = object::make(obj_heap, string{"Object"}, nullptr);
-    REQUIRE(o->property_names() == (std::vector<string>{}));
-    const auto n = string{"test"};
-    const auto n2 = string{"foo"};
-    REQUIRE(!o->has_property(n.view()));
-    REQUIRE(!o->has_property(n2.view()));
-    REQUIRE(o->can_put(n.view()));
-    o->put(n, value{42.0});
-    REQUIRE(o->has_property(n.view()));
-    REQUIRE(o->can_put(n.view()));
-    o->put(n2, value{n2}, property_attribute::dont_enum | property_attribute::dont_delete | property_attribute::read_only);
-    REQUIRE(o->has_property(n2.view()));
-    REQUIRE(!o->can_put(n2.view()));
-    REQUIRE(o->get(n.view()) == value{42.0});
-    REQUIRE(o->get(n2.view()) == value{n2});
-    REQUIRE(o->property_names() == (std::vector<string>{n}));
-    o->put(n, value{n});
-    REQUIRE(o->get(n.view()) == value{n});
-    REQUIRE(o->delete_property(n.view()));
-    REQUIRE(!o->has_property(n.view()));
-    REQUIRE(o->can_put(n.view()));
-    REQUIRE(o->has_property(n2.view()));
-    REQUIRE(!o->can_put(n2.view()));
-    REQUIRE(!o->delete_property(n2.view()));
-    REQUIRE(o->has_property(n2.view()));
-    REQUIRE(o->get(n2.view()) == value{n2});
-    REQUIRE(o->property_names() == (std::vector<string>{}));
+    gc_heap h{128};
+    {
+        auto o = object::make(h, string{h, "Object"}, nullptr);
+        REQUIRE(o->property_names() == (std::vector<string>{}));
+        const auto n = string{h,"test"};
+        const auto n2 = string{h,"foo"};
+        REQUIRE(!o->has_property(n.view()));
+        REQUIRE(!o->has_property(n2.view()));
+        REQUIRE(o->can_put(n.view()));
+        o->put(n, value{42.0});
+        REQUIRE(o->has_property(n.view()));
+        REQUIRE(o->can_put(n.view()));
+        o->put(n2, value{n2}, property_attribute::dont_enum | property_attribute::dont_delete | property_attribute::read_only);
+        REQUIRE(o->has_property(n2.view()));
+        REQUIRE(!o->can_put(n2.view()));
+        REQUIRE(o->get(n.view()) == value{42.0});
+        REQUIRE(o->get(n2.view()) == value{n2});
+        REQUIRE(o->property_names() == (std::vector<string>{n}));
+        o->put(n, value{n});
+        REQUIRE(o->get(n.view()) == value{n});
+        REQUIRE(o->delete_property(n.view()));
+        REQUIRE(!o->has_property(n.view()));
+        REQUIRE(o->can_put(n.view()));
+        REQUIRE(o->has_property(n2.view()));
+        REQUIRE(!o->can_put(n2.view()));
+        REQUIRE(!o->delete_property(n2.view()));
+        REQUIRE(o->has_property(n2.view()));
+        REQUIRE(o->get(n2.view()) == value{n2});
+        REQUIRE(o->property_names() == (std::vector<string>{}));
+    }
+
+    h.garbage_collect();
+    assert(h.calc_used() == 0);
 }
 
-TEST_CASE("Type Converions") {
+TEST_CASE("Type Conversions") {
+    gc_heap h{1<<8};
     // TODO: to_primitive hint
     REQUIRE(to_primitive(value::undefined) == value::undefined);
     REQUIRE(to_primitive(value::null) == value::null);
     REQUIRE(to_primitive(value{true}) == value{true});
     REQUIRE(to_primitive(value{42.0}) == value{42.0});
-    REQUIRE(to_primitive(value{string{"test"}}) == value{string{"test"}});
+    REQUIRE(to_primitive(value{string{h, "test"}}) == value{string{h, "test"}});
     // TODO: Object
 
     REQUIRE(!to_boolean(value::undefined));
@@ -106,19 +112,18 @@ TEST_CASE("Type Converions") {
     REQUIRE(!to_boolean(value{NAN}));
     REQUIRE(!to_boolean(value{0.0}));
     REQUIRE(to_boolean(value{42.0}));
-    REQUIRE(!to_boolean(value{string{""}}));
-    REQUIRE(to_boolean(value{string{"test"}}));
-    gc_heap obj_heap{128};
-    REQUIRE(to_boolean(value{object::make(obj_heap, string{"Object"}, nullptr)}));
+    REQUIRE(!to_boolean(value{string{h,""}}));
+    REQUIRE(to_boolean(value{string{h,"test"}}));
+    REQUIRE(to_boolean(value{object::make(h, string{h,"Object"}, nullptr)}));
 
     REQUIRE(value{to_number(value::undefined)} == value{NAN});
     REQUIRE(to_number(value::null) == 0);
     REQUIRE(to_number(value{false}) == 0);
     REQUIRE(to_number(value{true}) == 1);
     REQUIRE(to_number(value{42.0}) == 42.0);
-    REQUIRE(to_number(value{string{"42.25"}}) == 42.25);
-    REQUIRE(to_number(value{string{"1e80"}}) == 1e80);
-    REQUIRE(to_number(value{string{"-60"}}) == -60);
+    REQUIRE(to_number(value{string{h,"42.25"}}) == 42.25);
+    REQUIRE(to_number(value{string{h,"1e80"}}) == 1e80);
+    REQUIRE(to_number(value{string{h,"-60"}}) == -60);
     // TODO: Object
 
 
@@ -129,29 +134,36 @@ TEST_CASE("Type Converions") {
     REQUIRE(to_int32(0x1'ffff'ffff) == -1);
     REQUIRE(to_uint16(0x1'ffff'ffff) == 0xffff);
 
-    REQUIRE(to_string(value::undefined) == string{"undefined"});
-    REQUIRE(to_string(value::null) == string{"null"});
-    REQUIRE(to_string(value{false}) == string{"false"});
-    REQUIRE(to_string(value{true}) == string{"true"});
-    REQUIRE(to_string(value{NAN}) == string{"NaN"});
-    REQUIRE(to_string(value{-0.0}) == string{"0"});
-    REQUIRE(to_string(value{+INFINITY}) == string{"Infinity"});
-    REQUIRE(to_string(value{-INFINITY}) == string{"-Infinity"});
-    REQUIRE(to_string(value{42.25}) == string{"42.25"});
-    REQUIRE(to_string(value{string{""}}) == string{""});
-    REQUIRE(to_string(value{string{"test"}}) == string{"test"});
+    REQUIRE(to_string(h, value::undefined) == string{h, "undefined"});
+    REQUIRE(to_string(h, value::null) == string{h, "null"});
+    REQUIRE(to_string(h, value{false}) == string{h, "false"});
+    REQUIRE(to_string(h, value{true}) == string{h, "true"});
+    REQUIRE(to_string(h, value{NAN}) == string{h, "NaN"});
+    REQUIRE(to_string(h, value{-0.0}) == string{h, "0"});
+    REQUIRE(to_string(h, value{+INFINITY}) == string{h, "Infinity"});
+    REQUIRE(to_string(h, value{-INFINITY}) == string{h, "-Infinity"});
+    REQUIRE(to_string(h, value{42.25}) == string{h, "42.25"});
+    REQUIRE(to_string(h, value{string{h, ""}}) == string{h, ""});
+    REQUIRE(to_string(h, value{string{h, "test"}}) == string{h, "test"});
     // TODO: Object
+
+    h.garbage_collect();
+    assert(h.calc_used() == 0);
 }
 
 TEST_CASE("NumberToString") {
-    REQUIRE(to_string(0.005                    ) == string{"0.005"});
-    REQUIRE(to_string(0.000005                 ) == string{"0.000005"});
-    REQUIRE(to_string((0.000005+1e-10)         ) == string{"0.000005000100000000001"});
-    REQUIRE(to_string(0.0000005                ) == string{"5e-7"});
-    REQUIRE(to_string(1234.0                   ) == string{"1234"});
-    REQUIRE(to_string(1e20                     ) == string{"100000000000000000000"});
-    REQUIRE(to_string(1e21                     ) == string{"1e+21"});
+    gc_heap h{128};
+    REQUIRE(to_string(h, 0.005                    ) == string{h, "0.005"});
+    REQUIRE(to_string(h, 0.000005                 ) == string{h, "0.000005"});
+    REQUIRE(to_string(h, (0.000005+1e-10)         ) == string{h, "0.000005000100000000001"});
+    REQUIRE(to_string(h, 0.0000005                ) == string{h, "5e-7"});
+    REQUIRE(to_string(h, 1234.0                   ) == string{h, "1234"});
+    REQUIRE(to_string(h, 1e20                     ) == string{h, "100000000000000000000"});
+    REQUIRE(to_string(h, 1e21                     ) == string{h, "1e+21"});
 // FIXME: Why doesn't this work on w/ g++ 8.2.0 on Linux?
-//    REQUIRE(to_string(1.7976931348623157e+308  ) == string{"1.7976931348623157e+308"});
-    REQUIRE(to_string(5e-324                   ) == string{"5e-324"});
+//    REQUIRE(to_string(h, 1.7976931348623157e+308  ) == string{h, "1.7976931348623157e+308"});
+    REQUIRE(to_string(h, 5e-324                   ) == string{h, "5e-324"});
+
+    h.garbage_collect();
+    assert(h.calc_used() == 0);
 }
