@@ -156,11 +156,11 @@ public:
             global_->put(string{heap_, id}, value::undefined);
         }
 
-        scopes_ = make_scope(global_, nullptr);
+        active_scope_ = make_scope(global_, nullptr);
     }
 
     ~impl() {
-        assert(scopes_ && !scopes_->prev);
+        assert(active_scope_ && !active_scope_->get_prev());
     }
 
     value eval(const expression& e) {
@@ -177,7 +177,7 @@ public:
 
     value operator()(const identifier_expression& e) {
         // §10.1.4
-        return value{scopes_->lookup(e.id())};
+        return value{active_scope_->lookup(e.id())};
     }
 
     value operator()(const literal_expression& e) {
@@ -214,9 +214,9 @@ public:
             }
         }
 
-        scopes_->call_site = e.extend();
+        active_scope_->call_site = e.extend();
         auto res = c->call(this_, args);
-        scopes_->call_site = source_extend{nullptr,0,0};
+        active_scope_->call_site = source_extend{nullptr,0,0};
         return res;
     }
 
@@ -473,11 +473,11 @@ public:
 
     completion operator()(const variable_statement& s) {
         for (const auto& d: s.l()) {
-            assert(scopes_->activation->has_property(d.id()));
+            assert(active_scope_->has_property(d.id()));
             if (d.init()) {
                 // Evaulate in two steps to avoid using stale activation object pointer in case the evaulation forces a garbage collection
                 auto init_val = eval(*d.init());
-                scopes_->activation->put(string{heap_, d.id()}, init_val);
+                active_scope_->put(string{heap_, d.id()}, init_val);
             }
         }
         return completion{};
@@ -564,7 +564,7 @@ public:
             const auto& init = var_statement.l()[0];
 
             auto assign = [&](const value& val) {
-                if (!put_value(value{scopes_->lookup(init.id())}, val)) {
+                if (!put_value(value{active_scope_->lookup(init.id())}, val)) {
                     // Shouldn't happen (?)
                     NOT_IMPLEMENTED(s);
                 }
@@ -606,12 +606,12 @@ public:
     }
 
     completion operator()(const with_statement& s) {
-        auto_scope with_scope{*this, global_->to_object(get_value(eval(s.e()))), scopes_};
+        auto_scope with_scope{*this, global_->to_object(get_value(eval(s.e()))), active_scope_};
         return eval(s.s());
     }
 
     completion operator()(const function_definition& s) {
-        scopes_->activation->put(string{heap_, s.id()}, value{create_function(s, scopes_)});
+        active_scope_->put(string{heap_, s.id()}, value{create_function(s, active_scope_)});
         return completion{};
     }
 
@@ -626,39 +626,59 @@ private:
     public:
         friend gc_type_info_registration<scope>;
 
+#ifndef NDBEUG
+        bool has_property(const std::wstring& id) const {
+            return activation_.dereference(heap_).has_property(id);
+        }
+#endif
+
         reference lookup(const string& id) const {
-            if (!prev || activation->has_property(id.view())) {
-                return reference{activation, id};
+            if (!prev_ || activation_.dereference(heap_).has_property(id.view())) {
+                return reference{activation_.track(heap_), id};
             }
-            return prev->lookup(id);
+            return prev_.dereference(heap_).lookup(id);
         }
 
         reference lookup(const std::wstring& id) const {
-            return lookup(string{activation.heap(), id});
+            return lookup(string{heap_, id});
         }
 
-        object_ptr activation;
-        scope_ptr prev;
-        source_extend call_site;
+        void put(const string& key, const value& val) {
+            activation_.dereference(heap_).put(key, val);
+        }
 
+        const scope* get_prev() const {
+            return prev_ ? &prev_.dereference(heap_) : nullptr;
+        }
+
+        source_extend call_site;
     private:
-        explicit scope(const object_ptr& act, const scope_ptr& prev) : activation(act), prev(prev) {}
+        explicit scope(const object_ptr& act, const scope_ptr& prev) : heap_(act.heap()), activation_(act), prev_(prev) {}
         scope(scope&&) = default;
+
+        void fixup() {
+            activation_.fixup_after_move(heap_);
+            prev_.fixup_after_move(heap_);
+        }
+
+        gc_heap& heap_;
+        gc_heap_ptr_untracked<object> activation_;
+        gc_heap_ptr_untracked<scope>  prev_;
     };
     class auto_scope {
     public:
-        explicit auto_scope(impl& parent, const object_ptr& act, const scope_ptr& prev) : parent(parent), old_scopes(parent.scopes_) {
-            parent.scopes_ = act.heap().make<scope>(act, prev);
+        explicit auto_scope(impl& parent, const object_ptr& act, const scope_ptr& prev) : parent(parent), old_scopes(parent.active_scope_) {
+            parent.active_scope_ = act.heap().make<scope>(act, prev);
         }
         ~auto_scope() {
-            parent.scopes_ = old_scopes;
+            parent.active_scope_ = old_scopes;
         }
 
         impl& parent;
         scope_ptr old_scopes;
     };
     gc_heap&                       heap_;
-    scope_ptr                      scopes_;
+    scope_ptr                      active_scope_;
     gc_heap_ptr<global_object>     global_;
     on_statement_executed_type     on_statement_executed_;
 
@@ -669,7 +689,7 @@ private:
     std::vector<source_extend> stack_trace(const source_extend& current_extend) const {
         std::vector<source_extend> t;
         t.push_back(current_extend);
-        for (const scope* p = scopes_.get(); p != nullptr; p = p->prev.get()) {
+        for (const scope* p = active_scope_.get(); p != nullptr; p = p->get_prev()) {
             if (!p->call_site.file) continue;
             t.push_back(p->call_site);
         }
@@ -707,9 +727,9 @@ private:
             throw eval_exception(stack_trace(e.extend()), woss.str());
         }
 
-        scopes_->call_site = e.extend();
+        active_scope_->call_site = e.extend();
         auto res = c->call(value::undefined, args);
-        scopes_->call_site = source_extend{nullptr,0,0};
+        active_scope_->call_site = source_extend{nullptr,0,0};
         return res;
     }
 
