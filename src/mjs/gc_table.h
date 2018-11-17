@@ -3,6 +3,8 @@
 
 #include "gc_heap.h"
 #include "value.h"
+#include "value_representation.h"
+#include "property_attribute.h"
 
 namespace mjs {
 

@@ -13,7 +13,6 @@
 
 namespace mjs {
 
-class value;
 class object;
 class gc_heap;
 class gc_heap_ptr_untyped;
@@ -21,6 +20,7 @@ template<typename T>
 class gc_heap_ptr;
 template<typename T>
 class gc_heap_ptr_untracked;
+class value_representation;
 
 class gc_type_info {
 public:
@@ -159,16 +159,6 @@ private:
 
 template<typename T>
 const gc_type_info_registration<T> gc_type_info_registration<T>::reg;
-
-class value_representation {
-public:
-    value_representation() = default;
-    explicit value_representation(const value& v);
-    value get_value(gc_heap& heap) const;
-    void fixup(gc_heap& old_heap);
-private:
-    uint64_t repr_;
-};
 
 class gc_heap {
 public:
