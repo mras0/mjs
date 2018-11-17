@@ -363,7 +363,7 @@ void debug_print(std::wostream& os, const value& v, int indent_incr, int max_nes
         os << v.type();
         break;
     case value_type::boolean:
-        os << v.boolean_value() ? "true" : "false";
+        os << (v.boolean_value() ? "true" : "false");
         break;
     case value_type::number:
         os << to_string(v.number_value());
