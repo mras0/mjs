@@ -239,16 +239,11 @@ private:
             set_.push_back(&p);
         }
 
-        void erase(const gc_heap_ptr_untyped& p
-#ifndef NDEBUG
-            ,uint32_t ptr_keep_count
-#endif
-        ) {
+        void erase(const gc_heap_ptr_untyped& p) {
             // Search from the back since objects tend to be short lived
             for (size_t i = set_.size(); i--;) {
                 if (set_[i] == &p) {
                     set_.erase(set_.begin() + i);
-                    assert(i >= ptr_keep_count);
                     return;
                 }
             }
@@ -263,9 +258,12 @@ private:
 
     // Only valid during GC
     struct gc_state {
-        uint32_t ptr_keep_count = 0;            // active if <> 0
-        gc_heap* new_heap;                      // the "new_heap" is only kept for allocation purposes, no references to it should be kept
-        uint32_t level;                         // recursion depth
+#ifndef NDEBUG
+        bool initial_state() const { return level == 0 && new_heap == nullptr && pending_fixups.empty(); }
+#endif
+
+        uint32_t level = 0;                     // recursion depth
+        gc_heap* new_heap = nullptr;            // the "new_heap" is only kept for allocation purposes, no references to it should be kept
         std::vector<uint32_t*> pending_fixups;  // pending fixup addresses
     } gc_state_;
 

@@ -169,6 +169,7 @@ gc_heap::gc_heap(uint32_t capacity) : storage_(static_cast<slot*>(std::malloc(ca
 }
 
 gc_heap::~gc_heap() {
+    assert(gc_state_.initial_state());
     run_destructors();
     std::free(storage_);
 }
@@ -238,51 +239,39 @@ uint32_t gc_heap::calc_used() const {
 }
 
 void gc_heap::garbage_collect() {
-    // Determine roots and move them to the front of the pointers_ list
-    assert(gc_state_.ptr_keep_count == 0);
-    {
-        auto ps = pointers_.data();
-        for  (uint32_t i = 0, sz = pointers_.size(); i < sz; ++i) {
-            if (!is_internal(ps[i])) {
-                std::swap(ps[i], ps[gc_state_.ptr_keep_count]); // May be no-op
-                ++gc_state_.ptr_keep_count;
-            }
+    assert(gc_state_.initial_state());
+
+    // Determine roots and add their positions as pending fixups
+    // TODO: Used to move the roots lower in the pointers_ array (since we know they won't be destroyed this time around). That still might be an optimization.
+    for (auto p: pointers_) {
+        if (!is_internal(p)) {
+            register_fixup(p->pos_);
         }
     }
 
-    if (gc_state_.ptr_keep_count) {
+    if (!gc_state_.pending_fixups.empty()) {
         gc_heap new_heap{capacity_}; // TODO: Allow resize
 
         gc_state_.new_heap = &new_heap;
         gc_state_.level = 0;
 
-        // Keep going while we haven't moved all the pointers we have to.
-        // Note: both pointers_.data() and gc_state_.ptr_keep_count can change in the loop
-        for (uint32_t i = 0; i < gc_state_.ptr_keep_count; ++i) {
-            auto p = pointers_.data()[i];
-            p->pos_ = gc_move(p->pos_);
-            // Process pending fixups
-            while (!gc_state_.pending_fixups.empty()) {
-                auto fp = gc_state_.pending_fixups.back();
-                gc_state_.pending_fixups.pop_back();
-                *fp = gc_move(*fp);
-            }
+        // Keep going while there are still fixups to be processed (note: the array changes between loop iterations)
+        while (!gc_state_.pending_fixups.empty()) {
+            auto ppos = gc_state_.pending_fixups.back();
+            gc_state_.pending_fixups.pop_back();
+            *ppos = gc_move(*ppos);
         }
 
         std::swap(storage_, new_heap.storage_);
         std::swap(next_free_, new_heap.next_free_);
         gc_state_.new_heap = nullptr;
         // new_heap's destructor checks that it doesn't contain pointers
-
-        assert(gc_state_.ptr_keep_count <= pointers_.size());
-        assert(gc_state_.level == 0);
     } else {
         run_destructors();
         next_free_ = 0;
     }
 
-    assert(gc_state_.ptr_keep_count == pointers_.size());
-    gc_state_.ptr_keep_count = 0; // The keep count doubles as an "active" flag
+    assert(gc_state_.initial_state());
 }
 
 uint32_t gc_heap::gc_move(const uint32_t pos) {
@@ -320,18 +309,15 @@ uint32_t gc_heap::gc_move(const uint32_t pos) {
     type_info.move(new_p, p);
     new_a.type = a.type;
 
-    // Move any pointers that resulted from the move (construction) to the stable part of the pointers_ array (the front)
-    // They will then be moved by the main pointer moving loop.
+    // Register fixups for the position of all internal pointers that were created by the move (construction)
     // The new pointers will be at the end of the pointer set since they were just added
     // Note this obviously makes assumption about the pointer_set implementation!
-    const auto ip_size  = pointers_.size() - num_pointers_initially;
-    const auto ip_start = gc_state_.ptr_keep_count;
-    if (ip_size) {
-        gc_state_.ptr_keep_count += ip_size;
+    // TODO: Used to move the pointers lower in the pointers_ array (since we know they won't be destroyed this time around). That still might be an optimization.
+    if (const auto num_internal_pointers  = pointers_.size() - num_pointers_initially) {
         auto ps = pointers_.data();
-        for (uint32_t i = 0; i < ip_size; ++i) {
+        for (uint32_t i = 0; i < num_internal_pointers; ++i) {
             assert(reinterpret_cast<uintptr_t>(ps[num_pointers_initially+i]) >= reinterpret_cast<uintptr_t>(new_p) && reinterpret_cast<uintptr_t>(ps[num_pointers_initially+i]) < reinterpret_cast<uintptr_t>(&new_heap.storage_[new_pos] + a.size - 1));
-            std::swap(ps[ip_start+i], ps[num_pointers_initially+i]);
+            register_fixup(ps[num_pointers_initially+i]->pos_);
         }
     }
 
@@ -354,7 +340,6 @@ uint32_t gc_heap::gc_move(const uint32_t pos) {
 }
 
 void gc_heap::register_fixup(uint32_t& pos) {
-    // TODO: Consider apply fixup directly if gc_state_.level isn't too big
     gc_state_.pending_fixups.push_back(&pos);
 }
 
@@ -383,11 +368,7 @@ void gc_heap::attach(gc_heap_ptr_untyped& p) {
 
 void gc_heap::detach(gc_heap_ptr_untyped& p) {
     assert(p.heap_ == this);
-    pointers_.erase(p
-#ifndef NDEBUG
-        , gc_state_.ptr_keep_count
-#endif
-    );
+    pointers_.erase(p);
 }
 
 } // namespace mjs
