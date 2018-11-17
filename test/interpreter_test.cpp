@@ -576,9 +576,8 @@ void test_semicolon_insertion() {
     auto test_parse_fails = [](const char* text) {
         try {
             parse(std::make_shared<source_file>(L"test", std::wstring(text, text+std::strlen(text))));
-        } catch (const std::exception& e) {
+        } catch (const std::exception&) {
             // std::wcerr << "\n'" << text << "' ---->\n" << e.what() << "\n\n";
-            (void)e;
             return;
         }
         throw std::runtime_error(std::string("Unexpected parse success for '") + text + "'");

@@ -58,11 +58,15 @@ namespace mjs {
 // gc_type_info
 //
 
-std::vector<const gc_type_info*> gc_type_info::types_;
+uint32_t gc_type_info::num_types_;
+const gc_type_info* gc_type_info::types_[gc_type_info::max_types];
 
 //
 // value_representation
 //
+
+static_assert(sizeof(value_representation) == gc_heap::slot_size);
+
 // sign bit, exponent (11-bits), fraction (52-bits)
 // NaNs have exponent 0x7ff and fraction != 0
 static constexpr int type_shift         = 52-4;
@@ -83,6 +87,7 @@ constexpr uint64_t make_repr(value_type type, uint32_t payload) {
 
 static uint64_t number_repr(double d) {
     if (std::isnan(d)) {
+        // Make sure all NaNs are handled uniformly - In particular don't allow arbitrary NaNs to be turned into the raw representation
         return nan_bits | 1;
     }
     uint64_t repr;
@@ -143,8 +148,10 @@ void value_representation::fixup_after_move(gc_heap& old_heap) {
         return;
     case value_type::string:    [[fallthrough]];
     case value_type::object:
-        // TODO: See note gc_heap_ptr_untracked about adding a (debug) check for whether fixup was done correctly
-        old_heap.fixup(*reinterpret_cast<uint32_t*>(&repr_)); // FIXME: This only works on little endian!
+        // TODO: See note in gc_heap_ptr_untracked about adding a (debug) check for whether fixup was done correctly
+        // FIXME: This only works on little endian platforms!
+        assert(reinterpret_cast<uint32_t*>(&repr_)[1] == (nan_bits | (static_cast<uint64_t>(type)+1)<<type_shift)>>32);
+        old_heap.register_fixup(*reinterpret_cast<uint32_t*>(&repr_));
         break;
     default:
         std::abort();
@@ -156,6 +163,9 @@ void value_representation::fixup_after_move(gc_heap& old_heap) {
 //
 
 gc_heap::gc_heap(uint32_t capacity) : storage_(static_cast<slot*>(std::malloc(capacity * sizeof(slot)))), capacity_(capacity) {
+    if (!storage_) {
+        THROW_RUNTIME_ERROR("Could not allocate heap for " + std::to_string(capacity) + " slots");
+    }
 }
 
 gc_heap::~gc_heap() {
@@ -187,7 +197,7 @@ void gc_heap::debug_print(std::wostream& os) const {
                 save_stream_state sss{os};
                 os << std::left << std::setw(tt_width) << a.type_info().name();
             }
-            if (a.type == gc_type_info_registration<gc_string>::get().get_index()) {
+            if (a.type == gc_type_info_registration<gc_string>::index()) {
                 os << " '" << reinterpret_cast<const gc_string*>(&storage_[pos+1])->view() << "'";
             }
         }
@@ -249,12 +259,13 @@ void gc_heap::garbage_collect() {
         // Keep going while we haven't moved all the pointers we have to.
         // Note: both pointers_.data() and gc_state_.ptr_keep_count can change in the loop
         for (uint32_t i = 0; i < gc_state_.ptr_keep_count; ++i) {
-            gc_move(*pointers_.data()[i]);
+            auto p = pointers_.data()[i];
+            p->pos_ = gc_move(p->pos_);
             // Process pending fixups
             while (!gc_state_.pending_fixpus.empty()) {
-                auto p = gc_state_.pending_fixpus.back();
+                auto fp = gc_state_.pending_fixpus.back();
                 gc_state_.pending_fixpus.pop_back();
-                *p = gc_move(*p);
+                *fp = gc_move(*fp);
             }
         }
 
@@ -284,21 +295,21 @@ uint32_t gc_heap::gc_move(const uint32_t pos) {
     assert(pos > 0 && pos < next_free_);
 
     auto& a = storage_[pos-1].allocation;
-    assert(a.type != unallocated_type_index);
+    assert(a.type != uninitialized_type_index);
     assert(a.size > 1 && a.size <= next_free_ - (pos - 1));
 
     if (a.type == gc_moved_type_index) {
         return storage_[pos].new_position;
     }
 
-    assert(a.type < gc_type_info::types_.size());
+    assert(a.type < gc_type_info::num_types());
 
     // Allocate memory block in new_heap of the same size
     auto& new_heap = *gc_state_.new_heap;
-    const auto new_pos = new_heap.allocate((a.size-1)*sizeof(uint64_t)) + 1;
+    const auto new_pos = new_heap.allocate((a.size-1)*slot_size) + 1;
     auto& new_a = new_heap.storage_[new_pos - 1].allocation;
     auto* const new_p = &new_heap.storage_[new_pos];
-    assert(new_a.size == a.size);
+    assert(new_a.type == uninitialized_type_index && new_a.size == a.size);
 
     // Record number of pointers that exist before constructing the new object
     const auto num_pointers_initially = pointers_.size();
@@ -319,6 +330,7 @@ uint32_t gc_heap::gc_move(const uint32_t pos) {
         gc_state_.ptr_keep_count += ip_size;
         auto ps = pointers_.data();
         for (uint32_t i = 0; i < ip_size; ++i) {
+            assert(reinterpret_cast<uintptr_t>(ps[num_pointers_initially+i]) >= reinterpret_cast<uintptr_t>(new_p) && reinterpret_cast<uintptr_t>(ps[num_pointers_initially+i]) < reinterpret_cast<uintptr_t>(&new_heap.storage_[new_pos] + a.size - 1));
             std::swap(ps[ip_start+i], ps[num_pointers_initially+i]);
         }
     }
@@ -341,13 +353,9 @@ uint32_t gc_heap::gc_move(const uint32_t pos) {
     return new_pos;
 }
 
-void gc_heap::fixup(uint32_t& pos) {
+void gc_heap::register_fixup(uint32_t& pos) {
     // TODO: Consider apply fixup directly if gc_state_.level isn't too big
     gc_state_.pending_fixpus.push_back(&pos);
-}
-
-void gc_heap::gc_move(gc_heap_ptr_untyped& p) {
-    p.pos_ = gc_move(p.pos_);
 }
 
 uint32_t gc_heap::allocate(size_t num_bytes) {
@@ -364,7 +372,7 @@ uint32_t gc_heap::allocate(size_t num_bytes) {
     const auto pos = next_free_;
     next_free_ += num_slots;
     storage_[pos].allocation.size = num_slots;
-    storage_[pos].allocation.type = unallocated_type_index;
+    storage_[pos].allocation.type = uninitialized_type_index;
     return pos;
 }
 

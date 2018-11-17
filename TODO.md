@@ -8,7 +8,8 @@
 * Better GC
     - Make sure garbage can be collected safely most of the time (and formulate rules for when it's not allowed)
     - Support growing the heap (and support growing it as needed)
-    - Ensure thread safety (perhaps only GC type information registration is troublesome)
+    - Do real semi-space collector - I.e. double the size of `storage_` but only fill it half way through, switching between halfs when one gets full
+    - Ensure thread safety (probably don't allow sharing heaps between threads at first)
     - Improve speed
     - Support compacting the current heap? Should be possibly by making changes in `gc_heap` exclusively (other parts of the system shouldn't need to be changed)
     - Make it harder to use incorrectly - more type safety possible? More help for implementing `gc_table`/`gc_function`-like objects
@@ -30,6 +31,9 @@
     - Make sure deep recursion is supported without running out of space
     - Handle error conditions better
     - Make sure nested function definitions aren't processed multiple times
+* REPL
+    - Add tests
+    - Garbage collect "sometimes"
 * Optimize `NumberToString()`
 * Create example(s)
     - Embedding mjs (I.e. adding user-defined classes)

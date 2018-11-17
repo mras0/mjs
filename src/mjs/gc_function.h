@@ -4,11 +4,6 @@
 #include "gc_heap.h"
 #include "value.h"
 
-#ifdef _MSC_VER
-#pragma warning(push)
-#pragma warning(disable: 4324) // Structure was padded due to alignment specifier
-#endif
-
 namespace mjs {
 
 // Alignment needed so impl<F> will be construct with proper alignment
@@ -63,10 +58,5 @@ private:
 };
 
 } // namespace mjs
-
-
-#ifdef _MSC_VER
-#pragma warning(pop)
-#endif
 
 #endif

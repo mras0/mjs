@@ -762,8 +762,8 @@ private:
         };
         global_->put_function(callee, gc_function::make(heap_, func), string{heap_, L"function " + std::wstring{id.view()} + body_text}, static_cast<int>(param_names.size()));
 
-        callee->construct_function(gc_function::make(heap_, [global = global_, callee, id](const value& unsused_this_, const std::vector<value>& args) {
-            assert(unsused_this_.type() == value_type::undefined); (void)unsused_this_;
+        callee->construct_function(gc_function::make(heap_, [global = global_, callee, id](const value& this_, const std::vector<value>& args) {
+            assert(this_.type() == value_type::undefined); (void)this_; // [[maybe_unused]] not working with MSVC here?
             assert(!id.view().empty());
             auto p = callee->get(L"prototype");
             auto o = value{object::make(global->heap(), id, p.type() == value_type::object ? p.object_value() : global->object_prototype())};

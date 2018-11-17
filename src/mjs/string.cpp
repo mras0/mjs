@@ -6,7 +6,8 @@
 
 namespace mjs {
 
-static_assert(std::is_trivially_destructible_v<gc_string>);
+static_assert(!gc_type_info_registration<gc_string>::needs_destroy);
+static_assert(!gc_type_info_registration<gc_string>::needs_fixup);
 
 std::ostream& operator<<(std::ostream& os, const string& s) {
     auto v = s.view();

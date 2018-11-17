@@ -13,7 +13,6 @@ private:
         property_attribute               attributes;
         value_representation             value;
     };
-    static_assert(sizeof(gc_table::entry_representation) == 2*sizeof(uint64_t));
 public:
     static gc_heap_ptr<gc_table> make(gc_heap& h, uint32_t capacity) {
         assert(capacity > 0);

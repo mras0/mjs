@@ -1,6 +1,9 @@
 #include "object.h"
 
 namespace mjs {
+
+static_assert(gc_type_info_registration<object>::needs_fixup);
+
 object::object(gc_heap& heap, const string& class_name, const object_ptr& prototype)
     : heap_(heap)
     , class_(class_name.unsafe_raw_get())

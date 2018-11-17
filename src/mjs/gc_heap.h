@@ -1,8 +1,6 @@
 #ifndef MJS_GC_HEAP_H
 #define MJS_GC_HEAP_H
 
-// TODO: gc_type_info_registration: Make sure all known classes are (thread-safely) registered.
-
 #include <string>
 #include <vector>
 #include <algorithm>
@@ -54,6 +52,21 @@ public:
     bool is_convertible_to_object() const {
         return convertible_to_object_;
     }
+
+    // Return unique type index
+    uint32_t get_index() const {
+        return index_;
+    }
+
+    static uint32_t num_types() {
+        return num_types_;
+    }
+
+    static const gc_type_info& from_index(uint32_t index) {
+        assert(index < num_types_);
+        return *types_[index];
+    }
+
 protected:
     using destroy_function = void (*)(void*);
     using move_function = void (*)(void*, void*);
@@ -64,8 +77,10 @@ protected:
         , move_(move)
         , fixup_(fixup)
         , convertible_to_object_(convertible_to_object)
-        , name_(name) {
-        types_.push_back(this);
+        , name_(name)
+        , index_(num_types_++) {
+        assert(index_ < max_types);
+        types_[index_] = this;
         assert(move_);
         assert(name_);
     }
@@ -76,49 +91,19 @@ private:
     fixup_function fixup_;
     bool convertible_to_object_;
     const char* name_;
-    friend gc_heap;
+    const uint32_t index_;
+
+    static constexpr uint32_t max_types = 32; // Arbitrary limit
 
     gc_type_info(gc_type_info&) = delete;
     gc_type_info& operator=(gc_type_info&) = delete;
 
-    static std::vector<const gc_type_info*> types_;
-
-    uint32_t get_index() const {
-        auto it = std::find(types_.begin(), types_.end(), this);
-        if (it == types_.end()) {
-            std::abort();
-        }
-        return static_cast<uint32_t>(it - types_.begin());
-    }
+    static uint32_t num_types_;
+    static const gc_type_info* types_[max_types];
 };
 
 template<typename T>
 class gc_type_info_registration : public gc_type_info {
-public:
-    static const gc_type_info_registration& get() {
-        static const gc_type_info_registration reg;
-        return reg;
-    }
-
-    bool is_convertible(const gc_type_info& t) const {
-        return &t == this || (std::is_same_v<object, T> && t.is_convertible_to_object());
-    }
-
-private:
-    explicit gc_type_info_registration() : gc_type_info(std::is_trivially_destructible_v<T>?nullptr:&destroy, &move, fixup_func(), std::is_convertible_v<T*, object*>, typeid(T).name()) {}
-
-    friend gc_heap;
-
-    // Helper so gc_*** classes don't have to friend both gc_heap and gc_type_info_registration
-    template<typename... Args>
-    static void construct(void* p, Args&&... args) {
-        new (p) T(std::forward<Args>(args)...);
-    }
-
-    static void destroy(void* p) {
-        static_cast<T*>(p)->~T();
-    }
-
     // Detectors
     template<typename U, typename=void>
     struct has_fixup_t : std::false_type{};
@@ -126,18 +111,52 @@ private:
     template<typename U>
     struct has_fixup_t<U, std::void_t<decltype(std::declval<U>().fixup())>> : std::true_type{};
 
+public:
+    static constexpr bool needs_destroy = !std::is_trivially_destructible_v<T>;
+    static constexpr bool needs_fixup   = has_fixup_t<T>::value;
+
+    static const gc_type_info_registration& get() {
+        return reg;
+    }
+
+    static uint32_t index() {
+        return get().get_index();
+    }
+
+    bool is_convertible(const gc_type_info& t) const {
+        return &t == this || (std::is_same_v<object, T> && t.is_convertible_to_object());
+    }
+
+    // Helper so gc_*** classes don't have to friend both gc_heap and gc_type_info_registration
+    template<typename... Args>
+    static void construct(void* p, Args&&... args) {
+        new (p) T(std::forward<Args>(args)...);
+    }
+
+private:
+    explicit gc_type_info_registration() : gc_type_info(needs_destroy?&destroy:nullptr, &move, needs_fixup?&fixup:nullptr, std::is_convertible_v<T*, object*>, typeid(T).name()) {
+        static_assert(sizeof(gc_type_info_registration<T>) == sizeof(gc_type_info));
+    }
+
+    static const gc_type_info_registration reg;
+
+    static void destroy(void* p) {
+        static_cast<T*>(p)->~T();
+    }
+
     static void move(void* to, void* from) {
         new (to) T (std::move(*static_cast<T*>(from)));
     }
 
-    static fixup_function fixup_func() {
-        if constexpr(has_fixup_t<T>::value) {
-            return [](void* p) { static_cast<T*>(p)->fixup(); };
-        } else {
-            return nullptr;
+    static void fixup([[maybe_unused]] void* p) {
+        if constexpr (needs_fixup) {
+            static_cast<T*>(p)->fixup();
         }
     }
 };
+
+template<typename T>
+const gc_type_info_registration<T> gc_type_info_registration<T>::reg;
 
 class value_representation {
 public:
@@ -154,13 +173,10 @@ private:
 
     static uint64_t to_representation(const value& v);
 };
-static_assert(sizeof(value_representation) == sizeof(uint64_t));
 
-class scoped_gc_heap;
 class gc_heap {
 public:
     friend gc_heap_ptr_untyped;
-    friend scoped_gc_heap;
     friend value_representation;
     template<typename> friend class gc_heap_ptr_untracked;
 
@@ -184,27 +200,27 @@ public:
     }
 
 private:
-    static constexpr uint32_t unallocated_type_index = UINT32_MAX;
-    static constexpr uint32_t gc_moved_type_index    = unallocated_type_index-1;
+    static constexpr uint32_t uninitialized_type_index = UINT32_MAX;
+    static constexpr uint32_t gc_moved_type_index      = uninitialized_type_index-1;
 
     struct slot_allocation_header {
-        uint32_t size;
-        uint32_t type;
+        uint32_t size; // size in slots including the allocation header
+        uint32_t type; // index into gc_type_info::types_ OR one of the special xxxx_type_index values
 
         constexpr bool active() const {
-            return type != unallocated_type_index && type != gc_moved_type_index;
+            return type != uninitialized_type_index && type != gc_moved_type_index;
         }
 
         const gc_type_info& type_info() const {
-            assert(active() && type < gc_type_info::types_.size());
-            return *gc_type_info::types_[type];
+            return gc_type_info::from_index(type);
         }
     };
+    static_assert(sizeof(slot_allocation_header) == slot_size);
 
     union slot {
         uint64_t               representation;
-        uint32_t               new_position; // Only valid during garbage collection
-        slot_allocation_header allocation;
+        uint32_t               new_position;   // Only ever valid during garbage collection (and then only in the first slot after the allocation header)
+        slot_allocation_header allocation;     // Only valid in the 
     };
     static_assert(sizeof(slot) == slot_size);
 
@@ -244,16 +260,16 @@ private:
     };
 
     pointer_set pointers_;
-    slot* storage_;
-    uint32_t capacity_;
-    uint32_t next_free_ = 0;
+    slot*       storage_;
+    uint32_t    capacity_;
+    uint32_t    next_free_ = 0;
 
     // Only valid during GC
     struct gc_state {
         uint32_t ptr_keep_count = 0;            // active if <> 0
         gc_heap* new_heap;                      // the "new_heap" is only kept for allocation purposes, no references to it should be kept
         uint32_t level;                         // recursion depth
-        std::vector<uint32_t*> pending_fixpus;
+        std::vector<uint32_t*> pending_fixpus;  // pending fixup addresses
     } gc_state_;
 
     void run_destructors();
@@ -270,8 +286,8 @@ private:
     uint32_t allocate(size_t num_bytes);
 
     uint32_t gc_move(uint32_t pos);
-    void gc_move(gc_heap_ptr_untyped& p);
-    void fixup(uint32_t& pos);
+
+    void register_fixup(uint32_t& pos);
 
     template<typename T>
     gc_heap_ptr<T> unsafe_create_from_position(uint32_t pos);
@@ -374,24 +390,23 @@ public:
 
     void fixup_after_move(gc_heap& old_heap) {
         if (pos_) {
-            old_heap.fixup(pos_);
+            old_heap.register_fixup(pos_);
         }
     }
 
-protected:
-    explicit gc_heap_ptr_untracked(uint32_t pos) : pos_(pos) {}
-
 private:
     uint32_t pos_;
+
+    explicit gc_heap_ptr_untracked(uint32_t pos) : pos_(pos) {}
 };
 
 template<typename T, typename... Args>
 gc_heap_ptr<T> gc_heap::allocate_and_construct(size_t num_bytes, Args&&... args) {
     const auto pos = allocate(num_bytes);
     auto& a = storage_[pos].allocation;
-    assert(a.type == unallocated_type_index);
+    assert(a.type == uninitialized_type_index);
     gc_type_info_registration<T>::construct(&storage_[pos+1], std::forward<Args>(args)...);
-    a.type = gc_type_info_registration<T>::get().get_index();
+    a.type = gc_type_info_registration<T>::index();
     return gc_heap_ptr<T>{*this, pos+1};
 }
 
