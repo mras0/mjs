@@ -1,0 +1,126 @@
+<html>
+    <head>
+        <meta charset="utf-8"/>
+    </head>
+    <script>
+// Hand written terribly for your pleasure!
+// Time was spent garbage collecting instead of doing this right.
+
+maxCnt = 26;
+imgCnt = -1;
+timerId = null;
+
+function pad(n) { // If only there were some left-padding library of some sort
+    return n < 10 ? '0'+n : n;
+}
+
+function inc(n) {
+    var last = imgCnt;
+    imgCnt += n;
+    if (imgCnt < 0) imgCnt = 0;
+    if (imgCnt > maxCnt) imgCnt = maxCnt;
+    if (imgCnt !== last) {
+        document.getElementById('frame').src = 'anim1-' + pad(imgCnt) + '.png';
+        document.getElementById('progress').innerHTML = (imgCnt + 1) + ' / ' + (maxCnt + 1);
+    }
+}
+
+function pause() {
+    if (timerId !== null) {
+        clearInterval(timerId);
+        timerId = null;
+        document.getElementById('play').innerHTML = 'Play';
+    }
+}
+
+function unpause() {
+    pause();
+    timerId = setInterval(function() { inc(1); }, 1000/document.getElementById('speed').value);
+    document.getElementById('play').innerHTML = 'Pause';
+}
+
+function speedCanged(e) {
+    if (timerId !== null) {
+        unpause();
+    }
+}
+
+function startStop() {
+    if (timerId !== null) {
+        pause();
+    } else {
+        unpause();
+    }
+}
+
+window.onkeyup = function (e) {
+    var preventDefault = false;
+    if (e.keyCode == 37 || e.keyCode == 72) {        // left / H
+        inc(-1);
+        preventDefault = true;
+    } else if (e.keyCode == 39 || e.keyCode == 76) { // right / L
+        inc(+1);
+        preventDefault = true;
+    } else if (e.keyCode == 32) {                    // space
+        startStop();
+        preventDefault = true;
+    }
+    if (preventDefault) {
+        e.preventDefault(); // Everyone probably hates me now
+    }
+}
+
+    </script>
+    <noscript>
+        <!-- Enjoy your non-interactive gif! -->
+        <img src="anim1.gif"/>
+    </noscript>
+    <style>
+span {
+    margin: 2em;
+}
+div {
+    margin-top: 1em;
+    margin-bottom: 1em;
+}
+    </style>
+    <body onload="inc(1)">
+        <div style="text-align: center;">
+            <div>
+                <span>
+                    <button type="button" onclick="inc(-10000)">&lt;&lt;</button>
+                </span>
+                <span>
+                    <button type="button" onclick="inc(-1)">&lt;</button>
+                </span>
+                <span id="progress">
+                </span>
+                <span>
+                    <button type="button" onclick="inc(1)">&gt;</button>
+                </span>
+                <span>
+                    <button type="button" onclick="inc(10000)">&gt;&gt;</button>
+                </span>
+            </div>
+            <div>
+                <img id="frame"/>
+            </div>
+            <div>
+                <button type="button" onclick="startStop()" id="play">Play</button>
+                &nbsp;
+                <label>Animation speed:</label>
+                <select onchange="speedCanged()" id="speed">
+                    <option value="1">1 FPS</label>
+                    <option value="0.5">1/2 FPS</label>
+                    <option value="0.33333333">1/3 FPS</label>
+                    <option value="0.25">1/4 FPS</label>
+                    <option value="0.2">1/5 FPS</label>
+                    <option value="0.1" selected="selected">1/10 FPS</label>
+                    <option value="0.066666666667">1/15 FPS</label>
+                    <option value="0.05">1/20 FPS</label>
+                </select>
+            </div>
+            Hint: Use left and right arrow keys (or H and L) to move between frames, and space to play/pause.
+        </div>
+    </body>
+</html>
