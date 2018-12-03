@@ -13,13 +13,15 @@
 
 namespace mjs {
 
-class object;
 class gc_heap;
 class gc_heap_ptr_untyped;
 template<typename T>
 class gc_heap_ptr;
 template<typename T>
 class gc_heap_ptr_untracked;
+
+// Only here to be friended
+class object;
 class value_representation;
 
 class gc_type_info {
@@ -115,7 +117,7 @@ public:
     static constexpr bool needs_destroy = !std::is_trivially_destructible_v<T>;
     static constexpr bool needs_fixup   = has_fixup_t<T>::value;
 
-    static_assert(!std::is_convertible_v<T*, object*> || (needs_destroy && needs_fixup), "Classes deriving from object MUST be properly destroyed and will need fixup");
+    static_assert(!std::is_convertible_v<T*, object*> || needs_fixup, "Classes deriving from object MUST handle fixup");
 
     static const gc_type_info_registration& get() {
         return reg;

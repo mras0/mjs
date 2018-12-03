@@ -22,8 +22,6 @@ public:
         return h.make<object>(h, class_name, prototype);
     }
 
-    virtual ~object() {}
-
     // §8.6.2, Page 22: Internal Properties and Methods
 
     //

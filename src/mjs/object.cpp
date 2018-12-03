@@ -3,6 +3,7 @@
 namespace mjs {
 
 static_assert(gc_type_info_registration<object>::needs_fixup);
+static_assert(!gc_type_info_registration<object>::needs_destroy);
 
 object::object(gc_heap& heap, const string& class_name, const object_ptr& prototype)
     : heap_(heap)
