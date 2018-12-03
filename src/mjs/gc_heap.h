@@ -145,7 +145,16 @@ private:
     static const gc_type_info_registration reg;
 
     static void destroy(void* p) {
+        // We're fine with mjs::object having a non-virtual destructor
+        // Derived classes are properly destructed by their own type info classes
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdelete-non-virtual-dtor"
+#endif
         static_cast<T*>(p)->~T();
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
     }
 
     static void move(void* to, void* from) {

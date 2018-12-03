@@ -48,7 +48,7 @@ private:
     explicit gc_function() {
     }
 
-    gc_function(gc_function&& from) {
+    gc_function(gc_function&& from) noexcept {
         from.get_model()->move(get_model());
     }
 

@@ -37,7 +37,7 @@ private:
         std::memcpy(data(), s.data(), s.length() * sizeof(wchar_t));
     }
 
-    explicit gc_string(gc_string&& other) : length_(other.length_) {
+    explicit gc_string(gc_string&& other) noexcept : length_(other.length_) {
         std::memcpy(data(), other.data(), other.length_ * sizeof(wchar_t));
     }
 };

@@ -118,7 +118,7 @@ public:
     token(const token& t) : token(token_type::eof) {
         *this = t;
     }
-    token(token&& t) : token(token_type::eof) {
+    token(token&& t) noexcept : token(token_type::eof) {
         *this = std::move(t);
     }
     token& operator=(const token& t) {
@@ -133,7 +133,7 @@ public:
         }
         return *this;
     }
-    token& operator=(token&& t) {
+    token& operator=(token&& t) noexcept {
         if (this != &t) {
             destroy();
             type_ = t.type_;
