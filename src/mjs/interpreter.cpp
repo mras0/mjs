@@ -90,22 +90,18 @@ private:
     std::vector<std::wstring> ids_;
 };
 
-class eval_exception : public std::runtime_error {
-public:
-    explicit eval_exception(const std::vector<source_extend>& stack_trace, const std::wstring_view& msg) : std::runtime_error(get_repr(stack_trace, msg)) {
+static std::string get_eval_exception_repr(const std::vector<source_extend>& stack_trace, const std::wstring_view& msg) {
+    std::ostringstream oss;
+    oss << std::string(msg.begin(), msg.end());
+    for (const auto& e: stack_trace) {
+        assert(e.file);
+        oss << '\n' << e;
     }
+    return oss.str();
+}
 
-private:
-    static std::string get_repr(const std::vector<source_extend>& stack_trace, const std::wstring_view& msg) {
-        std::ostringstream oss;
-        oss << std::string(msg.begin(), msg.end());
-        for (const auto& e: stack_trace) {
-            assert(e.file);
-            oss << '\n' << e;
-        }
-        return oss.str();
-    }
-};
+eval_exception::eval_exception(const std::vector<source_extend>& stack_trace, const std::wstring_view& msg) : std::runtime_error(get_eval_exception_repr(stack_trace, msg)) {
+}
 
 class interpreter::impl {
 public:
@@ -214,10 +210,8 @@ public:
             }
         }
 
-        active_scope_->call_site = e.extend();
-        auto res = c->call(this_, args);
-        active_scope_->call_site = source_extend{nullptr,0,0};
-        return res;
+        auto_stack_update asu{*this, e.extend()};
+        return c->call(this_, args);
     }
 
     value operator()(const prefix_expression& e) {
@@ -651,7 +645,6 @@ private:
             return prev_ ? &prev_.dereference(heap_) : nullptr;
         }
 
-        source_extend call_site;
     private:
         explicit scope(const object_ptr& act, const scope_ptr& prev) : heap_(act.heap()), activation_(act), prev_(prev) {}
         scope(scope&&) = default;
@@ -665,6 +658,7 @@ private:
         gc_heap_ptr_untracked<object> activation_;
         gc_heap_ptr_untracked<scope>  prev_;
     };
+    static_assert(!gc_type_info_registration<scope>::needs_destroy);
     class auto_scope {
     public:
         explicit auto_scope(impl& parent, const object_ptr& act, const scope_ptr& prev) : parent(parent), old_scopes(parent.active_scope_) {
@@ -677,10 +671,32 @@ private:
         impl& parent;
         scope_ptr old_scopes;
     };
+    class auto_stack_update {
+    public:
+        explicit auto_stack_update(impl& parent, const source_extend& pos) : parent_(parent)
+#ifndef NDEBUG
+            , pos_(pos)
+#endif
+        {
+            parent_.stack_trace_.push_back(pos);
+        }
+
+        ~auto_stack_update() {
+            assert(!parent_.stack_trace_.empty() && parent_.stack_trace_.back() == pos_);
+            parent_.stack_trace_.pop_back();
+        }
+    private:
+        impl& parent_;
+#ifndef NDEBUG
+        source_extend pos_;
+#endif
+    };
+
     gc_heap&                       heap_;
     scope_ptr                      active_scope_;
     gc_heap_ptr<global_object>     global_;
     on_statement_executed_type     on_statement_executed_;
+    std::vector<source_extend>     stack_trace_;
 
     static scope_ptr make_scope(const object_ptr& act, const scope_ptr& prev) {
         return act.heap().make<scope>(act, prev);
@@ -689,10 +705,7 @@ private:
     std::vector<source_extend> stack_trace(const source_extend& current_extend) const {
         std::vector<source_extend> t;
         t.push_back(current_extend);
-        for (const scope* p = active_scope_.get(); p != nullptr; p = p->get_prev()) {
-            if (!p->call_site.file) continue;
-            t.push_back(p->call_site);
-        }
+        t.insert(t.end(), stack_trace_.rbegin(), stack_trace_.rend());
         return t;
     }
 
@@ -727,10 +740,8 @@ private:
             throw eval_exception(stack_trace(e.extend()), woss.str());
         }
 
-        active_scope_->call_site = e.extend();
-        auto res = c->call(value::undefined, args);
-        active_scope_->call_site = source_extend{nullptr,0,0};
-        return res;
+        auto_stack_update asu{*this, e.extend()};
+        return c->call(value::undefined, args);
     }
 
     object_ptr create_function(const string& id, const std::shared_ptr<block_statement>& block, const std::vector<std::wstring>& param_names, const std::wstring& body_text, const scope_ptr& prev_scope) {

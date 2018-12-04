@@ -4,12 +4,15 @@
 #include "value.h"
 #include <functional>
 #include <memory>
+#include <stdexcept>
+#include <vector>
 
 namespace mjs {
 
 class block_statement;
 class statement;
 class expression;
+struct source_extend;
 
 enum class completion_type {
     normal, break_, continue_, return_
@@ -25,6 +28,11 @@ struct completion {
     explicit operator bool() const { return type != completion_type::normal; }
 };
 std::wostream& operator<<(std::wostream& os, const completion& c);
+
+class eval_exception : public std::runtime_error {
+public:
+    explicit eval_exception(const std::vector<source_extend>& stack_trace, const std::wstring_view& msg);
+};
 
 class interpreter {
 public:

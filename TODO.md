@@ -23,7 +23,6 @@
     - Experiment (again) with reference counting the object and string references stored in `value`
     - Add tests ! (for `value_representation`, all the pointer types etc.)
     - Perhaps using structure of arrays instead of array of structures for `gc_type_info` could give (marginal) speed benefits
-    - Make `mjs::interpreter::scope` trivially destructible (`source_extend` is currently impeding it - it should probably be moved anyway to handle recursive functions properly)
 * Finish global object
     - Date
         - mutators

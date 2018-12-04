@@ -44,6 +44,14 @@ struct source_extend {
         return std::wstring_view(file->text.c_str() + start, end - start);
     }
 
+    bool operator==(const source_extend& rhs) const {
+        return file == rhs.file && start == rhs.start && end == rhs.end;
+    }
+ 
+    bool operator!=(const source_extend& rhs) const {
+        return !(*this == rhs);
+    }
+
     template<typename CharT>
     friend std::basic_ostream<CharT>& operator<<(std::basic_ostream<CharT>& os, const source_extend& extend) {
         auto [start_pos, end_pos] = extend_to_positions(extend.file->text, extend.start, extend.end);

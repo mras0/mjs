@@ -59,6 +59,36 @@ void test(const std::wstring_view& text, const value& expected) {
     }
 }
 
+template<typename ExceptionType = eval_exception>
+std::string expect_exception(const std::wstring_view& text) {
+    decltype(parse(nullptr)) bs;
+    try {
+        bs = parse(std::make_shared<source_file>(L"test", text));
+    } catch (const std::exception& e) {
+        std::wcout << "Parse failed for \"" << text << "\": " << e.what() <<  "\n";
+        throw;
+    }
+
+    gc_heap h{1<<20}; // Use local heap, even if expected lives in another heap
+    try {
+        interpreter i{h, *bs};
+        i.eval(*bs);
+    } catch (const ExceptionType& e) {
+        h.garbage_collect();
+        if (h.calc_used()) {
+            std::wcout << "Leaks during processing of\n" << text << "\n";
+            THROW_RUNTIME_ERROR("Leaks");
+        }
+        return e.what();
+    } catch (const std::exception& e) {
+        std::wcout << "Unexpected exception thrown: " << e.what() << " while processing\n" << text << "\n"; 
+        throw;
+    }
+
+    std::wcout << "Exception not thrown in\n" << text << "\n";
+    THROW_RUNTIME_ERROR("Expected exception not thrown");
+}
+
 void eval_tests() {
     gc_heap h{1<<20};
 
@@ -632,6 +662,26 @@ null
 )", value::null);
 }
 
+#define EX_EQUAL(expected, actual) do { const auto _e = (expected); const auto _a = (actual); if (_e != _a) { std::ostringstream _woss; _woss << "Expected\n\"" << _e << "\" got\n\"" << _a << "\"\n"; THROW_RUNTIME_ERROR(_woss.str()); } } while (0)
+
+void test_eval_exception() {
+    EX_EQUAL("identifier_expression{not_callable} is not a function\ntest:1:2-1:16", expect_exception<>(LR"( not_callable(); )"));
+    EX_EQUAL("identifier_expression{x} is not a function\ntest:2:16-2:19\ntest:3:19-3:22\ntest:4:17-4:20\ntest:5:40-5:43", expect_exception<>(LR"(
+function a() { x(); }
+   function b() { a(); }
+ function c() { b(); }
+                                       c();
+)"));
+
+    EX_EQUAL("call_expression{identifier_expression{bar}, {}} is not an object\ntest:2:24-2:50\ntest:2:24-2:39\ntest:2:24-2:39\ntest:3:1-3:5", expect_exception<>(LR"(
+function f(i) { return i > 2 ? f(i-1) : new bar(); }
+f(4);
+)"));
+
+    // FIXME: should throw
+    //EX_EQUAL("foo", expect_exception<eval_exception>(L"new parseInt(42);"));
+}
+
 int main() {
     try {
         eval_tests();
@@ -640,6 +690,7 @@ int main() {
         test_date_functions();
         test_semicolon_insertion();
         test_long_object_chain();
+        test_eval_exception();
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';
         return 1;
