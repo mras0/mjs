@@ -678,8 +678,7 @@ function f(i) { return i > 2 ? f(i-1) : new bar(); }
 f(4);
 )"));
 
-    // FIXME: should throw
-    //EX_EQUAL("foo", expect_exception<eval_exception>(L"new parseInt(42);"));
+    EX_EQUAL("call_expression{identifier_expression{parseInt}, {literal_expression{token{numeric_literal, 42}}}} is not constructable\ntest:1:1-1:17", expect_exception<eval_exception>(L"new parseInt(42);"));
 }
 
 int main() {

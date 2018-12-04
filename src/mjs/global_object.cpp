@@ -491,6 +491,7 @@ private:
             return value{global->to_object(args.front())};
         }, native_function_body(Object_str_), 1);
         o->put(prototype_str_, value{object_prototype_}, prototype_attributes);
+        make_constructable(o);
 
         // §15.2.4
         object_prototype_->put(constructor_str_, value{o}, default_attributes);
@@ -517,13 +518,14 @@ private:
         boolean_prototype_ = object::make(heap(), Boolean_str_, object_prototype_);
         boolean_prototype_->internal_value(value{false});
 
-        auto c = make_function([global = self_](const value&, const std::vector<value>& args) {
-            return value{global->new_boolean(!args.empty() && to_boolean(args.front()))};
-        },  native_function_body(Boolean_str_), 1);
-        c->call_function(gc_function::make(heap(), [](const value&, const std::vector<value>& args) {
+        auto c = make_function([](const value&, const std::vector<value>& args) {
             return value{!args.empty() && to_boolean(args.front())};
-        }));
+        },  native_function_body(Boolean_str_), 1);
         c->put(prototype_str_, value{boolean_prototype_}, prototype_attributes);
+        make_constructable(c, gc_function::make(heap(), [global = self_](const value&, const std::vector<value>& args) {
+            return value{global->new_boolean(!args.empty() && to_boolean(args.front()))};
+        }));
+
 
         auto check_type = [p = boolean_prototype_](const value& this_) {
             validate_type(this_, p, "Boolean");
@@ -558,13 +560,14 @@ private:
         number_prototype_ = object::make(heap(), Number_str_, object_prototype_);
         number_prototype_->internal_value(value{0.});
 
-        auto c = make_function([global = self_](const value&, const std::vector<value>& args) {
-            return value{global->new_number(args.empty() ? 0.0 : to_number(args.front()))};
-        }, native_function_body(Number_str_), 1);
-        c->call_function(gc_function::make(heap(), [](const value&, const std::vector<value>& args) {
+        auto c = make_function([](const value&, const std::vector<value>& args) {
             return value{args.empty() ? 0.0 : to_number(args.front())};
-        }));
+        }, native_function_body(Number_str_), 1);
         c->put(prototype_str_, value{number_prototype_}, prototype_attributes);
+        make_constructable(c, gc_function::make(heap(), [global = self_](const value&, const std::vector<value>& args) {
+            return value{global->new_number(args.empty() ? 0.0 : to_number(args.front()))};
+        }));
+
         c->put(string{heap(), "MAX_VALUE"}, value{1.7976931348623157e308}, default_attributes);
         c->put(string{heap(), "MIN_VALUE"}, value{5e-324}, default_attributes);
         c->put(string{heap(), "NaN"}, value{NAN}, default_attributes);
@@ -602,7 +605,6 @@ private:
     // String
     //
 
-
     object_ptr new_string(const string& val) {
         auto o = object::make(heap(), String_str_, string_prototype_);
         o->internal_value(value{val});
@@ -614,14 +616,15 @@ private:
         string_prototype_ = object::make(heap(), String_str_, object_prototype_);
         string_prototype_->internal_value(value{string{heap(), ""}});
 
-        auto c = make_function([global = self_](const value&, const std::vector<value>& args) {
+        auto c = make_function([&h = heap()](const value&, const std::vector<value>& args) {
+            return value{args.empty() ? string{h, ""} : to_string(h, args.front())};
+        }, native_function_body(String_str_), 1);
+        c->put(prototype_str_, value{string_prototype_}, prototype_attributes);
+        make_constructable(c, gc_function::make(heap(), [global = self_](const value&, const std::vector<value>& args) {
             auto& h = global->heap();
             return value{global->new_string(args.empty() ? string{h, ""} : to_string(h, args.front()))};
-        }, native_function_body(String_str_), 1);
-        c->call_function(gc_function::make(heap(), [&h = heap()](const value&, const std::vector<value>& args) {
-            return value{args.empty() ? string{h, ""} : to_string(h, args.front())};
         }));
-        c->put(prototype_str_, value{string_prototype_}, prototype_attributes);
+
         put_native_function(c, string{heap(), "fromCharCode"}, [&h = heap()](const value&, const std::vector<value>& args){
             std::wstring s;
             for (const auto& a: args) {
@@ -766,6 +769,7 @@ private:
             return global->array_constructor(this_, args);
         }, native_function_body(Array_str_), 1);
         o->put(prototype_str_, value{array_prototype_}, prototype_attributes);
+        make_constructable(o);
 
         array_prototype_->put(constructor_str_, value{o}, default_attributes);
         put_native_function(array_prototype_, toString_str_, [](const value& this_, const std::vector<value>&) {
@@ -973,7 +977,12 @@ private:
         date_prototype_ = object::make(heap(), Date_str_, object_prototype_);
         date_prototype_->internal_value(value{NAN});
 
-        auto c = make_function([global = self_](const value&, const std::vector<value>& args) {
+        auto c = make_function([global = self_](const value&, const std::vector<value>&) {
+            // Equivalent to (new Date()).toString()
+            return value{to_string(global->heap(), value{global->new_date(date_helper::current_time_utc())})};
+        }, native_function_body(Date_str_), 7);
+        c->put(prototype_str_, value{date_prototype_}, prototype_attributes);
+        make_constructable(c, gc_function::make(heap(), [global = self_](const value&, const std::vector<value>& args) {
             if (args.empty()) {
                 return value{global->new_date(date_helper::current_time_utc())};
             } else if (args.size() == 1) {
@@ -987,12 +996,8 @@ private:
                 NOT_IMPLEMENTED("new Date(value)");
             }
             return value{date_helper::time_clip(date_helper::utc(date_helper::time_from_args(args)))};
-        }, native_function_body(Date_str_), 7);
-        c->call_function(gc_function::make(heap(), [global = self_](const value&, const std::vector<value>&) {
-            // Equivalent to (new Date()).toString()
-            return value{to_string(global->heap(), value{global->new_date(date_helper::current_time_utc())})};
         }));
-        c->put(prototype_str_, value{date_prototype_}, prototype_attributes);
+
         put_native_function(c, "parse", [&h=heap()](const value&, const std::vector<value>& args) {
             if (1) NOT_IMPLEMENTED(to_string(h, get_arg(args, 0)));
             return value::undefined;
@@ -1170,6 +1175,14 @@ private:
 
     void put_function(const object_ptr& o, const native_function_type& f, const string& body_text, int named_args) override;
 
+    void make_constructable(const object_ptr& o, const native_function_type& f = nullptr) {
+        assert(o->internal_value().type() == value_type::string);
+        o->construct_function(f ? f : o->call_function());
+        auto p = o->get(prototype_str_.view());
+        assert(p.type() == value_type::object);
+        p.object_value()->put(constructor_str_, value{o}, global_object_impl::default_attributes);
+    }
+
     friend global_object;
 };
 
@@ -1192,12 +1205,8 @@ void global_object_impl::put_function(const object_ptr& o, const native_function
     o->put(length_str_, value{static_cast<double>(named_args)}, property_attribute::read_only | property_attribute::dont_delete | property_attribute::dont_enum);
     o->put(arguments_str_, value::null, property_attribute::read_only | property_attribute::dont_delete | property_attribute::dont_enum);
     o->call_function(f);
-    o->construct_function(f);
     assert(o->internal_value().type() == value_type::undefined);
     o->internal_value(value{body_text});
-    auto p = o->get(prototype_str_.view());
-    assert(p.type() == value_type::object);
-    p.object_value()->put(constructor_str_, value{o}, global_object_impl::default_attributes);
 }
 
 
