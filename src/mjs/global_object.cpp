@@ -798,10 +798,11 @@ private:
             }
             return this_;
         }, 0);
-        put_native_function(array_prototype_, "sort", [&h=heap()](const value& this_, const std::vector<value>& args) {
+        put_native_function(array_prototype_, "sort", [](const value& this_, const std::vector<value>& args) {
             assert(this_.type() == value_type::object);
-            const auto& o = this_.object_value();
-            const uint32_t length = to_uint32(o->get(array_object::length_str));
+            const auto& o = *this_.object_value();
+            auto& h = o.heap(); // Capture heap reference (which continues to be valid even after GC) since `this` can move when calling a user-defined compare function (since this can cause GC)
+            const uint32_t length = to_uint32(o.get(array_object::length_str));
 
             native_function_type comparefn{};
             if (!args.empty()) {
@@ -837,13 +838,15 @@ private:
 
             std::vector<value> values(length);
             for (uint32_t i = 0; i < length; ++i) {
-                values[i] = o->get(index_string(i));
+                values[i] = o.get(index_string(i));
             }
             std::stable_sort(values.begin(), values.end(), [&](const value& x, const value& y) {
                 return sort_compare(x, y) < 0;
             });
+            // Note: `this` has possibly become invalid here (!)
+            auto& o_after = *this_.object_value(); // Recapture object reference (since it could also have moved)
             for (uint32_t i = 0; i < length; ++i) {
-                o->put(string{h, index_string(i)}, values[i]);
+                o_after.put(string{h, index_string(i)}, values[i]);
             }
             return this_;
         }, 1);

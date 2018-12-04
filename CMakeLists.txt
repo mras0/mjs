@@ -30,10 +30,15 @@ else()
     endif()
 endif()
 
+
 if (WIN32)
     add_definitions("-DWIN32 -D_WIN32 -DUNICODE -D_UNICODE")
 endif()
 
+set(enable_gc_stress_test FALSE CACHE BOOL "Stress test garbage collector by running after every evaluated expression")
+if (enable_gc_stress_test)
+    add_definitions("-DMJS_GC_STRESS_TEST")
+endif()
 
 add_subdirectory(src)
 add_subdirectory(test)

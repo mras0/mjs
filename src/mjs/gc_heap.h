@@ -181,6 +181,8 @@ public:
     static constexpr uint32_t bytes_to_slots(size_t bytes) { return static_cast<uint32_t>((bytes + slot_size - 1) / slot_size); }
 
     explicit gc_heap(uint32_t capacity);
+    gc_heap(gc_heap&) = delete;
+    gc_heap& operator=(gc_heap&) = delete;
     ~gc_heap();
 
     void debug_print(std::wostream& os) const;

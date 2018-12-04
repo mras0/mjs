@@ -163,15 +163,27 @@ public:
     }
 
     value eval(const expression& e) {
+#ifdef MJS_GC_STRESS_TEST
+        // Typical causes of crashes when the stress test is enabled:
+        //  - `some_ptr->func(eval(...))`: `some_ptr->` can be evaluated before `eval(...)`
+        //  - holding pointers to GC objects past calls to eval (be aware of indirect calls like calling a user provided sorting predicate)
+        //    Note that `this` is counted for native function implementations (!) see Array.sort for an example
+        auto res = accept(e, *this);
+        heap_.garbage_collect();
+        return res;
+#else
         return accept(e, *this);
+#endif
     }
 
     completion eval(const statement& s) {
-        auto res = accept(s, *this);
         if (on_statement_executed_) {
+            auto res = accept(s, *this);
             on_statement_executed_(s, res);
+            return res;
+        } else {
+            return accept(s, *this);
         }
-        return res;
     }
 
     value operator()(const identifier_expression& e) {
@@ -208,7 +220,7 @@ public:
         }
         auto this_ = value::null;
         if (member.type() == value_type::reference) {
-            if (auto o = member.reference_value().base(); o->class_name().view() != L"Activation") {
+            if (auto o = member.reference_value().base(); o->class_name().view() != L"Activation") {  // TODO: Have better way of checking for Activation object
                 this_ = value{o};
             }
         }
@@ -538,7 +550,8 @@ public:
     completion operator()(const for_in_statement& s) {
         completion c{};
         if (s.init().type() == statement_type::expression) {
-            auto o = global_->to_object(get_value(eval(s.e())));
+            auto ev = get_value(eval(s.e()));
+            auto o = global_->to_object(ev);
             const auto& lhs_expression = static_cast<const expression_statement&>(s.init()).e();
             for (const auto& n: o->property_names()) {
                 if (!put_value(eval(lhs_expression), value{n})) {
@@ -570,7 +583,8 @@ public:
             assign(init.init() ? get_value(eval(*init.init())) : value::undefined);
             
             // Happens after the initial assignment
-            auto o = global_->to_object(get_value(eval(s.e())));
+            auto ev = get_value(eval(s.e()));
+            auto o = global_->to_object(ev);
 
             for (const auto& n: o->property_names()) {
                 assign(value{n});
@@ -603,7 +617,8 @@ public:
     }
 
     completion operator()(const with_statement& s) {
-        auto_scope with_scope{*this, global_->to_object(get_value(eval(s.e()))), active_scope_};
+        auto val = get_value(eval(s.e()));
+        auto_scope with_scope{*this, global_->to_object(val), active_scope_};
         return eval(s.s());
     }
 
@@ -760,7 +775,7 @@ private:
             }
 
             // Scope
-            auto activation = object::make(heap_, string{heap_, "Activation"}, nullptr); // TODO
+            auto activation = object::make(heap_, string{heap_, "Activation"}, nullptr);
             auto_scope auto_scope_{*this, activation, prev_scope};
             activation->put(string{heap_, "this"}, this_, property_attribute::dont_delete | property_attribute::dont_enum | property_attribute::read_only);
             activation->put(string{heap_, "arguments"}, value{as}, property_attribute::dont_delete);

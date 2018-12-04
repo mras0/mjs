@@ -653,7 +653,13 @@ x++; x //$ number 2
 void test_long_object_chain() {
     test(LR"(
 var l = null;
-for (var i = 0; i < 10000; ++i) {
+for (var i = 0; i < )"
+#ifdef MJS_GC_STRESS_TEST
+    L"100" // Long enough when stress testing
+#else
+    L"10000"
+#endif
+LR"(; ++i) {
     n = new Object();
     n.prev = l;
     l = n;

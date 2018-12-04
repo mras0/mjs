@@ -6,7 +6,6 @@
     - Create `parse_test` (and move `test_semicolon_insertion` from interpreter test)
     - Test `source_extend` logic (could probably be more precise for expressions/statements)
 * Better GC
-    - Make sure garbage can be collected safely most of the time (and formulate rules for when it's not allowed)
     - Ensure exception safety
     - Support growing the heap (and support growing it as needed)
     - Do real semi-space collector - I.e. double the size of `storage_` but only fill it half way through, switching between halfs when one gets full
