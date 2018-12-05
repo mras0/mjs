@@ -56,6 +56,7 @@ public:
 std::ostream& operator<<(std::ostream& os, const string& s);
 std::wostream& operator<<(std::wostream& os, const string& s);
 inline bool operator==(const string& l, const string& r) { return l.view() == r.view(); }
+inline bool operator!=(const string& l, const string& r) { return !(l == r); }
 inline string operator+(const string& l, const string& r) {
     // TODO: Optimize this
     return string{l.heap(), std::wstring{l.view()} + std::wstring{r.view()}};
