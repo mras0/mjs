@@ -105,7 +105,7 @@ public:
 #ifdef TEST_SPEC_DEBUG
         std::wcout << "Running test spec for " << statements.extend().file->text << "\nSpecs:\n";
         for (const auto& s: specs) {
-            std::wcout << pos_w << s.position << " " << s.expected.type() << " " << to_string(s.expected) << "\n";
+            std::wcout << pos_w << s.position << " " << s.expected.type() << " " << to_string(h, s.expected) << "\n";
         }
         std::wcout << "\n";
 #endif
@@ -125,6 +125,9 @@ private:
     size_t index_ = 0;
     uint32_t last_line_ = 0;
     completion last_result_{};
+#ifdef TEST_SPEC_DEBUG
+    gc_heap& heap_;
+#endif
 
     explicit test_spec_runner(gc_heap& h, const std::vector<test_spec>& specs, const block_statement& statements)
         : specs_(specs)
@@ -141,7 +144,11 @@ private:
                 last_line_ = s.extend().start;
             }
             h.garbage_collect(); // Run garbage collection after each statement to help catch bugs
-        }) {
+        })
+#ifdef TEST_SPEC_DEBUG
+        , heap_(h)
+#endif
+    {
     }
 
     void check_test_spec_done(uint32_t check_pos) {
@@ -151,7 +158,7 @@ private:
 
         if (check_pos > specs_[index_].position) {
 #ifdef TEST_SPEC_DEBUG
-            std::wcout << pos_w << check_pos << ": Checking at pos " << pos_w << specs_[index_].position << " expecting " << specs_[index_].expected.type() << " " << to_string(specs_[index_].expected) << "\n";
+            std::wcout << pos_w << check_pos << ": Checking at pos " << pos_w << specs_[index_].position << " expecting " << specs_[index_].expected.type() << " " << to_string(heap_, specs_[index_].expected) << "\n";
 #endif
             if (last_result_) {
                 std::wostringstream oss;
