@@ -69,6 +69,29 @@ create_result make_object_object(global_object& global) {
 }
 
 //
+// Function
+//
+
+create_result make_function_object(global_object& global) {
+    auto& h = global.heap();
+    auto function_str = global.common_string("Function");
+    auto prototype = object::make(h, function_str, global.object_prototype());
+
+    auto c = object::make(prototype.heap(), prototype->class_name(), prototype); // Note: function constructor is added by interpreter
+
+    // §15.3.4
+    prototype->call_function(gc_function::make(h, [](const value&, const std::vector<value>&) {
+        return value::undefined;
+    }));
+    global.put_native_function(prototype, "toString", [prototype](const value& this_, const std::vector<value>&) {
+        validate_type(this_, prototype, "Function");
+        assert(this_.object_value()->internal_value().type() == value_type::string);
+        return this_.object_value()->internal_value();
+    }, 0);
+    return { c, prototype };
+}
+
+//
 // Array
 //
 
@@ -970,6 +993,58 @@ create_result make_math_object(global_object& global) {
     return { math, nullptr };
 }
 
+//
+// Console
+//
+
+create_result make_console_object(global_object& global) {
+    auto& h = global.heap();
+    auto console = object::make(h, global.common_string("Object"), global.object_prototype());
+
+    using timer_clock = std::chrono::steady_clock;
+
+    auto timers = std::make_shared<std::unordered_map<std::wstring, timer_clock::time_point>>();
+    global.put_native_function(console, "log", [](const value&, const std::vector<value>& args) {
+        for (const auto& a: args) {
+            if (a.type() == value_type::string) {
+                std::wcout << a.string_value();
+            } else {
+                mjs::debug_print(std::wcout, a, 4);
+            }
+            std::wcout << ' ';
+        }
+        std::wcout << '\n';
+        return value::undefined;
+    }, 1);
+    global.put_native_function(console, "time", [timers, &h](const value&, const std::vector<value>& args) {
+        if (args.empty()) {
+            THROW_RUNTIME_ERROR("Missing argument to console.time()");
+        }
+        auto label = to_string(h, args.front());
+        (*timers)[std::wstring{label.view()}] = timer_clock::now();
+        return value::undefined;
+    }, 1);
+    global.put_native_function(console, "timeEnd", [timers, &h](const value&, const std::vector<value>& args) {
+        const auto end_time = timer_clock::now();
+        if (args.empty()) {
+            THROW_RUNTIME_ERROR("Missing argument to console.timeEnd()");
+        }
+        auto label = to_string(h, args.front());
+        auto it = timers->find(std::wstring{label.view()});
+        if (it == timers->end()) {
+            std::wostringstream woss;
+            woss << "Timer not found: " << label;
+            THROW_RUNTIME_ERROR(woss.str());
+        }
+        std::wcout << "timeEnd " << label << ": " << show_duration(end_time - it->second) << "\n";
+        timers->erase(it);
+        return value::undefined;
+    }, 1);
+
+    return { console, nullptr };
+}
+
+
 } // unnamed namespace
 
 class global_object_impl : public global_object {
@@ -1034,80 +1109,10 @@ private:
     DEFINE_STRING(valueOf);
 #undef DEFINE_STRING
 
-    //
-    // Function
-    //
-
     object_ptr do_make_function(const native_function_type& f, const string& body_text, int named_args) override {
         auto o = make_raw_function();
         put_function(o, f, body_text, named_args);
         return o;
-    }
-
-    object_ptr make_function_object() {
-        auto o = make_raw_function(); // Note: function constructor is added by interpreter
-        o->put(prototype_str_, value{function_prototype_}, prototype_attributes);
-
-        // §15.3.4
-        function_prototype_->call_function(gc_function::make(heap(), [](const value&, const std::vector<value>&) {
-            return value::undefined;
-        }));
-        function_prototype_->put(constructor_str_, value{o}, default_attributes);
-        put_native_function(function_prototype_, toString_str_, [function_prototype = function_prototype_](const value& this_, const std::vector<value>&) {
-            validate_type(this_, function_prototype, "Function");
-            assert(this_.object_value()->internal_value().type() == value_type::string);
-            return this_.object_value()->internal_value();
-        }, 0);
-        return o;
-    }
-
-    //
-    // Console
-    //
-    auto make_console_object() {
-        auto console = object::make(heap(), Object_str_, object_prototype_);
-
-        using timer_clock = std::chrono::steady_clock;
-
-        auto timers = std::make_shared<std::unordered_map<std::wstring, timer_clock::time_point>>();
-        put_native_function(console, "log", [](const value&, const std::vector<value>& args) {
-            for (const auto& a: args) {
-                if (a.type() == value_type::string) {
-                    std::wcout << a.string_value();
-                } else {
-                    mjs::debug_print(std::wcout, a, 4);
-                }
-                std::wcout << ' ';
-            }
-            std::wcout << '\n';
-            return value::undefined;
-        }, 1);
-        put_native_function(console, "time", [timers, &h=heap()](const value&, const std::vector<value>& args) {
-            if (args.empty()) {
-                THROW_RUNTIME_ERROR("Missing argument to console.time()");
-            }
-            auto label = to_string(h, args.front());
-            (*timers)[std::wstring{label.view()}] = timer_clock::now();
-            return value::undefined;
-        }, 1);
-        put_native_function(console, "timeEnd", [timers, &h=heap()](const value&, const std::vector<value>& args) {
-            const auto end_time = timer_clock::now();
-            if (args.empty()) {
-                THROW_RUNTIME_ERROR("Missing argument to console.timeEnd()");
-            }
-            auto label = to_string(h, args.front());
-            auto it = timers->find(std::wstring{label.view()});
-            if (it == timers->end()) {
-                std::wostringstream woss;
-                woss << "Timer not found: " << label;
-                THROW_RUNTIME_ERROR(woss.str());
-            }
-            std::wcout << "timeEnd " << label << ": " << show_duration(end_time - it->second) << "\n";
-            timers->erase(it);
-            return value::undefined;
-        }, 1);
-
-        return console;
     }
 
     value array_constructor(const value&, const std::vector<value>& args) override {
@@ -1125,9 +1130,9 @@ private:
     // Global
     //
     void popuplate_global() {
+        // The object prototype is special
         object_prototype_   = object::make(heap(), string{heap(), "ObjectPrototype"}, nullptr);
-        function_prototype_ = object::make(heap(), Function_str_, object_prototype_);
-
+         
         auto add = [&](const char* name, auto create_func, object_ptr* prototype = nullptr) {
             auto res = create_func(*this);
             put(common_string(name), value{res.obj}, default_attributes);
@@ -1142,13 +1147,14 @@ private:
 
         // §15.1
         add("Object", make_object_object, &object_prototype_); // Resetting it..
-        put(Function_str_, value{make_function_object()}, default_attributes);
+        add("Function", make_function_object, &function_prototype_);
         add("Array", make_array_object, &array_prototype_);
         add("String", make_string_object, &string_prototype_);
         add("Boolean", make_boolean_object, &boolean_prototype_);
         add("Number", make_number_object, &number_prototype_);
         add("Math", make_math_object);
         add("Date", make_date_object);
+        add("console", make_console_object);
 
         put(string{heap(), "NaN"}, value{NAN}, default_attributes);
         put(string{heap(), "Infinity"}, value{INFINITY}, default_attributes);
@@ -1185,7 +1191,6 @@ private:
             return value::undefined;
         }, 1);
 
-        put(string{heap(), "console"}, value{make_console_object()}, default_attributes);
     }
 
     explicit global_object_impl(gc_heap& h) : global_object(h, string{h, "Global"}, object_ptr{}) {
