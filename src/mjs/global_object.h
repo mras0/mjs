@@ -15,7 +15,8 @@ public:
     virtual object_ptr make_raw_function() = 0;
     virtual object_ptr to_object(const value& v) = 0;
 
-    static string native_function_body(const string& name);
+    static string native_function_body(gc_heap& h, const std::wstring_view& s);
+    static string native_function_body(const string& s) { return native_function_body(s.heap(), s.view()); }
 
     static constexpr auto prototype_attributes = property_attribute::dont_enum | property_attribute::dont_delete | property_attribute::read_only;
     static constexpr auto default_attributes = property_attribute::dont_enum;
@@ -31,14 +32,13 @@ public:
 
     template<typename F>
     void put_native_function(object& obj, const char* name, const F& f, int named_args) {
-        put_native_function(obj, string{obj.heap(), name}, f, named_args);
+        put_native_function(obj, common_string(name), f, named_args);
     }
 
     template<typename F, typename String>
     void put_native_function(const object_ptr& obj, String&& name, const F& f, int named_args) {
         put_native_function(*obj, std::forward<String>(name), f, named_args);
     }
-
 
     template<typename F>
     object_ptr make_function(const F& f, const string& body_text, int named_args) {

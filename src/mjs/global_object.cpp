@@ -44,97 +44,186 @@ struct create_result {
 };
 
 //
-// Boolean
+// Object
 //
 
-object_ptr new_boolean(const object_ptr& prototype, bool val) {
-    auto o = object::make(prototype.heap(), prototype->class_name(), prototype);
-    o->internal_value(value{val});
-    return o;
-}
-
-create_result make_boolean_object(global_object& global) {
+create_result make_object_object(global_object& global) {
     auto& h = global.heap();
-    auto bool_str = global.common_string("Boolean");
-    auto prototype = object::make(h, bool_str, global.object_prototype());
-    prototype->internal_value(value{false});
+    auto o = global.make_function([global = global.self_ptr()](const value&, const std::vector<value>& args) {
+        if (args.empty() || args.front().type() == value_type::undefined || args.front().type() == value_type::null) {
+            auto o = object::make(global->heap(), global->common_string("Object"), global->object_prototype());
+            return value{o};
+        }
+        return value{global->to_object(args.front())};
+    }, global.native_function_body(h, L"Object"), 1);
+    global.make_constructable(o);
 
-    auto c = global.make_function([](const value&, const std::vector<value>& args) {
-        return value{!args.empty() && to_boolean(args.front())};
-    },  global.native_function_body(bool_str), 1);
-    global.make_constructable(c, gc_function::make(h, [prototype](const value&, const std::vector<value>& args) {
-        return value{new_boolean(prototype, !args.empty() && to_boolean(args.front()))};
-    }));
-
-    auto check_type = [prototype](const value& this_) {
-        validate_type(this_, prototype, "Boolean");
-    };
-
-    global.put_native_function(prototype, global.common_string("toString"), [check_type](const value& this_, const std::vector<value>&){
-        check_type(this_);
-        return value{string{this_.object_value().heap(), this_.object_value()->internal_value().boolean_value() ? L"true" : L"false"}};
+    // §15.2.4
+    global.put_native_function(global.object_prototype(), "toString", [&h](const value& this_, const std::vector<value>&){
+        return value{string{h, "[object "} + this_.object_value()->class_name() + string{h, "]"}};
     }, 0);
-
-    global.put_native_function(prototype, global.common_string("valueOf"), [check_type](const value& this_, const std::vector<value>&){
-        check_type(this_);
-        return this_.object_value()->internal_value();
+    global.put_native_function(global.object_prototype(), "valueOf", [](const value& this_, const std::vector<value>&){
+        return this_;
     }, 0);
-
-    return { c, prototype };
+    return { o, global.object_prototype() };
 }
 
 //
-// Number
+// Array
 //
 
-object_ptr new_number(const object_ptr& prototype,  double val) {
-    auto o = object::make(prototype.heap(), prototype->class_name(), prototype);
-    o->internal_value(value{val});
-    return o;
+class array_object : public object {
+public:
+    friend gc_type_info_registration<array_object>;
+
+    static constexpr const std::wstring_view length_str{L"length", 6};
+
+    static gc_heap_ptr<array_object> make(gc_heap& h, const string& class_name, const object_ptr& prototype, uint32_t length) {
+        return h.make<array_object>(h, class_name, prototype, length);
+    }
+
+    void put(const string& name, const value& val, property_attribute attr) override {
+        if (!can_put(name.view())) {
+            return;
+        }
+
+        if (name.view() == length_str) {
+            const uint32_t old_length = length();
+            const uint32_t new_length = to_uint32(val);
+            if (new_length < old_length) {
+                for (uint32_t i = new_length; i < old_length; ++i) {
+                    [[maybe_unused]] const bool res = object::delete_property(index_string(i));
+                    assert(res);
+                }
+            }
+            object::put(string{heap(), length_str}, value{static_cast<double>(new_length)});
+        } else {
+            object::put(name, val, attr);
+            uint32_t index = to_uint32(value{name});
+            if (name.view() == to_string(heap(), index).view() && index != UINT32_MAX && index >= length()) {
+                object::put(string{heap(), length_str}, value{static_cast<double>(index+1)});
+            }
+        }
+    }
+
+    void unchecked_put(uint32_t index, const value& val) {
+        const auto name = index_string(index);
+        assert(index < to_uint32(get(length_str)) && can_put(name));
+        object::put(string{heap(), name}, val);
+    }
+
+private:
+    uint32_t length() {
+        return to_uint32(object::get(length_str));
+    }
+
+    explicit array_object(gc_heap& h, const string& class_name, const object_ptr& prototype, uint32_t length) : object{h, class_name, prototype} {
+        object::put(string{heap(), length_str}, value{static_cast<double>(length)}, property_attribute::dont_enum | property_attribute::dont_delete);
+    }
+};
+
+string join(const object_ptr& o, const std::wstring_view& sep) {
+    auto& h = o.heap();
+    const uint32_t l = to_uint32(o->get(array_object::length_str));
+    std::wstring s;
+    for (uint32_t i = 0; i < l; ++i) {
+        if (i) s += sep;
+        const auto& oi = o->get(index_string(i));
+        if (oi.type() != value_type::undefined && oi.type() != value_type::null) {
+            s += to_string(h, oi).view();
+        }
+    }
+    return string{h, s};
 }
 
-create_result make_number_object(global_object& global) {
+create_result make_array_object(global_object& global) {
     auto& h = global.heap();
-    string Number_str_{h, "Number"};
-    auto prototype = object::make(h, Number_str_, global.object_prototype());
-    prototype->internal_value(value{0.});
+    auto Array_str_ = global.common_string("Array");
+    auto prototype = array_object::make(h, Array_str_, global.object_prototype(), 0);
 
-    auto c = global.make_function([](const value&, const std::vector<value>& args) {
-        return value{args.empty() ? 0.0 : to_number(args.front())};
-    }, global.native_function_body(Number_str_), 1);
-    global.make_constructable(c, gc_function::make(h, [prototype](const value&, const std::vector<value>& args) {
-        return value{new_number(prototype, args.empty() ? 0.0 : to_number(args.front()))};
-    }));
+    auto c = global.make_function([global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+        return global->array_constructor(this_, args);
+    }, global.native_function_body(Array_str_), 1);
+    global.make_constructable(c);
 
-    c->put(string{h, "MAX_VALUE"}, value{1.7976931348623157e308}, global_object::default_attributes);
-    c->put(string{h, "MIN_VALUE"}, value{5e-324}, global_object::default_attributes);
-    c->put(string{h, "NaN"}, value{NAN}, global_object::default_attributes);
-    c->put(string{h, "NEGATIVE_INFINITY"}, value{-INFINITY}, global_object::default_attributes);
-    c->put(string{h, "POSITIVE_INFINITY"}, value{INFINITY}, global_object::default_attributes);
-
-    auto check_type = [prototype](const value& this_) {
-        validate_type(this_, prototype, "Number");
-    };
-
-    global.put_native_function(prototype, global.common_string("toString"), [check_type](const value& this_, const std::vector<value>& args){
-        check_type(this_);
-        const int radix = args.empty() ? 10 : to_int32(args.front());
-        if (radix < 2 || radix > 36) {
-            std::wostringstream woss;
-            woss << "Invalid radix in Number.toString: " << to_string(this_.object_value().heap(), args.front());
-            THROW_RUNTIME_ERROR(woss.str());
+    global.put_native_function(prototype, "toString", [](const value& this_, const std::vector<value>&) {
+        assert(this_.type() == value_type::object);
+        return value{join(this_.object_value(), L",")};
+    }, 0);
+    global.put_native_function(prototype, "join", [&h](const value& this_, const std::vector<value>& args) {
+        assert(this_.type() == value_type::object);
+        string sep{h, L","};
+        if (!args.empty()) {
+            sep = to_string(h, args.front());
         }
-        if (radix != 10) {
-            NOT_IMPLEMENTED(radix);
-        }
-        auto o = this_.object_value();
-        return value{to_string(o.heap(), o->internal_value())};
+        return value{join(this_.object_value(), sep.view())};
     }, 1);
-    global.put_native_function(prototype, global.common_string("valueOf"), [check_type](const value& this_, const std::vector<value>&){
-        check_type(this_);
-        return this_.object_value()->internal_value();
+    global.put_native_function(prototype, "reverse", [&h](const value& this_, const std::vector<value>&) {
+        assert(this_.type() == value_type::object);
+        const auto& o = this_.object_value();
+        const uint32_t length = to_uint32(o->get(array_object::length_str));
+        for (uint32_t k = 0; k != length / 2; ++k) {
+            const auto i1 = index_string(k);
+            const auto i2 = index_string(length - k - 1);
+            auto v1 = o->get(i1);
+            auto v2 = o->get(i2);
+            o->put(string{h, i1}, v2);
+            o->put(string{h, i2}, v1);
+        }
+        return this_;
     }, 0);
+    global.put_native_function(prototype, "sort", [](const value& this_, const std::vector<value>& args) {
+        assert(this_.type() == value_type::object);
+        const auto& o = *this_.object_value();
+        auto& h = o.heap(); // Capture heap reference (which continues to be valid even after GC) since `this` can move when calling a user-defined compare function (since this can cause GC)
+        const uint32_t length = to_uint32(o.get(array_object::length_str));
 
+        native_function_type comparefn{};
+        if (!args.empty()) {
+            if (args.front().type() == value_type::object) {
+                comparefn = args.front().object_value()->call_function();
+            }
+            if (!comparefn) {
+                NOT_IMPLEMENTED("Invalid compare function given to sort");
+            }
+        }
+
+        auto sort_compare = [comparefn, &h](const value& x, const value& y) {
+            if (x.type() == value_type::undefined && y.type() == value_type::undefined) {
+                return 0;
+            } else if (x.type() == value_type::undefined) {
+                return 1;
+            } else if (y.type() == value_type::undefined) {
+                return -1;
+            }
+            if (comparefn) {
+                const auto r = to_number(comparefn->call(value::null, {x,y}));
+                if (r < 0) return -1;
+                if (r > 0) return 1;
+                return 0;
+            } else {
+                const auto xs = to_string(h, x);
+                const auto ys = to_string(h, y);
+                if (xs.view() < ys.view()) return -1;
+                if (xs.view() > ys.view()) return 1;
+                return 0;
+            }
+        };
+
+        std::vector<value> values(length);
+        for (uint32_t i = 0; i < length; ++i) {
+            values[i] = o.get(index_string(i));
+        }
+        std::stable_sort(values.begin(), values.end(), [&](const value& x, const value& y) {
+            return sort_compare(x, y) < 0;
+        });
+        // Note: `this` has possibly become invalid here (!)
+        auto& o_after = *this_.object_value(); // Recapture object reference (since it could also have moved)
+        for (uint32_t i = 0; i < length; ++i) {
+            o_after.put(string{h, index_string(i)}, values[i]);
+        }
+        return this_;
+    }, 1);
     return { c, prototype };
 }
 
@@ -152,7 +241,7 @@ object_ptr new_string(const object_ptr& prototype, const string& val) {
 
 create_result make_string_object(global_object& global) {
     auto& h = global.heap();
-    string String_str_{h, "String"};
+    auto String_str_ = global.common_string("String");
     auto prototype = object::make(h, String_str_, global.object_prototype());
     prototype->internal_value(value{string{h, ""}});
 
@@ -283,6 +372,101 @@ create_result make_string_object(global_object& global) {
     return {c, prototype};
 }
 
+//
+// Boolean
+//
+
+object_ptr new_boolean(const object_ptr& prototype, bool val) {
+    auto o = object::make(prototype.heap(), prototype->class_name(), prototype);
+    o->internal_value(value{val});
+    return o;
+}
+
+create_result make_boolean_object(global_object& global) {
+    auto& h = global.heap();
+    auto bool_str = global.common_string("Boolean");
+    auto prototype = object::make(h, bool_str, global.object_prototype());
+    prototype->internal_value(value{false});
+
+    auto c = global.make_function([](const value&, const std::vector<value>& args) {
+        return value{!args.empty() && to_boolean(args.front())};
+    },  global.native_function_body(bool_str), 1);
+    global.make_constructable(c, gc_function::make(h, [prototype](const value&, const std::vector<value>& args) {
+        return value{new_boolean(prototype, !args.empty() && to_boolean(args.front()))};
+    }));
+
+    auto check_type = [prototype](const value& this_) {
+        validate_type(this_, prototype, "Boolean");
+    };
+
+    global.put_native_function(prototype, global.common_string("toString"), [check_type](const value& this_, const std::vector<value>&){
+        check_type(this_);
+        return value{string{this_.object_value().heap(), this_.object_value()->internal_value().boolean_value() ? L"true" : L"false"}};
+    }, 0);
+
+    global.put_native_function(prototype, global.common_string("valueOf"), [check_type](const value& this_, const std::vector<value>&){
+        check_type(this_);
+        return this_.object_value()->internal_value();
+    }, 0);
+
+    return { c, prototype };
+}
+
+//
+// Number
+//
+
+object_ptr new_number(const object_ptr& prototype,  double val) {
+    auto o = object::make(prototype.heap(), prototype->class_name(), prototype);
+    o->internal_value(value{val});
+    return o;
+}
+
+create_result make_number_object(global_object& global) {
+    auto& h = global.heap();
+    auto Number_str_ = global.common_string("Number");
+    auto prototype = object::make(h, Number_str_, global.object_prototype());
+    prototype->internal_value(value{0.});
+
+    auto c = global.make_function([](const value&, const std::vector<value>& args) {
+        return value{args.empty() ? 0.0 : to_number(args.front())};
+    }, global.native_function_body(Number_str_), 1);
+    global.make_constructable(c, gc_function::make(h, [prototype](const value&, const std::vector<value>& args) {
+        return value{new_number(prototype, args.empty() ? 0.0 : to_number(args.front()))};
+    }));
+
+    c->put(string{h, "MAX_VALUE"}, value{1.7976931348623157e308}, global_object::default_attributes);
+    c->put(string{h, "MIN_VALUE"}, value{5e-324}, global_object::default_attributes);
+    c->put(string{h, "NaN"}, value{NAN}, global_object::default_attributes);
+    c->put(string{h, "NEGATIVE_INFINITY"}, value{-INFINITY}, global_object::default_attributes);
+    c->put(string{h, "POSITIVE_INFINITY"}, value{INFINITY}, global_object::default_attributes);
+
+    auto check_type = [prototype](const value& this_) {
+        validate_type(this_, prototype, "Number");
+    };
+
+    global.put_native_function(prototype, global.common_string("toString"), [check_type](const value& this_, const std::vector<value>& args){
+        check_type(this_);
+        const int radix = args.empty() ? 10 : to_int32(args.front());
+        if (radix < 2 || radix > 36) {
+            std::wostringstream woss;
+            woss << "Invalid radix in Number.toString: " << to_string(this_.object_value().heap(), args.front());
+            THROW_RUNTIME_ERROR(woss.str());
+        }
+        if (radix != 10) {
+            NOT_IMPLEMENTED(radix);
+        }
+        auto o = this_.object_value();
+        return value{to_string(o.heap(), o->internal_value())};
+    }, 1);
+    global.put_native_function(prototype, global.common_string("valueOf"), [check_type](const value& this_, const std::vector<value>&){
+        check_type(this_);
+        return this_.object_value()->internal_value();
+    }, 0);
+
+    return { c, prototype };
+}
+
 std::wstring_view ltrim(std::wstring_view s) {
     size_t start_pos = 0;
     while (start_pos < s.length() && isblank(s[start_pos]))
@@ -386,70 +570,6 @@ std::wstring unescape(std::wstring_view s) {
         }
     }
     return res;
-}
-
-class array_object : public object {
-public:
-    friend gc_type_info_registration<array_object>;
-
-    static constexpr const std::wstring_view length_str{L"length", 6};
-
-    static gc_heap_ptr<array_object> make(gc_heap& h, const string& class_name, const object_ptr& prototype, uint32_t length) {
-        return h.make<array_object>(h, class_name, prototype, length);
-    }
-
-    void put(const string& name, const value& val, property_attribute attr) override {
-        if (!can_put(name.view())) {
-            return;
-        }
-
-        if (name.view() == length_str) {
-            const uint32_t old_length = length();
-            const uint32_t new_length = to_uint32(val);
-            if (new_length < old_length) {
-                for (uint32_t i = new_length; i < old_length; ++i) {
-                    [[maybe_unused]] const bool res = object::delete_property(index_string(i));
-                    assert(res);
-                }
-            }
-            object::put(string{heap(), length_str}, value{static_cast<double>(new_length)});
-        } else {
-            object::put(name, val, attr);
-            uint32_t index = to_uint32(value{name});
-            if (name.view() == to_string(heap(), index).view() && index != UINT32_MAX && index >= length()) {
-                object::put(string{heap(), length_str}, value{static_cast<double>(index+1)});
-            }
-        }
-    }
-
-    void unchecked_put(uint32_t index, const value& val) {
-        const auto name = index_string(index);
-        assert(index < to_uint32(get(length_str)) && can_put(name));
-        object::put(string{heap(), name}, val);
-    }
-
-private:
-    uint32_t length() {
-        return to_uint32(object::get(length_str));
-    }
-
-    explicit array_object(gc_heap& h, const string& class_name, const object_ptr& prototype, uint32_t length) : object{h, class_name, prototype} {
-        object::put(string{heap(), length_str}, value{static_cast<double>(length)}, property_attribute::dont_enum | property_attribute::dont_delete);
-    }
-};
-
-string join(const object_ptr& o, const std::wstring_view& sep) {
-    auto& h = o.heap();
-    const uint32_t l = to_uint32(o->get(array_object::length_str));
-    std::wstring s;
-    for (uint32_t i = 0; i < l; ++i) {
-        if (i) s += sep;
-        const auto& oi = o->get(index_string(i));
-        if (oi.type() != value_type::undefined && oi.type() != value_type::null) {
-            s += to_string(h, oi).view();
-        }
-    }
-    return string{h, s};
 }
 
 struct duration_printer {
@@ -631,6 +751,156 @@ private:
     }
 };
 
+
+//
+// Date
+//
+
+create_result make_date_object(global_object& global) {
+    auto& h = global.heap();
+    auto Date_str_ = global.common_string("Date");
+
+    auto prototype = object::make(h, Date_str_, global.object_prototype());
+    prototype->internal_value(value{NAN});
+
+    auto new_date = [prototype, Date_str_](double val) {
+        return prototype.heap().make<date_object>(prototype.heap(), Date_str_, prototype, val);
+    };
+
+    auto c = global.make_function([prototype, new_date](const value&, const std::vector<value>&) {
+        // Equivalent to (new Date()).toString()
+        return value{to_string(prototype.heap(), value{new_date(date_helper::current_time_utc())})};
+    }, global.native_function_body(Date_str_), 7);
+    global.make_constructable(c, gc_function::make(h, [new_date](const value&, const std::vector<value>& args) {
+        if (args.empty()) {
+            return value{new_date(date_helper::current_time_utc())};
+        } else if (args.size() == 1) {
+            auto v = to_primitive(args[0]);
+            if (v.type() == value_type::string) {
+                // return Date.parse(v)
+                NOT_IMPLEMENTED("new Date(string)");
+            }
+            return value{new_date(to_number(v))};
+        } else if (args.size() == 2) {
+            NOT_IMPLEMENTED("new Date(value)");
+        }
+        return value{date_helper::time_clip(date_helper::utc(date_helper::time_from_args(args)))};
+    }));
+
+    global.put_native_function(c, "parse", [&h](const value&, const std::vector<value>& args) {
+        if (1) NOT_IMPLEMENTED(to_string(h, get_arg(args, 0)));
+        return value::undefined;
+    }, 1);
+    global.put_native_function(c, "UTC", [](const value&, const std::vector<value>& args) {
+        if (args.size() < 3) {
+            NOT_IMPLEMENTED("Date.UTC() with less than 3 arguments");
+        }
+        return value{date_helper::time_clip(date_helper::time_from_args(args))};
+    }, 7);
+
+    // TODO: Date.parse(string)
+
+    auto check_type = [prototype](const value& this_) {
+        validate_type(this_, prototype, "Date");
+    };
+
+    auto make_date_getter = [&](const char* name, auto f) {
+        global.put_native_function(prototype, name ,[f, check_type](const value& this_, const std::vector<value>&) {
+            check_type(this_);
+            const double t = this_.object_value()->internal_value().number_value();
+            if (std::isnan(t)) {
+                return value{t};
+            }
+            return value{static_cast<double>(f(t))};
+        }, 0);
+    };
+    make_date_getter("valueOf", [](double t) { return t; });
+    make_date_getter("getTime", [](double t) { return t; });
+    make_date_getter("getYear", [](double t) {
+        return date_helper::year_from_time(date_helper::local_time(t)) - 1900;
+    });
+    make_date_getter("getFullYear", [](double t) {
+        return date_helper::year_from_time(date_helper::local_time(t));
+    });
+    make_date_getter("getUTCFullYear", [](double t) {
+        return date_helper::year_from_time(t);
+    });
+    make_date_getter("getMonth", [](double t) {
+        return date_helper::month_from_time(date_helper::local_time(t));
+    });
+    make_date_getter("getUTCMonth", [](double t) {
+        return date_helper::month_from_time(t);
+    });
+    make_date_getter("getDate", [](double t) {
+        return date_helper::date_from_time(date_helper::local_time(t));
+    });
+    make_date_getter("getUTCDate", [](double t) {
+        return date_helper::date_from_time(t);
+    });
+    make_date_getter("getDay", [](double t) {
+        return date_helper::week_day(date_helper::local_time(t));
+    });
+    make_date_getter("getUTCDay", [](double t) {
+        return date_helper::week_day(t);
+    });
+    make_date_getter("getHours", [](double t) {
+        return date_helper::hour_from_time(date_helper::local_time(t));
+    });
+    make_date_getter("getUTCHours", [](double t) {
+        return date_helper::hour_from_time(t);
+    });
+    make_date_getter("getMinutes", [](double t) {
+        return date_helper::min_from_time(date_helper::local_time(t));
+    });
+    make_date_getter("getUTCMinutes", [](double t) {
+        return date_helper::min_from_time(t);
+    });
+    make_date_getter("getSeconds", [](double t) {
+        return date_helper::sec_from_time(date_helper::local_time(t));
+    });
+    make_date_getter("getUTCSeconds", [](double t) {
+        return date_helper::sec_from_time(t);
+    });
+    make_date_getter("getMilliseconds", [](double t) {
+        return date_helper::ms_from_time(date_helper::local_time(t));
+    });
+    make_date_getter("getUTCMilliseconds", [](double t) {
+        return date_helper::ms_from_time(t);
+    });
+    make_date_getter("getTimezoneOffset", [](double t) {
+        return (t - date_helper::local_time(t)) / date_helper::ms_per_minute;
+    });
+
+    auto make_date_mutator = [&](const char* name, auto f) {
+        global.put_native_function(prototype, name, [f, check_type](const value& this_, const std::vector<value>& args) {
+            check_type(this_);
+            auto& obj = *this_.object_value();
+            f(obj, args);
+            return obj.internal_value();
+        }, 0);
+    };
+
+    // setTime(time)
+    make_date_mutator("setTime", [](object& d, const std::vector<value>& args) {
+        d.internal_value(value{to_number(get_arg(args, 0))});
+    });
+
+    // setMilliseconds(ms)
+    // setUTCMilliseconds(ms)
+    // ...
+
+    global.put_native_function(prototype, "toString", [check_type](const value& this_, const std::vector<value>&) {
+        check_type(this_);
+        auto o = this_.object_value();
+        return value{date_helper::to_string(o.heap(), o->internal_value().number_value())};
+    }, 0);
+    // TODO: toLocaleString()
+    // TODO: toUTCString()
+    // TODO: toGMTString = toUTCString
+
+    return { c, prototype };
+}
+
 //
 // Math
 //
@@ -792,138 +1062,6 @@ private:
     }
 
     //
-    // Object
-    //
-
-    object_ptr make_object_object() {
-        auto o = make_function([global = self_](const value&, const std::vector<value>& args) {
-            if (args.empty() || args.front().type() == value_type::undefined || args.front().type() == value_type::null) {
-                auto o = object::make(global->heap(), global->Object_str_, global->object_prototype_);
-                return value{o};
-            }
-            return value{global->to_object(args.front())};
-        }, native_function_body(Object_str_), 1);
-        o->put(prototype_str_, value{object_prototype_}, prototype_attributes);
-        make_constructable(o);
-
-        // §15.2.4
-        object_prototype_->put(constructor_str_, value{o}, default_attributes);
-        put_native_function(object_prototype_, toString_str_, [&h=heap()](const value& this_, const std::vector<value>&){
-            return value{string{h, "[object "} + this_.object_value()->class_name() + string{h, "]"}};
-        }, 0);
-        put_native_function(object_prototype_, valueOf_str_, [](const value& this_, const std::vector<value>&){
-            return this_;
-        }, 0);
-        return o;
-    }
-
-    //
-    // Array
-    //
-
-    value array_constructor(const value&, const std::vector<value>& args) override {
-        if (args.size() == 1 && args[0].type() == value_type::number) {
-            return value{array_object::make(heap(), Array_str_, array_prototype_, to_uint32(args[0].number_value()))};
-        }
-        auto arr = array_object::make(heap(), Array_str_, array_prototype_, static_cast<uint32_t>(args.size()));
-        for (uint32_t i = 0; i < args.size(); ++i) {
-            arr->unchecked_put(i, args[i]);
-        }
-        return value{arr};
-    }
-
-    object_ptr make_array_object() {
-        array_prototype_ = array_object::make(heap(), Array_str_, object_prototype_, 0);
-
-        auto o = make_function([global = self_](const value& this_, const std::vector<value>& args) {
-            return global->array_constructor(this_, args);
-        }, native_function_body(Array_str_), 1);
-        o->put(prototype_str_, value{array_prototype_}, prototype_attributes);
-        make_constructable(o);
-
-        array_prototype_->put(constructor_str_, value{o}, default_attributes);
-        put_native_function(array_prototype_, toString_str_, [](const value& this_, const std::vector<value>&) {
-            assert(this_.type() == value_type::object);
-            return value{join(this_.object_value(), L",")};
-        }, 0);
-        put_native_function(array_prototype_, "join", [&h=heap()](const value& this_, const std::vector<value>& args) {
-            assert(this_.type() == value_type::object);
-            string sep{h, L","};
-            if (!args.empty()) {
-                sep = to_string(h, args.front());
-            }
-            return value{join(this_.object_value(), sep.view())};
-        }, 1);
-        put_native_function(array_prototype_, "reverse", [&h = heap()](const value& this_, const std::vector<value>&) {
-            assert(this_.type() == value_type::object);
-            const auto& o = this_.object_value();
-            const uint32_t length = to_uint32(o->get(array_object::length_str));
-            for (uint32_t k = 0; k != length / 2; ++k) {
-                const auto i1 = index_string(k);
-                const auto i2 = index_string(length - k - 1);
-                auto v1 = o->get(i1);
-                auto v2 = o->get(i2);
-                o->put(string{h, i1}, v2);
-                o->put(string{h, i2}, v1);
-            }
-            return this_;
-        }, 0);
-        put_native_function(array_prototype_, "sort", [](const value& this_, const std::vector<value>& args) {
-            assert(this_.type() == value_type::object);
-            const auto& o = *this_.object_value();
-            auto& h = o.heap(); // Capture heap reference (which continues to be valid even after GC) since `this` can move when calling a user-defined compare function (since this can cause GC)
-            const uint32_t length = to_uint32(o.get(array_object::length_str));
-
-            native_function_type comparefn{};
-            if (!args.empty()) {
-                if (args.front().type() == value_type::object) {
-                    comparefn = args.front().object_value()->call_function();
-                }
-                if (!comparefn) {
-                    NOT_IMPLEMENTED("Invalid compare function given to sort");
-                }
-            }
-
-            auto sort_compare = [comparefn, &h](const value& x, const value& y) {
-                if (x.type() == value_type::undefined && y.type() == value_type::undefined) {
-                    return 0;
-                } else if (x.type() == value_type::undefined) {
-                    return 1;
-                } else if (y.type() == value_type::undefined) {
-                    return -1;
-                }
-                if (comparefn) {
-                    const auto r = to_number(comparefn->call(value::null, {x,y}));
-                    if (r < 0) return -1;
-                    if (r > 0) return 1;
-                    return 0;
-                } else {
-                    const auto xs = to_string(h, x);
-                    const auto ys = to_string(h, y);
-                    if (xs.view() < ys.view()) return -1;
-                    if (xs.view() > ys.view()) return 1;
-                    return 0;
-                }
-            };
-
-            std::vector<value> values(length);
-            for (uint32_t i = 0; i < length; ++i) {
-                values[i] = o.get(index_string(i));
-            }
-            std::stable_sort(values.begin(), values.end(), [&](const value& x, const value& y) {
-                return sort_compare(x, y) < 0;
-            });
-            // Note: `this` has possibly become invalid here (!)
-            auto& o_after = *this_.object_value(); // Recapture object reference (since it could also have moved)
-            for (uint32_t i = 0; i < length; ++i) {
-                o_after.put(string{h, index_string(i)}, values[i]);
-            }
-            return this_;
-        }, 1);
-        return o;
-    }
-
-    //
     // Console
     //
     auto make_console_object() {
@@ -972,154 +1110,15 @@ private:
         return console;
     }
 
-    //
-    // Date
-    //
-
-    auto new_date(double val) {
-        return heap().make<date_object>(heap(), Date_str_, date_prototype_, val);
-    }
-
-    auto make_date_object() {
-        //const auto attr = property_attribute::dont_enum | property_attribute::dont_delete | property_attribute::read_only;
-
-        date_prototype_ = object::make(heap(), Date_str_, object_prototype_);
-        date_prototype_->internal_value(value{NAN});
-
-        auto c = make_function([global = self_](const value&, const std::vector<value>&) {
-            // Equivalent to (new Date()).toString()
-            return value{to_string(global->heap(), value{global->new_date(date_helper::current_time_utc())})};
-        }, native_function_body(Date_str_), 7);
-        c->put(prototype_str_, value{date_prototype_}, prototype_attributes);
-        make_constructable(c, gc_function::make(heap(), [global = self_](const value&, const std::vector<value>& args) {
-            if (args.empty()) {
-                return value{global->new_date(date_helper::current_time_utc())};
-            } else if (args.size() == 1) {
-                auto v = to_primitive(args[0]);
-                if (v.type() == value_type::string) {
-                    // return Date.parse(v)
-                    NOT_IMPLEMENTED("new Date(string)");
-                }
-                return value{global->new_date(to_number(v))};
-            } else if (args.size() == 2) {
-                NOT_IMPLEMENTED("new Date(value)");
-            }
-            return value{date_helper::time_clip(date_helper::utc(date_helper::time_from_args(args)))};
-        }));
-
-        put_native_function(c, "parse", [&h=heap()](const value&, const std::vector<value>& args) {
-            if (1) NOT_IMPLEMENTED(to_string(h, get_arg(args, 0)));
-            return value::undefined;
-        }, 1);
-        put_native_function(c, "UTC", [](const value&, const std::vector<value>& args) {
-            if (args.size() < 3) {
-                NOT_IMPLEMENTED("Date.UTC() with less than 3 arguments");
-            }
-            return value{date_helper::time_clip(date_helper::time_from_args(args))};
-        }, 7);
-
-        date_prototype_->put(constructor_str_, value{c}, default_attributes);
-        // TODO: Date.parse(string)
-
-        auto check_type = [p = date_prototype_](const value& this_) {
-            validate_type(this_, p, "Date");
-        };
-
-        auto make_date_getter = [&](const char* name, auto f) {
-            put_native_function(date_prototype_, name ,[f, check_type](const value& this_, const std::vector<value>&) {
-                check_type(this_);
-                const double t = this_.object_value()->internal_value().number_value();
-                if (std::isnan(t)) {
-                    return value{t};
-                }
-                return value{static_cast<double>(f(t))};
-            }, 0);
-        };
-        make_date_getter("valueOf", [](double t) { return t; });
-        make_date_getter("getTime", [](double t) { return t; });
-        make_date_getter("getYear", [](double t) {
-            return date_helper::year_from_time(date_helper::local_time(t)) - 1900;
-        });
-        make_date_getter("getFullYear", [](double t) {
-            return date_helper::year_from_time(date_helper::local_time(t));
-        });
-        make_date_getter("getUTCFullYear", [](double t) {
-            return date_helper::year_from_time(t);
-        });
-        make_date_getter("getMonth", [](double t) {
-            return date_helper::month_from_time(date_helper::local_time(t));
-        });
-        make_date_getter("getUTCMonth", [](double t) {
-            return date_helper::month_from_time(t);
-        });
-        make_date_getter("getDate", [](double t) {
-            return date_helper::date_from_time(date_helper::local_time(t));
-        });
-        make_date_getter("getUTCDate", [](double t) {
-            return date_helper::date_from_time(t);
-        });
-        make_date_getter("getDay", [](double t) {
-            return date_helper::week_day(date_helper::local_time(t));
-        });
-        make_date_getter("getUTCDay", [](double t) {
-            return date_helper::week_day(t);
-        });
-        make_date_getter("getHours", [](double t) {
-            return date_helper::hour_from_time(date_helper::local_time(t));
-        });
-        make_date_getter("getUTCHours", [](double t) {
-            return date_helper::hour_from_time(t);
-        });
-        make_date_getter("getMinutes", [](double t) {
-            return date_helper::min_from_time(date_helper::local_time(t));
-        });
-        make_date_getter("getUTCMinutes", [](double t) {
-            return date_helper::min_from_time(t);
-        });
-        make_date_getter("getSeconds", [](double t) {
-            return date_helper::sec_from_time(date_helper::local_time(t));
-        });
-        make_date_getter("getUTCSeconds", [](double t) {
-            return date_helper::sec_from_time(t);
-        });
-        make_date_getter("getMilliseconds", [](double t) {
-            return date_helper::ms_from_time(date_helper::local_time(t));
-        });
-        make_date_getter("getUTCMilliseconds", [](double t) {
-            return date_helper::ms_from_time(t);
-        });
-        make_date_getter("getTimezoneOffset", [](double t) {
-            return (t - date_helper::local_time(t)) / date_helper::ms_per_minute;
-        });
-
-        auto make_date_mutator = [&](const char* name, auto f) {
-            put_native_function(date_prototype_, name, [f, check_type](const value& this_, const std::vector<value>& args) {
-                check_type(this_);
-                auto& obj = *this_.object_value();
-                f(obj, args);
-                return obj.internal_value();
-            }, 0);
-        };
-
-        // setTime(time)
-        make_date_mutator("setTime", [](object& d, const std::vector<value>& args) {
-            d.internal_value(value{to_number(get_arg(args, 0))});
-        });
-
-        // setMilliseconds(ms)
-        // setUTCMilliseconds(ms)
-        // ...
-
-        put_native_function(date_prototype_, "toString", [check_type](const value& this_, const std::vector<value>&) {
-            check_type(this_);
-            auto o = this_.object_value();
-            return value{date_helper::to_string(o.heap(), o->internal_value().number_value())};
-        }, 0);
-        // TODO: toLocaleString()
-        // TODO: toUTCString()
-        // TODO: toGMTString = toUTCString
-
-        return c;
+    value array_constructor(const value&, const std::vector<value>& args) override {
+        if (args.size() == 1 && args[0].type() == value_type::number) {
+            return value{array_object::make(heap(), Array_str_, array_prototype_, to_uint32(args[0].number_value()))};
+        }
+        auto arr = array_object::make(heap(), Array_str_, array_prototype_, static_cast<uint32_t>(args.size()));
+        for (uint32_t i = 0; i < args.size(); ++i) {
+            arr->unchecked_put(i, args[i]);
+        }
+        return value{arr};
     }
 
     //
@@ -1131,23 +1130,25 @@ private:
 
         auto add = [&](const char* name, auto create_func, object_ptr* prototype = nullptr) {
             auto res = create_func(*this);
-            assert(!!res.prototype == !!prototype);
             put(common_string(name), value{res.obj}, default_attributes);
-            if (prototype) {
-                *prototype = res.prototype;
+            if (res.prototype) {
                 res.obj->put(prototype_str_, value{res.prototype}, prototype_attributes);
+            }
+            if (prototype) {
+                assert(res.prototype);
+                *prototype = res.prototype;
             }
         };
 
         // §15.1
-        put(Object_str_, value{make_object_object()}, default_attributes);
+        add("Object", make_object_object, &object_prototype_); // Resetting it..
         put(Function_str_, value{make_function_object()}, default_attributes);
-        put(Array_str_, value{make_array_object()}, default_attributes);
+        add("Array", make_array_object, &array_prototype_);
         add("String", make_string_object, &string_prototype_);
         add("Boolean", make_boolean_object, &boolean_prototype_);
         add("Number", make_number_object, &number_prototype_);
         add("Math", make_math_object);
-        put(Date_str_, value{make_date_object()}, default_attributes);
+        add("Date", make_date_object);
 
         put(string{heap(), "NaN"}, value{NAN}, default_attributes);
         put(string{heap(), "Infinity"}, value{INFINITY}, default_attributes);
@@ -1204,10 +1205,10 @@ gc_heap_ptr<global_object> global_object::make(gc_heap& h) {
     return global;
 }
 
-string global_object::native_function_body(const string& name) {
+string global_object::native_function_body(gc_heap& h, const std::wstring_view& s) {
     std::wostringstream oss;
-    oss << "function " << name.view() << "() { [native code] }";
-    return string{name.heap(), oss.str()};
+    oss << "function " << s << "() { [native code] }";
+    return string{h, oss.str()};
 }
 
 void global_object_impl::put_function(const object_ptr& o, const native_function_type& f, const string& body_text, int named_args) {
