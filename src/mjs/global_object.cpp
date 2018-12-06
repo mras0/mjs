@@ -20,6 +20,63 @@
 
 namespace mjs {
 
+// FIXME: Is this sufficient to guard against clever users?
+static void validate_type(const value& v, const object_ptr& expected_prototype, const char* expected_type) {
+    if (v.type() == value_type::object && v.object_value()->prototype().get() == expected_prototype.get()) {
+        return;
+    }
+    std::wostringstream woss;
+    mjs::debug_print(woss, v, 2, 1);
+    woss << " is not a " << expected_type;
+    THROW_RUNTIME_ERROR(woss.str());
+}
+
+struct create_result {
+    object_ptr obj;
+    object_ptr prototype;
+};
+
+//
+// Boolean
+//
+
+object_ptr new_boolean(const object_ptr& prototype, bool val) {
+    auto o = object::make(prototype.heap(), prototype->class_name(), prototype);
+    o->internal_value(value{val});
+    return o;
+}
+
+create_result make_boolean_object(global_object& global) {
+    auto& h = global.heap();
+    auto bool_str = global.common_string("Boolean");
+    auto prototype = object::make(h, bool_str, global.object_prototype());
+    prototype->internal_value(value{false});
+
+    auto c = global.make_function([](const value&, const std::vector<value>& args) {
+        return value{!args.empty() && to_boolean(args.front())};
+    },  global.native_function_body(bool_str), 1);
+    c->put(global.common_string("prototype"), value{prototype}, global_object::prototype_attributes);
+    global.make_constructable(c, gc_function::make(h, [prototype](const value&, const std::vector<value>& args) {
+        return value{new_boolean(prototype, !args.empty() && to_boolean(args.front()))};
+    }));
+
+    auto check_type = [p = prototype](const value& this_) {
+        validate_type(this_, p, "Boolean");
+    };
+
+    global.put_native_function(prototype, global.common_string("toString"), [check_type](const value& this_, const std::vector<value>&){
+        check_type(this_);
+        return value{string{this_.object_value().heap(), this_.object_value()->internal_value().boolean_value() ? L"true" : L"false"}};
+    }, 0);
+
+    global.put_native_function(prototype, global.common_string("valueOf"), [check_type](const value& this_, const std::vector<value>&){
+        check_type(this_);
+        return this_.object_value()->internal_value();
+    }, 0);
+
+    return { c, prototype };
+}
+
 std::wstring index_string(uint32_t index) {
     wchar_t buffer[10], *p = &buffer[10];
     *--p = '\0';
@@ -382,6 +439,75 @@ private:
     }
 };
 
+//
+// Math
+//
+
+create_result make_math_object(global_object& global) {
+    auto& h = global.heap();
+    auto math = object::make(h, global.common_string("Object"), global.object_prototype());
+
+    math->put(string{h, "E"},       value{2.7182818284590452354}, global_object::default_attributes);
+    math->put(string{h, "LN10"},    value{2.302585092994046}, global_object::default_attributes);
+    math->put(string{h, "LN2"},     value{0.6931471805599453}, global_object::default_attributes);
+    math->put(string{h, "LOG2E"},   value{1.4426950408889634}, global_object::default_attributes);
+    math->put(string{h, "LOG10E"},  value{0.4342944819032518}, global_object::default_attributes);
+    math->put(string{h, "PI"},      value{3.14159265358979323846}, global_object::default_attributes);
+    math->put(string{h, "SQRT1_2"}, value{0.7071067811865476}, global_object::default_attributes);
+    math->put(string{h, "SQRT2"},   value{1.4142135623730951}, global_object::default_attributes);
+
+
+    auto make_math_function1 = [&](const char* name, auto f) {
+        global.put_native_function(math, name, [f](const value&, const std::vector<value>& args){
+            return value{f(to_number(get_arg(args, 0)))};
+        }, 1);
+    };
+    auto make_math_function2 = [&](const char* name, auto f) {
+        global.put_native_function(math, name, [f](const value&, const std::vector<value>& args){
+            return value{f(to_number(get_arg(args, 0)), to_number(get_arg(args, 1)))};
+        }, 2);
+    };
+
+#define MATH_IMPL_1(name) make_math_function1(#name, [](double x) { return std::name(x); })
+#define MATH_IMPL_2(name) make_math_function2(#name, [](double x, double y) { return std::name(x, y); })
+
+    MATH_IMPL_1(abs);
+    MATH_IMPL_1(acos);
+    MATH_IMPL_1(asin);
+    MATH_IMPL_1(atan);
+    MATH_IMPL_2(atan2);
+    MATH_IMPL_1(ceil);
+    MATH_IMPL_1(cos);
+    MATH_IMPL_1(exp);
+    MATH_IMPL_1(floor);
+    MATH_IMPL_1(log);
+    MATH_IMPL_2(pow);
+    MATH_IMPL_1(sin);
+    MATH_IMPL_1(sqrt);
+    MATH_IMPL_1(tan);
+
+#undef MATH_IMPL_1
+#undef MATH_IMPL_2
+
+    make_math_function2("min", [](double x, double y) {
+        return y >= x ? x: y;
+    });
+    make_math_function2("max", [](double x, double y) {
+        return y < x ? x: y;
+    });
+    make_math_function1("round", [](double x) {
+        if (x >= 0 && x < 0.5) return +0.0;
+        if (x < 0 && x >= -0.5) return -0.0;
+        return std::floor(x+0.5);
+    });
+
+    global.put_native_function(math, "random", [](const value&, const std::vector<value>&){
+        return value{static_cast<double>(rand()) / (1.+RAND_MAX)};
+    }, 0);
+
+    return { math, nullptr };
+}
+
 class global_object_impl : public global_object {
 public:
     friend gc_type_info_registration<global_object_impl>;
@@ -404,7 +530,7 @@ public:
                 oss << "Cannot convert " << v.type() << " to object in " << __FUNCTION__;
                 THROW_RUNTIME_ERROR(oss.str());
             }
-        case value_type::boolean: return new_boolean(v.boolean_value());
+        case value_type::boolean: return new_boolean(boolean_prototype_, v.boolean_value());
         case value_type::number:  return new_number(v.number_value());
         case value_type::string:  return new_string(v.string_value());
         case value_type::object:  return v.object_value();
@@ -439,17 +565,6 @@ private:
     DEFINE_STRING(toString);
     DEFINE_STRING(valueOf);
 #undef DEFINE_STRING
-
-    // FIXME: Is this sufficient to guard against clever users?
-    static void validate_type(const value& v, const object_ptr& expected_prototype, const char* expected_type) {
-        if (v.type() == value_type::object && v.object_value()->prototype().get() == expected_prototype.get()) {
-            return;
-        }
-        std::wostringstream woss;
-        mjs::debug_print(woss, v, 2, 1);
-        woss << " is not a " << expected_type;
-        THROW_RUNTIME_ERROR(woss.str());
-    }
 
     //
     // Function
@@ -502,48 +617,6 @@ private:
             return this_;
         }, 0);
         return o;
-    }
-
-    //
-    // Boolean
-    //
-
-    object_ptr new_boolean(bool val) {
-        auto o = object::make(heap(), Boolean_str_, boolean_prototype_);
-        o->internal_value(value{val});
-        return o;
-    }
-
-    object_ptr make_boolean_object() {
-        boolean_prototype_ = object::make(heap(), Boolean_str_, object_prototype_);
-        boolean_prototype_->internal_value(value{false});
-
-        auto c = make_function([](const value&, const std::vector<value>& args) {
-            return value{!args.empty() && to_boolean(args.front())};
-        },  native_function_body(Boolean_str_), 1);
-        c->put(prototype_str_, value{boolean_prototype_}, prototype_attributes);
-        make_constructable(c, gc_function::make(heap(), [global = self_](const value&, const std::vector<value>& args) {
-            return value{global->new_boolean(!args.empty() && to_boolean(args.front()))};
-        }));
-
-
-        auto check_type = [p = boolean_prototype_](const value& this_) {
-            validate_type(this_, p, "Boolean");
-        };
-
-        boolean_prototype_->put(constructor_str_, value{c}, default_attributes);
-
-        put_native_function(boolean_prototype_, toString_str_, [check_type, &h=heap()](const value& this_, const std::vector<value>&){
-            check_type(this_);
-            return value{string{h, this_.object_value()->internal_value().boolean_value() ? L"true" : L"false"}};
-        }, 0);
-
-        put_native_function(boolean_prototype_, valueOf_str_, [check_type](const value& this_, const std::vector<value>&){
-            check_type(this_);
-            return this_.object_value()->internal_value();
-        }, 0);
-
-        return c;
     }
 
     //
@@ -903,70 +976,6 @@ private:
     }
 
     //
-    // Math
-    //
-    auto make_math_object() {
-        auto math = object::make(heap(), Object_str_, object_prototype_);
-
-        math->put(string{heap(), "E"},       value{2.7182818284590452354}, default_attributes);
-        math->put(string{heap(), "LN10"},    value{2.302585092994046}, default_attributes);
-        math->put(string{heap(), "LN2"},     value{0.6931471805599453}, default_attributes);
-        math->put(string{heap(), "LOG2E"},   value{1.4426950408889634}, default_attributes);
-        math->put(string{heap(), "LOG10E"},  value{0.4342944819032518}, default_attributes);
-        math->put(string{heap(), "PI"},      value{3.14159265358979323846}, default_attributes);
-        math->put(string{heap(), "SQRT1_2"}, value{0.7071067811865476}, default_attributes);
-        math->put(string{heap(), "SQRT2"},   value{1.4142135623730951}, default_attributes);
-
-
-        auto make_math_function1 = [&](const char* name, auto f) {
-            put_native_function(math, name, [f](const value&, const std::vector<value>& args){
-                return value{f(to_number(get_arg(args, 0)))};
-            }, 1);
-        };
-        auto make_math_function2 = [&](const char* name, auto f) {
-            put_native_function(math, name, [f](const value&, const std::vector<value>& args){
-                return value{f(to_number(get_arg(args, 0)), to_number(get_arg(args, 1)))};
-            }, 2);
-        };
-
-#define MATH_IMPL_1(name) make_math_function1(#name, [](double x) { return std::name(x); })
-#define MATH_IMPL_2(name) make_math_function2(#name, [](double x, double y) { return std::name(x, y); })
-
-        MATH_IMPL_1(abs);
-        MATH_IMPL_1(acos);
-        MATH_IMPL_1(asin);
-        MATH_IMPL_1(atan);
-        MATH_IMPL_2(atan2);
-        MATH_IMPL_1(ceil);
-        MATH_IMPL_1(cos);
-        MATH_IMPL_1(exp);
-        MATH_IMPL_1(floor);
-        MATH_IMPL_1(log);
-        MATH_IMPL_2(pow);
-        MATH_IMPL_1(sin);
-        MATH_IMPL_1(sqrt);
-        MATH_IMPL_1(tan);
-
-        make_math_function2("min", [](double x, double y) {
-            return y >= x ? x: y;
-        });
-        make_math_function2("max", [](double x, double y) {
-            return y < x ? x: y;
-        });
-        make_math_function1("round", [](double x) {
-            if (x >= 0 && x < 0.5) return +0.0;
-            if (x < 0 && x >= -0.5) return -0.0;
-            return std::floor(x+0.5);
-        });
-
-        put_native_function(math, "random", [](const value&, const std::vector<value>&){
-            return value{static_cast<double>(rand()) / (1.+RAND_MAX)};
-        }, 0);
-
-        return math;
-    }
-
-    //
     // Date
     //
 
@@ -1123,14 +1132,21 @@ private:
         object_prototype_   = object::make(heap(), string{heap(), "ObjectPrototype"}, nullptr);
         function_prototype_ = object::make(heap(), Function_str_, object_prototype_);
 
+        auto add = [&](const char* name, auto create_func, object_ptr* prototype = nullptr) {
+            auto res = create_func(*this);
+            assert(!!res.prototype == !!prototype);
+            put(common_string(name), value{res.obj}, default_attributes);
+            if (prototype) *prototype = res.prototype;
+        };
+
         // §15.1
         put(Object_str_, value{make_object_object()}, default_attributes);
         put(Function_str_, value{make_function_object()}, default_attributes);
         put(Array_str_, value{make_array_object()}, default_attributes);
-        put(String_str_, value{make_string_object()}, default_attributes);
-        put(Boolean_str_, value{make_boolean_object()}, default_attributes);
+        put(String_str_, value{make_string_object()}, default_attributes);     
+        add("Boolean", make_boolean_object, &boolean_prototype_);
         put(Number_str_, value{make_number_object()}, default_attributes);
-        put(string{heap(), "Math"}, value{make_math_object()}, default_attributes);
+        add("Math", make_math_object);
         put(Date_str_, value{make_date_object()}, default_attributes);
 
         put(string{heap(), "NaN"}, value{NAN}, default_attributes);
@@ -1178,14 +1194,6 @@ private:
 
     void put_function(const object_ptr& o, const native_function_type& f, const string& body_text, int named_args) override;
 
-    void make_constructable(const object_ptr& o, const native_function_type& f = nullptr) {
-        assert(o->internal_value().type() == value_type::string);
-        o->construct_function(f ? f : o->call_function());
-        auto p = o->get(prototype_str_.view());
-        assert(p.type() == value_type::object);
-        p.object_value()->put(constructor_str_, value{o}, global_object_impl::default_attributes);
-    }
-
     friend global_object;
 };
 
@@ -1211,6 +1219,20 @@ void global_object_impl::put_function(const object_ptr& o, const native_function
     assert(o->internal_value().type() == value_type::undefined);
     o->internal_value(value{body_text});
 }
+
+string global_object::common_string(const char* str) {
+    // TODO: Possibly use string cache here
+    return string{heap(), str};
+}
+
+void global_object::make_constructable(const object_ptr& o, const native_function_type& f) {
+    assert(o->internal_value().type() == value_type::string);
+    o->construct_function(f ? f : o->call_function());
+    auto p = o->get(L"prototype");
+    assert(p.type() == value_type::object);
+    p.object_value()->put(common_string("constructor"), value{o}, global_object::default_attributes);
+}
+
 
 
 } // namespace mjs

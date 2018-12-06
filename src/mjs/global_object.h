@@ -37,11 +37,6 @@ public:
         put_native_function(*obj, std::forward<String>(name), f, named_args);
     }
 
-protected:
-    using object::object;
-    global_object(global_object&&) = default;
-
-    virtual object_ptr do_make_function(const native_function_type& f, const string& body_text, int named_args) = 0;
 
     template<typename F>
     object_ptr make_function(const F& f, const string& body_text, int named_args) {
@@ -51,6 +46,18 @@ protected:
     object_ptr make_function(const native_function_type& f, const string& body_text, int named_args) {
         return do_make_function(f, body_text, named_args);
     }
+
+    // Add constructor to function object (and prototype.constructor) uses the call_function if f is null
+    void make_constructable(const object_ptr& o, const native_function_type& f = nullptr);
+
+    // Make a string (to make it possible to use a cache)
+    string common_string(const char* str);
+
+protected:
+    using object::object;
+    global_object(global_object&&) = default;
+
+    virtual object_ptr do_make_function(const native_function_type& f, const string& body_text, int named_args) = 0;
 };
 
 extern std::wstring index_string(uint32_t index);
