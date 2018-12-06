@@ -30,7 +30,8 @@
     - Probably other missing stuff and non-compliant implementations...
     - Implement (more) things as "real" C++ classes (?)
     - Split into multiple classes/files
-    - Optimize `array_object` - may need to make more `object` functions virtual
+    - Optimize `array_object` - may need to make more `object` functions virtual and do the same for string objects
+    - Add test cases for directly relatable to clauses in the spec (e.g. `Boolean.prototype.constructor` exists and is correct)
 * Interpreter
     - Lessen stack usage
     - Make sure deep recursion is supported without running out of space

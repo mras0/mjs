@@ -20,8 +20,10 @@
 
 namespace mjs {
 
+namespace {
+
 // FIXME: Is this sufficient to guard against clever users?
-static void validate_type(const value& v, const object_ptr& expected_prototype, const char* expected_type) {
+void validate_type(const value& v, const object_ptr& expected_prototype, const char* expected_type) {
     if (v.type() == value_type::object && v.object_value()->prototype().get() == expected_prototype.get()) {
         return;
     }
@@ -31,6 +33,11 @@ static void validate_type(const value& v, const object_ptr& expected_prototype, 
     THROW_RUNTIME_ERROR(woss.str());
 }
 
+value get_arg(const std::vector<value>& args, int index) {
+    return index < static_cast<int>(args.size()) ? args[index] : value::undefined;
+}
+
+// TODO: Need better name
 struct create_result {
     object_ptr obj;
     object_ptr prototype;
@@ -55,13 +62,12 @@ create_result make_boolean_object(global_object& global) {
     auto c = global.make_function([](const value&, const std::vector<value>& args) {
         return value{!args.empty() && to_boolean(args.front())};
     },  global.native_function_body(bool_str), 1);
-    c->put(global.common_string("prototype"), value{prototype}, global_object::prototype_attributes);
     global.make_constructable(c, gc_function::make(h, [prototype](const value&, const std::vector<value>& args) {
         return value{new_boolean(prototype, !args.empty() && to_boolean(args.front()))};
     }));
 
-    auto check_type = [p = prototype](const value& this_) {
-        validate_type(this_, p, "Boolean");
+    auto check_type = [prototype](const value& this_) {
+        validate_type(this_, prototype, "Boolean");
     };
 
     global.put_native_function(prototype, global.common_string("toString"), [check_type](const value& this_, const std::vector<value>&){
@@ -77,14 +83,204 @@ create_result make_boolean_object(global_object& global) {
     return { c, prototype };
 }
 
-std::wstring index_string(uint32_t index) {
-    wchar_t buffer[10], *p = &buffer[10];
-    *--p = '\0';
-    do {
-        *--p = '0' + index % 10;
-        index /= 10;
-    } while (index);
-    return std::wstring{p};
+//
+// Number
+//
+
+object_ptr new_number(const object_ptr& prototype,  double val) {
+    auto o = object::make(prototype.heap(), prototype->class_name(), prototype);
+    o->internal_value(value{val});
+    return o;
+}
+
+create_result make_number_object(global_object& global) {
+    auto& h = global.heap();
+    string Number_str_{h, "Number"};
+    auto prototype = object::make(h, Number_str_, global.object_prototype());
+    prototype->internal_value(value{0.});
+
+    auto c = global.make_function([](const value&, const std::vector<value>& args) {
+        return value{args.empty() ? 0.0 : to_number(args.front())};
+    }, global.native_function_body(Number_str_), 1);
+    global.make_constructable(c, gc_function::make(h, [prototype](const value&, const std::vector<value>& args) {
+        return value{new_number(prototype, args.empty() ? 0.0 : to_number(args.front()))};
+    }));
+
+    c->put(string{h, "MAX_VALUE"}, value{1.7976931348623157e308}, global_object::default_attributes);
+    c->put(string{h, "MIN_VALUE"}, value{5e-324}, global_object::default_attributes);
+    c->put(string{h, "NaN"}, value{NAN}, global_object::default_attributes);
+    c->put(string{h, "NEGATIVE_INFINITY"}, value{-INFINITY}, global_object::default_attributes);
+    c->put(string{h, "POSITIVE_INFINITY"}, value{INFINITY}, global_object::default_attributes);
+
+    auto check_type = [prototype](const value& this_) {
+        validate_type(this_, prototype, "Number");
+    };
+
+    global.put_native_function(prototype, global.common_string("toString"), [check_type](const value& this_, const std::vector<value>& args){
+        check_type(this_);
+        const int radix = args.empty() ? 10 : to_int32(args.front());
+        if (radix < 2 || radix > 36) {
+            std::wostringstream woss;
+            woss << "Invalid radix in Number.toString: " << to_string(this_.object_value().heap(), args.front());
+            THROW_RUNTIME_ERROR(woss.str());
+        }
+        if (radix != 10) {
+            NOT_IMPLEMENTED(radix);
+        }
+        auto o = this_.object_value();
+        return value{to_string(o.heap(), o->internal_value())};
+    }, 1);
+    global.put_native_function(prototype, global.common_string("valueOf"), [check_type](const value& this_, const std::vector<value>&){
+        check_type(this_);
+        return this_.object_value()->internal_value();
+    }, 0);
+
+    return { c, prototype };
+}
+
+//
+// String
+//
+
+object_ptr new_string(const object_ptr& prototype, const string& val) {
+    auto o = object::make(prototype.heap(), prototype->class_name(), prototype);
+    o->internal_value(value{val});
+    // TODO: Create string object that doesn't need to create this property
+    o->put(/*length_str_*/string{prototype.heap(), "length"}, value{static_cast<double>(val.view().length())}, global_object::prototype_attributes);
+    return o;
+}
+
+create_result make_string_object(global_object& global) {
+    auto& h = global.heap();
+    string String_str_{h, "String"};
+    auto prototype = object::make(h, String_str_, global.object_prototype());
+    prototype->internal_value(value{string{h, ""}});
+
+    auto c = global.make_function([&h](const value&, const std::vector<value>& args) {
+        return value{args.empty() ? string{h, ""} : to_string(h, args.front())};
+    }, global.native_function_body(String_str_), 1);
+    global.make_constructable(c, gc_function::make(h, [prototype](const value&, const std::vector<value>& args) {
+        return value{new_string(prototype, args.empty() ? string{prototype.heap(), ""} : to_string(prototype.heap(), args.front()))};
+    }));
+
+    global.put_native_function(c, string{h, "fromCharCode"}, [&h](const value&, const std::vector<value>& args){
+        std::wstring s;
+        for (const auto& a: args) {
+            s.push_back(to_uint16(a));
+        }
+        return value{string{h, s}};
+    }, 0);
+
+    auto check_type = [prototype](const value& this_) {
+        validate_type(this_, prototype, "String");
+    };
+
+    global.put_native_function(prototype, global.common_string("toString"), [check_type](const value& this_, const std::vector<value>&){
+        check_type(this_);
+        return this_.object_value()->internal_value();
+    }, 0);
+    global.put_native_function(prototype, global.common_string("valueOf"), [check_type](const value& this_, const std::vector<value>&){
+        check_type(this_);
+        return this_.object_value()->internal_value();
+    }, 0);
+
+
+    auto make_string_function = [&](const char* name, int num_args, auto f) {
+        global.put_native_function(prototype, string{h, name}, [&h, f](const value& this_, const std::vector<value>& args){
+            return value{f(to_string(h, this_).view(), args)};
+        }, num_args);
+    };
+
+    make_string_function("charAt", 1, [&h](const std::wstring_view& s, const std::vector<value>& args){
+        const int position = to_int32(get_arg(args, 0));
+        if (position < 0 || position >= static_cast<int>(s.length())) {
+            return string{h, ""};
+        }
+        return string{h, s.substr(position, 1)};
+    });
+
+    make_string_function("charCodeAt", 1, [](const std::wstring_view& s, const std::vector<value>& args){
+        const int position = to_int32(get_arg(args, 0));
+        if (position < 0 || position >= static_cast<int>(s.length())) {
+            return static_cast<double>(NAN);
+        }
+        return static_cast<double>(s[position]);
+    });
+
+    make_string_function("indexOf", 2, [&h](const std::wstring_view& s, const std::vector<value>& args){
+        const auto& search_string = to_string(h, get_arg(args, 0));
+        const int position = to_int32(get_arg(args, 1));
+        auto index = s.find(search_string.view(), position);
+        return index == std::wstring_view::npos ? -1. : static_cast<double>(index);
+    });
+
+    make_string_function("lastIndexOf", 2, [&h](const std::wstring_view& s, const std::vector<value>& args){
+        const auto& search_string = to_string(h, get_arg(args, 0));
+        double position = to_number(get_arg(args, 1));
+        const int ipos = std::isnan(position) ? INT_MAX : to_int32(position);
+        auto index = s.rfind(search_string.view(), ipos);
+        return index == std::wstring_view::npos ? -1. : static_cast<double>(index);
+    });
+
+    make_string_function("split", 1, [global = global.self_ptr()](const std::wstring_view& s, const std::vector<value>& args){
+        auto& h = global->heap();
+        auto a = global->array_constructor(value::null, {}).object_value();
+        if (args.empty()) {
+            a->put(string{h, index_string(0)}, value{string{h, s}});
+        } else {
+            const auto sep = to_string(h, args.front());
+            if (sep.view().empty()) {
+                for (uint32_t i = 0; i < s.length(); ++i) {
+                    a->put(string{h, index_string(i)}, value{string{ h, s.substr(i,1) }});
+                }
+            } else {
+                size_t pos = 0;
+                uint32_t i = 0;
+                for (; pos < s.length(); ++i) {
+                    const auto next_pos = s.find(sep.view(), pos);
+                    if (next_pos == std::wstring_view::npos) {
+                        break;
+                    }
+                    a->put(string{h, index_string(i)}, value{string{ h, s.substr(pos, next_pos-pos) }});
+                    pos = next_pos + 1;
+                }
+                if (pos < s.length()) {
+                    a->put(string{h, index_string(i)}, value{string{ h, s.substr(pos) }});
+                }
+            }
+        }
+        return a;
+    });
+
+    make_string_function("substring", 1, [&h](const std::wstring_view& s, const std::vector<value>& args){
+        int start = std::min(std::max(to_int32(get_arg(args, 0)), 0), static_cast<int>(s.length()));
+        if (args.size() < 2) {
+            return string{h, s.substr(start)};
+        }
+        int end = std::min(std::max(to_int32(get_arg(args, 1)), 0), static_cast<int>(s.length()));
+        if (start > end) {
+            std::swap(start, end);
+        }
+        return string{h, s.substr(start, end-start)};
+    });
+
+    make_string_function("toLowerCase", 0, [&h](const std::wstring_view& s, const std::vector<value>&){
+        std::wstring res;
+        for (auto c: s) {
+            res.push_back(towlower(c));
+        }
+        return string{h, res};
+    });
+
+    make_string_function("toUpperCase", 0, [&h](const std::wstring_view& s, const std::vector<value>&){
+        std::wstring res;
+        for (auto c: s) {
+            res.push_back(towupper(c));
+        }
+        return string{h, res};
+    });
+
+    return {c, prototype};
 }
 
 std::wstring_view ltrim(std::wstring_view s) {
@@ -275,10 +471,6 @@ struct duration_printer {
 template<typename Duration>
 auto show_duration(Duration d) {
     return duration_printer{std::chrono::duration_cast<std::chrono::duration<double>>(d)};
-}
-
-value get_arg(const std::vector<value>& args, int index) {
-    return index < static_cast<int>(args.size()) ? args[index] : value::undefined;
 }
 
 // TODO: Optimize and use rules from 15.9.1 to elimiate c++ standard library calls
@@ -508,6 +700,8 @@ create_result make_math_object(global_object& global) {
     return { math, nullptr };
 }
 
+} // unnamed namespace
+
 class global_object_impl : public global_object {
 public:
     friend gc_type_info_registration<global_object_impl>;
@@ -531,12 +725,16 @@ public:
                 THROW_RUNTIME_ERROR(oss.str());
             }
         case value_type::boolean: return new_boolean(boolean_prototype_, v.boolean_value());
-        case value_type::number:  return new_number(v.number_value());
-        case value_type::string:  return new_string(v.string_value());
+        case value_type::number:  return new_number(number_prototype_, v.number_value());
+        case value_type::string:  return new_string(string_prototype_, v.string_value());
         case value_type::object:  return v.object_value();
         default:
             NOT_IMPLEMENTED(v.type());
         }
+    }
+
+    virtual gc_heap_ptr<global_object> self_ptr() const override {
+        return self_;
     }
 
 private:
@@ -620,211 +818,10 @@ private:
     }
 
     //
-    // Number
-    //
-
-    object_ptr new_number(double val) {
-        auto o = object::make(heap(), Number_str_, number_prototype_);
-        o->internal_value(value{val});
-        return o;
-    }
-
-    object_ptr make_number_object() {
-        number_prototype_ = object::make(heap(), Number_str_, object_prototype_);
-        number_prototype_->internal_value(value{0.});
-
-        auto c = make_function([](const value&, const std::vector<value>& args) {
-            return value{args.empty() ? 0.0 : to_number(args.front())};
-        }, native_function_body(Number_str_), 1);
-        c->put(prototype_str_, value{number_prototype_}, prototype_attributes);
-        make_constructable(c, gc_function::make(heap(), [global = self_](const value&, const std::vector<value>& args) {
-            return value{global->new_number(args.empty() ? 0.0 : to_number(args.front()))};
-        }));
-
-        c->put(string{heap(), "MAX_VALUE"}, value{1.7976931348623157e308}, default_attributes);
-        c->put(string{heap(), "MIN_VALUE"}, value{5e-324}, default_attributes);
-        c->put(string{heap(), "NaN"}, value{NAN}, default_attributes);
-        c->put(string{heap(), "NEGATIVE_INFINITY"}, value{-INFINITY}, default_attributes);
-        c->put(string{heap(), "POSITIVE_INFINITY"}, value{INFINITY}, default_attributes);
-
-        auto check_type = [p = number_prototype_](const value& this_) {
-            validate_type(this_, p, "Number");
-        };
-
-        number_prototype_->put(constructor_str_, value{c}, default_attributes);
-        put_native_function(number_prototype_, toString_str_, [check_type](const value& this_, const std::vector<value>& args){
-            check_type(this_);
-            const int radix = args.empty() ? 10 : to_int32(args.front());
-            if (radix < 2 || radix > 36) {
-                std::wostringstream woss;
-                woss << "Invalid radix in Number.toString: " << to_string(this_.object_value().heap(), args.front());
-                THROW_RUNTIME_ERROR(woss.str());
-            }
-            if (radix != 10) {
-                NOT_IMPLEMENTED(radix);
-            }
-            auto o = this_.object_value();
-            return value{to_string(o.heap(), o->internal_value())};
-        }, 1);
-        put_native_function(number_prototype_, valueOf_str_,[check_type](const value& this_, const std::vector<value>&){
-            check_type(this_);
-            return this_.object_value()->internal_value();
-        }, 0);
-
-        return c;
-    }
-
-    //
-    // String
-    //
-
-    object_ptr new_string(const string& val) {
-        auto o = object::make(heap(), String_str_, string_prototype_);
-        o->internal_value(value{val});
-        o->put(length_str_, value{static_cast<double>(val.view().length())}, prototype_attributes);
-        return o;
-    }
-
-    object_ptr make_string_object() {
-        string_prototype_ = object::make(heap(), String_str_, object_prototype_);
-        string_prototype_->internal_value(value{string{heap(), ""}});
-
-        auto c = make_function([&h = heap()](const value&, const std::vector<value>& args) {
-            return value{args.empty() ? string{h, ""} : to_string(h, args.front())};
-        }, native_function_body(String_str_), 1);
-        c->put(prototype_str_, value{string_prototype_}, prototype_attributes);
-        make_constructable(c, gc_function::make(heap(), [global = self_](const value&, const std::vector<value>& args) {
-            auto& h = global->heap();
-            return value{global->new_string(args.empty() ? string{h, ""} : to_string(h, args.front()))};
-        }));
-
-        put_native_function(c, string{heap(), "fromCharCode"}, [&h = heap()](const value&, const std::vector<value>& args){
-            std::wstring s;
-            for (const auto& a: args) {
-                s.push_back(to_uint16(a));
-            }
-            return value{string{h, s}};
-        }, 0);
-
-        auto check_type = [p = string_prototype_](const value& this_) {
-            validate_type(this_, p, "String");
-        };
-
-        string_prototype_->put(constructor_str_, value{c}, default_attributes);
-        put_native_function(string_prototype_, toString_str_, [check_type](const value& this_, const std::vector<value>&){
-            check_type(this_);
-            return this_.object_value()->internal_value();
-        }, 0);
-        put_native_function(string_prototype_, valueOf_str_, [check_type](const value& this_, const std::vector<value>&){
-            check_type(this_);
-            return this_.object_value()->internal_value();
-        }, 0);
-
-
-        auto make_string_function = [&](const char* name, int num_args, auto f) {
-            auto& h = heap();
-            put_native_function(string_prototype_, string{heap(), name}, [&h, f](const value& this_, const std::vector<value>& args){
-                return value{f(to_string(h, this_).view(), args)};
-            }, num_args);
-        };
-
-        make_string_function("charAt", 1, [&h = heap()](const std::wstring_view& s, const std::vector<value>& args){
-            const int position = to_int32(get_arg(args, 0));
-            if (position < 0 || position >= static_cast<int>(s.length())) {
-                return string{h, ""};
-            }
-            return string{h, s.substr(position, 1)};
-        });
-
-        make_string_function("charCodeAt", 1, [](const std::wstring_view& s, const std::vector<value>& args){
-            const int position = to_int32(get_arg(args, 0));
-            if (position < 0 || position >= static_cast<int>(s.length())) {
-                return static_cast<double>(NAN);
-            }
-            return static_cast<double>(s[position]);
-        });
-
-        make_string_function("indexOf", 2, [&h=heap()](const std::wstring_view& s, const std::vector<value>& args){
-            const auto& search_string = to_string(h, get_arg(args, 0));
-            const int position = to_int32(get_arg(args, 1));
-            auto index = s.find(search_string.view(), position);
-            return index == std::wstring_view::npos ? -1. : static_cast<double>(index);
-        });
-
-        make_string_function("lastIndexOf", 2, [&h=heap()](const std::wstring_view& s, const std::vector<value>& args){
-            const auto& search_string = to_string(h, get_arg(args, 0));
-            double position = to_number(get_arg(args, 1));
-            const int ipos = std::isnan(position) ? INT_MAX : to_int32(position);
-            auto index = s.rfind(search_string.view(), ipos);
-            return index == std::wstring_view::npos ? -1. : static_cast<double>(index);
-        });
-
-        make_string_function("split", 1, [global = self_](const std::wstring_view& s, const std::vector<value>& args){
-            auto& h = global->heap();
-            auto a = global->array_constructor(value::null, {}).object_value();
-            if (args.empty()) {
-                a->put(string{h, index_string(0)}, value{string{h, s}});
-            } else {
-                const auto sep = to_string(h, args.front());
-                if (sep.view().empty()) {
-                    for (uint32_t i = 0; i < s.length(); ++i) {
-                        a->put(string{h, index_string(i)}, value{string{ h, s.substr(i,1) }});
-                    }
-                } else {
-                    size_t pos = 0;
-                    uint32_t i = 0;
-                    for (; pos < s.length(); ++i) {
-                        const auto next_pos = s.find(sep.view(), pos);
-                        if (next_pos == std::wstring_view::npos) {
-                            break;
-                        }
-                        a->put(string{h, index_string(i)}, value{string{ h, s.substr(pos, next_pos-pos) }});
-                        pos = next_pos + 1;
-                    }
-                    if (pos < s.length()) {
-                        a->put(string{h, index_string(i)}, value{string{ h, s.substr(pos) }});
-                    }
-                }
-            }
-            return a;
-        });
-
-        make_string_function("substring", 1, [&h = heap()](const std::wstring_view& s, const std::vector<value>& args){
-            int start = std::min(std::max(to_int32(get_arg(args, 0)), 0), static_cast<int>(s.length()));
-            if (args.size() < 2) {
-                return string{h, s.substr(start)};
-            }
-            int end = std::min(std::max(to_int32(get_arg(args, 1)), 0), static_cast<int>(s.length()));
-            if (start > end) {
-                std::swap(start, end);
-            }
-            return string{h, s.substr(start, end-start)};
-        });
-
-        make_string_function("toLowerCase", 0, [&h = heap()](const std::wstring_view& s, const std::vector<value>&){
-            std::wstring res;
-            for (auto c: s) {
-                res.push_back(towlower(c));
-            }
-            return string{h, res};
-        });
-
-        make_string_function("toUpperCase", 0, [&h = heap()](const std::wstring_view& s, const std::vector<value>&){
-            std::wstring res;
-            for (auto c: s) {
-                res.push_back(towupper(c));
-            }
-            return string{h, res};
-        });
-
-        return object_ptr{c};
-    }
-
-    //
     // Array
     //
 
-    value array_constructor(const value&, const std::vector<value>& args) {
+    value array_constructor(const value&, const std::vector<value>& args) override {
         if (args.size() == 1 && args[0].type() == value_type::number) {
             return value{array_object::make(heap(), Array_str_, array_prototype_, to_uint32(args[0].number_value()))};
         }
@@ -1136,16 +1133,19 @@ private:
             auto res = create_func(*this);
             assert(!!res.prototype == !!prototype);
             put(common_string(name), value{res.obj}, default_attributes);
-            if (prototype) *prototype = res.prototype;
+            if (prototype) {
+                *prototype = res.prototype;
+                res.obj->put(prototype_str_, value{res.prototype}, prototype_attributes);
+            }
         };
 
         // §15.1
         put(Object_str_, value{make_object_object()}, default_attributes);
         put(Function_str_, value{make_function_object()}, default_attributes);
         put(Array_str_, value{make_array_object()}, default_attributes);
-        put(String_str_, value{make_string_object()}, default_attributes);     
+        add("String", make_string_object, &string_prototype_);
         add("Boolean", make_boolean_object, &boolean_prototype_);
-        put(Number_str_, value{make_number_object()}, default_attributes);
+        add("Number", make_number_object, &number_prototype_);
         add("Math", make_math_object);
         put(Date_str_, value{make_date_object()}, default_attributes);
 
@@ -1233,6 +1233,14 @@ void global_object::make_constructable(const object_ptr& o, const native_functio
     p.object_value()->put(common_string("constructor"), value{o}, global_object::default_attributes);
 }
 
-
+std::wstring index_string(uint32_t index) {
+    wchar_t buffer[10], *p = &buffer[10];
+    *--p = '\0';
+    do {
+        *--p = '0' + index % 10;
+        index /= 10;
+    } while (index);
+    return std::wstring{p};
+}
 
 } // namespace mjs

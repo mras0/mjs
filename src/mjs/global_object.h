@@ -21,6 +21,8 @@ public:
     static constexpr auto default_attributes = property_attribute::dont_enum;
 
     virtual void put_function(const object_ptr& o, const native_function_type& f, const string& body_text, int named_args) = 0;
+    virtual value array_constructor(const value&, const std::vector<value>& args) = 0; // FIXME: String.split() needs this
+    virtual gc_heap_ptr<global_object> self_ptr() const = 0; // FIXME: Remove need for this
 
     template<typename F>
     void put_native_function(object& obj, const string& name, const F& f, int named_args) {
