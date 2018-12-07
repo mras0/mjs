@@ -72,10 +72,8 @@ create_result make_object_object(global_object& global) {
 // Function
 //
 
-create_result make_function_object(global_object& global) {
+create_result make_function_object(global_object& global, const object_ptr& prototype) {
     auto& h = global.heap();
-    auto function_str = global.common_string("Function");
-    auto prototype = object::make(h, function_str, global.object_prototype());
 
     auto c = object::make(prototype.heap(), prototype->class_name(), prototype); // Note: function constructor is added by interpreter
 
@@ -1054,8 +1052,8 @@ public:
     const object_ptr& object_prototype() const override { return object_prototype_; }
 
     object_ptr make_raw_function() override {
-        auto o = object::make(heap(), Function_str_, function_prototype_);
-        o->put(prototype_str_, value{object::make(heap(), Object_str_, object_prototype_)}, property_attribute::dont_enum);
+        auto o = object::make(heap(), function_prototype_->class_name(), function_prototype_);
+        o->put(common_string("prototype"), value{object::make(heap(), common_string("Object"), object_prototype_)}, property_attribute::dont_enum);
         return o;
     }
 
@@ -1089,25 +1087,7 @@ private:
     object_ptr string_prototype_;
     object_ptr boolean_prototype_;
     object_ptr number_prototype_;
-    object_ptr date_prototype_;
     gc_heap_ptr<global_object_impl> self_;
-
-    // Well know, commonly used strings
-#define DEFINE_STRING(x) string x ## _str_{heap(), #x}
-    DEFINE_STRING(Object);
-    DEFINE_STRING(Function);
-    DEFINE_STRING(Array);
-    DEFINE_STRING(String);
-    DEFINE_STRING(Boolean);
-    DEFINE_STRING(Number);
-    DEFINE_STRING(Date);
-    DEFINE_STRING(prototype);
-    DEFINE_STRING(constructor);
-    DEFINE_STRING(length);
-    DEFINE_STRING(arguments);
-    DEFINE_STRING(toString);
-    DEFINE_STRING(valueOf);
-#undef DEFINE_STRING
 
     object_ptr do_make_function(const native_function_type& f, const string& body_text, int named_args) override {
         auto o = make_raw_function();
@@ -1117,9 +1097,9 @@ private:
 
     value array_constructor(const value&, const std::vector<value>& args) override {
         if (args.size() == 1 && args[0].type() == value_type::number) {
-            return value{array_object::make(heap(), Array_str_, array_prototype_, to_uint32(args[0].number_value()))};
+            return value{array_object::make(heap(), array_prototype_->class_name(), array_prototype_, to_uint32(args[0].number_value()))};
         }
-        auto arr = array_object::make(heap(), Array_str_, array_prototype_, static_cast<uint32_t>(args.size()));
+        auto arr = array_object::make(heap(), array_prototype_->class_name(), array_prototype_, static_cast<uint32_t>(args.size()));
         for (uint32_t i = 0; i < args.size(); ++i) {
             arr->unchecked_put(i, args[i]);
         }
@@ -1130,14 +1110,16 @@ private:
     // Global
     //
     void popuplate_global() {
-        // The object prototype is special
+        // The object and function prototypes are special
         object_prototype_   = object::make(heap(), string{heap(), "ObjectPrototype"}, nullptr);
+        function_prototype_ = object::make(heap(), common_string("Function"), object_prototype_);
+
          
         auto add = [&](const char* name, auto create_func, object_ptr* prototype = nullptr) {
             auto res = create_func(*this);
             put(common_string(name), value{res.obj}, default_attributes);
             if (res.prototype) {
-                res.obj->put(prototype_str_, value{res.prototype}, prototype_attributes);
+                res.obj->put(common_string("prototype"), value{res.prototype}, prototype_attributes);
             }
             if (prototype) {
                 assert(res.prototype);
@@ -1146,8 +1128,8 @@ private:
         };
 
         // §15.1
-        add("Object", make_object_object, &object_prototype_); // Resetting it..
-        add("Function", make_function_object, &function_prototype_);
+        add("Object", make_object_object, &object_prototype_);          // Resetting it..
+        add("Function", [&](auto& g) { return make_function_object(g, function_prototype_); }, &function_prototype_);    // same
         add("Array", make_array_object, &array_prototype_);
         add("String", make_string_object, &string_prototype_);
         add("Boolean", make_boolean_object, &boolean_prototype_);
@@ -1217,10 +1199,10 @@ string global_object::native_function_body(gc_heap& h, const std::wstring_view& 
 }
 
 void global_object_impl::put_function(const object_ptr& o, const native_function_type& f, const string& body_text, int named_args) {
-    assert(o->class_name().view() == Function_str_.view());
+    assert(o->class_name().view() == L"Function");
     assert(!o->call_function());
-    o->put(length_str_, value{static_cast<double>(named_args)}, property_attribute::read_only | property_attribute::dont_delete | property_attribute::dont_enum);
-    o->put(arguments_str_, value::null, property_attribute::read_only | property_attribute::dont_delete | property_attribute::dont_enum);
+    o->put(common_string("length"), value{static_cast<double>(named_args)}, property_attribute::read_only | property_attribute::dont_delete | property_attribute::dont_enum);
+    o->put(common_string("arguments"), value::null, property_attribute::read_only | property_attribute::dont_delete | property_attribute::dont_enum);
     o->call_function(f);
     assert(o->internal_value().type() == value_type::undefined);
     o->internal_value(value{body_text});
