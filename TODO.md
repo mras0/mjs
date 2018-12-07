@@ -17,18 +17,17 @@
     - Support pointers inside objects (like `shared_ptr`s aliasing constructor)
     - Allocator support (But it seems like `gc_heap_ptr` is too fancy to be compatible - a static `to_pointer()` function can't really be 'nicely' [it could of course use `local_heap`, but that's not nice])
     - Support use of multiple heaps (for generational GC)
-    - Support weak pointers into the GC heap (flag on `gc_heap_ptr_untracked`?) - could be useful for string caches (in `global_object`?). Could probably be easily implemented by having an extra `bool` template parameter for `gc_heap_ptr_untracked`. When registering a fixup it would then be added to a seperate list and only resolved at the end of `garbage_collect()` (being turned into a `nullptr` if it wasn't moved)
     - It's probably possible to optimize cleanup of tracked pointer - at the end of `garbage_collect` we should know which pointers are getting detached, temporarily turn `deatch` into a NO-OP and just clear the part of the `pointers_` array we know is going to be destructed.
     - Experiment (again) with reference counting the object and string references stored in `value`
     - Add tests ! (for `value_representation`, all the pointer types etc.)
     - Perhaps using structure of arrays instead of array of structures for `gc_type_info` could give (marginal) speed benefits
+    - Create `gc_array<T>` helper for implementing `gc_string`, `gc_table` and `string_cache` (and other similar future classes)
 * Finish global object
     - Date
         - mutators
         - time zone adjustments
         - to/from string
     - Probably other missing stuff and non-compliant implementations...
-    - Implement (more) things as "real" C++ classes (?)
     - Split into multiple classes/files
     - Optimize `array_object` - may need to make more `object` functions virtual and do the same for string objects
     - Add test cases for directly relatable to clauses in the spec (e.g. `Boolean.prototype.constructor` exists and is correct)

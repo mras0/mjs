@@ -53,7 +53,7 @@ public:
     void make_constructable(const object_ptr& o, const native_function_type& f = nullptr);
 
     // Make a string (to make it possible to use a cache)
-    string common_string(const char* str);
+    virtual string common_string(const char* str) = 0;
 
 protected:
     using object::object;

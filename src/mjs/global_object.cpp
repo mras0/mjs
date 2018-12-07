@@ -1042,6 +1042,143 @@ create_result make_console_object(global_object& global) {
     return { console, nullptr };
 }
 
+//#define STRING_CACHE_STATS
+
+// TODO: Consider making a helper class for implementing "gc_array"s
+class alignas(uint64_t) string_cache {
+public:
+    friend gc_type_info_registration<string_cache>;
+
+    static gc_heap_ptr<string_cache> make(gc_heap& h, uint32_t capacity) {
+        assert(capacity);
+        return h.allocate_and_construct<string_cache>(sizeof(string_cache) + capacity * sizeof(entry), h, capacity);
+    }
+
+    string get(const char* name) {
+        const auto hash = calc_hash(name);
+        auto e = entries();
+
+#ifdef STRING_CACHE_STATS
+        ++lookups_;
+#endif
+
+        // In cache already?
+        for (uint32_t i = 0; i < used_; ++i) {
+            // Check if we encounterd an "lost" weak pointer (only happens first time after a garbage collection)
+            if (!e[i].s) {
+                // Debugging note: Decrease the size of the cache to force this branch to occur (and increase rate of garbage collection)
+                --used_;
+                if (i == used_) {
+                    // Since this was the last entry, just drop it and use normal insertion logic
+                    break;
+                }
+
+                // Move entries down
+                for (uint32_t j = i; j < used_; ++j) {
+                    e[j] = e[j+1];
+                }
+                --i; // Redo this one
+                continue;
+            }
+
+            if (e[i].hash == hash && string_equal(name, e[i].s.dereference(heap_).view())) {
+#ifdef STRING_CACHE_STATS
+                ++hits_;
+                dist_ += i;
+#endif
+                // Move first
+                for (; i; --i) {
+                    std::swap(e[i], e[i-1]);
+                }
+                return e[0].s.track(heap_);
+            }
+        }
+
+        // No. Move all entries up and insert
+
+        if (used_ < capacity_) {
+            ++used_;
+        }
+
+        for (uint32_t i = used_; --i; ) {
+            e[i] = e[i-1];
+        }
+
+
+        // Insert
+        string s{heap_, name};
+        e[0].hash = hash;
+        e[0].s = s.unsafe_raw_get(); 
+
+        return s;
+    }
+
+private:
+    gc_heap& heap_;
+    uint32_t capacity_;
+    uint32_t used_ = 0;
+
+#ifdef STRING_CACHE_STATS
+    uint32_t lookups_ = 0;
+    uint32_t hits_    = 0;
+    uint64_t dist_    = 0;
+#endif
+
+    static bool string_equal(const char* s, std::wstring_view v) {
+        for (uint32_t i = 0, sz = static_cast<uint32_t>(v.size()); i < sz; ++i, ++s) {
+            if (*s != v[i]) return false;
+        }
+        return !*s;
+    }
+
+    static uint32_t calc_hash(const char* s) {
+        // FNV
+        constexpr uint32_t prime = 16777619;
+        constexpr uint32_t offset = 2166136261;
+        uint32_t h = offset;
+        for (; *s; ++s) {
+            h = (h*prime) ^ static_cast<uint8_t>(*s);
+        }
+        return h;
+    }
+
+    struct entry {
+        uint32_t hash;
+        gc_heap_weak_ptr_untracked<gc_string> s;
+    };
+
+    explicit string_cache(gc_heap& h, uint32_t capacity) : heap_(h), capacity_(capacity) {
+    }
+
+    string_cache(string_cache&& old) noexcept : heap_(old.heap_), capacity_(old.capacity_), used_(old.used_) {
+        std::memcpy(entries(), old.entries(), used_ * sizeof(entry));
+    }
+
+#ifdef STRING_CACHE_STATS
+    ~string_cache() {
+        std::wcout << "string_cache capcity " << capacity_ << " used " << used_ << "\n";
+        std::wcout << " " << hits_ << " / " << lookups_ << " (" << 100.*hits_/lookups_ << "%) hit rate avg dist: " << 1.*dist_/hits_ << "\n";
+    }
+#endif
+
+    entry* entries() const {
+        return reinterpret_cast<entry*>(const_cast<std::byte*>(reinterpret_cast<const std::byte*>(this)) + sizeof(*this));
+    }
+
+    void fixup() {
+        auto e = entries();
+        for (uint32_t i = 0; i < used_; ++i) {
+            e[i].s.fixup(heap_);
+        }
+    }
+};
+
+#ifndef STRING_CACHE_STATS
+static_assert(!gc_type_info_registration<string_cache>::needs_destroy);
+#endif
+static_assert(gc_type_info_registration<string_cache>::needs_fixup);
+
+
 
 } // unnamed namespace
 
@@ -1081,6 +1218,7 @@ public:
     }
 
 private:
+    gc_heap_ptr<string_cache> string_cache_;
     object_ptr object_prototype_;
     object_ptr function_prototype_;
     object_ptr array_prototype_;
@@ -1175,7 +1313,11 @@ private:
 
     }
 
-    explicit global_object_impl(gc_heap& h) : global_object(h, string{h, "Global"}, object_ptr{}) {
+    string common_string(const char* str) override {
+        return string_cache_->get(str);
+    }
+
+    explicit global_object_impl(gc_heap& h) : global_object(h, string{h, "Global"}, object_ptr{}), string_cache_(string_cache::make(h, 16)) {
     }
 
     global_object_impl(global_object_impl&& other) = default;
@@ -1206,11 +1348,6 @@ void global_object_impl::put_function(const object_ptr& o, const native_function
     o->call_function(f);
     assert(o->internal_value().type() == value_type::undefined);
     o->internal_value(value{body_text});
-}
-
-string global_object::common_string(const char* str) {
-    // TODO: Possibly use string cache here
-    return string{heap(), str};
 }
 
 void global_object::make_constructable(const object_ptr& o, const native_function_type& f) {

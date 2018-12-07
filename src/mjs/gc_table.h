@@ -140,7 +140,7 @@ private:
     explicit gc_table(gc_heap& h, uint32_t capacity) : heap_(h), capacity_(capacity), length_(0) {
     }
 
-    gc_table(gc_table&& from);
+    gc_table(gc_table&& from) noexcept;
 
     void fixup();
 };

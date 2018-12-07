@@ -159,6 +159,18 @@ void gc_heap::garbage_collect() {
             *ppos = gc_move(*ppos);
         }
 
+        // Handle weak pointers - if they moved update, otherwise invalidate
+        for (auto& p: gc_state_.weak_fixups) {
+            assert(*p > 0 && *p < next_free_);
+            auto a = storage_[*p - 1].allocation;
+            if (a.type == gc_moved_type_index) {
+                *p = storage_[*p].new_position;
+            } else {
+                *p = 0;
+            }
+        }
+        gc_state_.weak_fixups.clear();
+
         std::swap(storage_, new_heap.storage_);
         std::swap(next_free_, new_heap.next_free_);
         gc_state_.new_heap = nullptr;
@@ -238,6 +250,10 @@ uint32_t gc_heap::gc_move(const uint32_t pos) {
 
 void gc_heap::register_fixup(uint32_t& pos) {
     gc_state_.pending_fixups.push_back(&pos);
+}
+
+void gc_heap::register_weak_fixup(uint32_t& pos) {
+    gc_state_.weak_fixups.push_back(&pos);
 }
 
 uint32_t gc_heap::allocate(size_t num_bytes) {

@@ -17,7 +17,7 @@ class gc_heap;
 class gc_heap_ptr_untyped;
 template<typename T>
 class gc_heap_ptr;
-template<typename T>
+template<typename T, bool strong>
 class gc_heap_ptr_untracked;
 
 // Only here to be friended
@@ -81,6 +81,7 @@ protected:
         , convertible_to_object_(convertible_to_object)
         , name_(name)
         , index_(num_types_++) {
+
         assert(index_ < max_types);
         types_[index_] = this;
         assert(move_);
@@ -175,7 +176,7 @@ class gc_heap {
 public:
     friend gc_heap_ptr_untyped;
     friend value_representation;
-    template<typename> friend class gc_heap_ptr_untracked;
+    template<typename, bool> friend class gc_heap_ptr_untracked;
 
     static constexpr uint32_t slot_size = sizeof(uint64_t);
     static constexpr uint32_t bytes_to_slots(size_t bytes) { return static_cast<uint32_t>((bytes + slot_size - 1) / slot_size); }
@@ -262,12 +263,13 @@ private:
     // Only valid during GC
     struct gc_state {
 #ifndef NDEBUG
-        bool initial_state() const { return level == 0 && new_heap == nullptr && pending_fixups.empty(); }
+        bool initial_state() const { return level == 0 && new_heap == nullptr && pending_fixups.empty() && weak_fixups.empty(); }
 #endif
 
         uint32_t level = 0;                     // recursion depth
         gc_heap* new_heap = nullptr;            // the "new_heap" is only kept for allocation purposes, no references to it should be kept
         std::vector<uint32_t*> pending_fixups;  // pending fixup addresses
+        std::vector<uint32_t*> weak_fixups;     // pending weak fixup addresses
     } gc_state_;
 
     void run_destructors();
@@ -286,6 +288,7 @@ private:
     uint32_t gc_move(uint32_t pos);
 
     void register_fixup(uint32_t& pos);
+    void register_weak_fixup(uint32_t& pos);
 
     template<typename T>
     gc_heap_ptr<T> unsafe_create_from_position(uint32_t pos);
@@ -295,7 +298,7 @@ class gc_heap_ptr_untyped {
 public:
     friend gc_heap;
     friend value_representation;
-    template<typename> friend class gc_heap_ptr_untracked;
+    template<typename, bool> friend class gc_heap_ptr_untracked;
 
     gc_heap_ptr_untyped() : heap_(nullptr), pos_(0) {
     }
@@ -363,7 +366,7 @@ private:
     explicit gc_heap_ptr(const gc_heap_ptr_untyped& p) : gc_heap_ptr_untyped(p) {}
 };
 
-template<typename T>
+template<typename T, bool strong = true>
 class gc_heap_ptr_untracked {
     // TODO: Add debug mode where e.g. the MSB of pos_ is set when the pointer is copied
     //       Then check that 1) it is set in fixup 2) NOT set in the destructor
@@ -389,7 +392,11 @@ public:
 
     void fixup(gc_heap& old_heap) {
         if (pos_) {
-            old_heap.register_fixup(pos_);
+            if constexpr (strong) {
+                old_heap.register_fixup(pos_);
+            } else {
+                old_heap.register_weak_fixup(pos_);
+            }
         }
     }
 
@@ -398,6 +405,9 @@ private:
 
     explicit gc_heap_ptr_untracked(uint32_t pos) : pos_(pos) {}
 };
+
+template<typename T>
+using gc_heap_weak_ptr_untracked = gc_heap_ptr_untracked<T, false>;
 
 template<typename T, typename... Args>
 gc_heap_ptr<T> gc_heap::allocate_and_construct(size_t num_bytes, Args&&... args) {
