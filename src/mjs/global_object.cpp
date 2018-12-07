@@ -1,5 +1,6 @@
 #include "global_object.h"
 #include "lexer.h" // get_hex_value2/4
+#include "gc_array.h"
 #include <sstream>
 #include <chrono>
 #include <algorithm>
@@ -1042,17 +1043,22 @@ create_result make_console_object(global_object& global) {
     return { console, nullptr };
 }
 
+//
+// string_cache
+//
+
 //#define STRING_CACHE_STATS
 
-// TODO: Consider making a helper class for implementing "gc_array"s
-class alignas(uint64_t) string_cache {
+struct string_cache_entry {
+    uint32_t hash;
+    gc_heap_weak_ptr_untracked<gc_string> s;
+};
+
+class string_cache : public gc_array_base<string_cache, string_cache_entry> {
 public:
     friend gc_type_info_registration<string_cache>;
 
-    static gc_heap_ptr<string_cache> make(gc_heap& h, uint32_t capacity) {
-        assert(capacity);
-        return h.allocate_and_construct<string_cache>(sizeof(string_cache) + capacity * sizeof(entry), h, capacity);
-    }
+    using gc_array_base::make;
 
     string get(const char* name) {
         const auto hash = calc_hash(name);
@@ -1061,27 +1067,28 @@ public:
 #ifdef STRING_CACHE_STATS
         ++lookups_;
 #endif
+        auto& h = heap();
 
         // In cache already?
-        for (uint32_t i = 0; i < used_; ++i) {
+        for (uint32_t i = 0; i < length(); ++i) {
             // Check if we encounterd an "lost" weak pointer (only happens first time after a garbage collection)
             if (!e[i].s) {
                 // Debugging note: Decrease the size of the cache to force this branch to occur (and increase rate of garbage collection)
-                --used_;
-                if (i == used_) {
+                length(length()-1);
+                if (i == length()) {
                     // Since this was the last entry, just drop it and use normal insertion logic
                     break;
                 }
 
                 // Move entries down
-                for (uint32_t j = i; j < used_; ++j) {
+                for (uint32_t j = i; j < length(); ++j) {
                     e[j] = e[j+1];
                 }
                 --i; // Redo this one
                 continue;
             }
 
-            if (e[i].hash == hash && string_equal(name, e[i].s.dereference(heap_).view())) {
+            if (e[i].hash == hash && string_equal(name, e[i].s.dereference(h).view())) {
 #ifdef STRING_CACHE_STATS
                 ++hits_;
                 dist_ += i;
@@ -1090,23 +1097,23 @@ public:
                 for (; i; --i) {
                     std::swap(e[i], e[i-1]);
                 }
-                return e[0].s.track(heap_);
+                return e[0].s.track(h);
             }
         }
 
         // No. Move all entries up and insert
 
-        if (used_ < capacity_) {
-            ++used_;
+        if (length() < capacity()) {
+            length(length()+1);
         }
 
-        for (uint32_t i = used_; --i; ) {
+        for (uint32_t i = length(); --i; ) {
             e[i] = e[i-1];
         }
 
 
         // Insert
-        string s{heap_, name};
+        string s{h, name};
         e[0].hash = hash;
         e[0].s = s.unsafe_raw_get(); 
 
@@ -1114,10 +1121,6 @@ public:
     }
 
 private:
-    gc_heap& heap_;
-    uint32_t capacity_;
-    uint32_t used_ = 0;
-
 #ifdef STRING_CACHE_STATS
     uint32_t lookups_ = 0;
     uint32_t hits_    = 0;
@@ -1142,33 +1145,20 @@ private:
         return h;
     }
 
-    struct entry {
-        uint32_t hash;
-        gc_heap_weak_ptr_untracked<gc_string> s;
-    };
-
-    explicit string_cache(gc_heap& h, uint32_t capacity) : heap_(h), capacity_(capacity) {
-    }
-
-    string_cache(string_cache&& old) noexcept : heap_(old.heap_), capacity_(old.capacity_), used_(old.used_) {
-        std::memcpy(entries(), old.entries(), used_ * sizeof(entry));
-    }
+    using gc_array_base::gc_array_base;
 
 #ifdef STRING_CACHE_STATS
     ~string_cache() {
-        std::wcout << "string_cache capcity " << capacity_ << " used " << used_ << "\n";
+        std::wcout << "string_cache capcity " << capacity() << " length " << length() << "\n";
         std::wcout << " " << hits_ << " / " << lookups_ << " (" << 100.*hits_/lookups_ << "%) hit rate avg dist: " << 1.*dist_/hits_ << "\n";
     }
 #endif
 
-    entry* entries() const {
-        return reinterpret_cast<entry*>(const_cast<std::byte*>(reinterpret_cast<const std::byte*>(this)) + sizeof(*this));
-    }
-
     void fixup() {
         auto e = entries();
-        for (uint32_t i = 0; i < used_; ++i) {
-            e[i].s.fixup(heap_);
+        auto& h = heap();
+        for (uint32_t i = 0, l = length(); i < l; ++i) {
+            e[i].s.fixup(h);
         }
     }
 };
@@ -1177,8 +1167,6 @@ private:
 static_assert(!gc_type_info_registration<string_cache>::needs_destroy);
 #endif
 static_assert(gc_type_info_registration<string_cache>::needs_fixup);
-
-
 
 } // unnamed namespace
 

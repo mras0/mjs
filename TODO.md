@@ -21,7 +21,6 @@
     - Experiment (again) with reference counting the object and string references stored in `value`
     - Add tests ! (for `value_representation`, all the pointer types etc.)
     - Perhaps using structure of arrays instead of array of structures for `gc_type_info` could give (marginal) speed benefits
-    - Create `gc_array<T>` helper for implementing `gc_string`, `gc_table` and `string_cache` (and other similar future classes)
 * Finish global object
     - Date
         - mutators
