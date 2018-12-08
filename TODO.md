@@ -24,6 +24,7 @@
     - Move `string_cache` to its own file and create test for `string_cache` (and weak pointers in general)
     - Consider making `gc_table` available for geenral use (e.g. by `string_cache`)
     - Have `native_object::add_native_property` take the name as a no-type template parameter and do some constexpr stuff (or something)
+    - `native_object` should handle the issues faced by`activation_object` and `array_object` or probably die (or be repurposed)
 * Finish global object
     - Date
         - mutators

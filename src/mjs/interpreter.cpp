@@ -91,34 +91,93 @@ private:
     std::vector<std::wstring> ids_;
 };
 
-class activation_object : public native_object {
+class activation_object : public object {
 public:
     object_ptr arguments() const { return arguments_.track(heap()); }
 
+    value get(const std::wstring_view& name) const override {
+        if (auto p = find(name)) {
+            auto& h = heap();
+            return arguments_.dereference(h).get(p->index_string.dereference(h).view());
+        }
+        return object::get(name);
+    }
+
+    void put(const string& name, const value& val, property_attribute attr) override {
+        if (auto p = find(name.view())) {
+            auto& h = heap();
+            arguments_.dereference(h).put(p->index_string.track(h), val, attr);
+            return;
+        }
+        object::put(name, val, attr);
+    }
+
 private:
+    struct param {
+        gc_heap_ptr_untracked<gc_string> key;
+        gc_heap_ptr_untracked<gc_string> index_string;
+
+        explicit param(const string& k, const string& is) : key(k.unsafe_raw_get()), index_string(is.unsafe_raw_get()) {}
+
+        void fixup(gc_heap& h) {
+            key.fixup(h);
+            index_string.fixup(h);
+        }
+    };
+
+    param* find(const std::wstring_view& s) const {
+        if (!params_) {
+            return nullptr;
+        }
+        auto& h = heap();
+        for (auto& p: params_.dereference(h)) {
+            if (p.key.dereference(h).view() == s) {
+                return &p;
+            }
+        }
+        return nullptr;
+    }
+
     friend gc_type_info_registration<activation_object>;
     gc_heap_ptr_untracked<object> arguments_;
+    gc_heap_ptr_untracked<gc_vector<param>> params_;
 
-    explicit activation_object(global_object& global, const std::vector<std::wstring>& param_names, const std::vector<value>& args) : native_object(global.common_string("Activation"), global.object_prototype()) {
+    explicit activation_object(global_object& global, const std::vector<std::wstring>& param_names, const std::vector<value>& args)
+        : object(global.common_string("Activation"), global.object_prototype()) {
+
+        if (!param_names.empty()) {
+            params_ = gc_vector<param>::make(heap(), static_cast<uint32_t>(param_names.size()));
+        }
+
         // Arguments array
         auto as = heap().make<object>(global.common_string("Object"), global.object_prototype());
         arguments_ = as;
         as->put(global.common_string("length"), value{static_cast<double>(args.size())}, property_attribute::dont_enum);
         for (uint32_t i = 0; i < args.size(); ++i) {
-            as->put(string{heap(), index_string(i)}, args[i], property_attribute::dont_enum);
+            string is{heap(), index_string(i)};
+            as->put(is, args[i], property_attribute::dont_enum);
+
+            //
+            // Handle the (ugly) fact that the arguments array aliases the parameters
+            //
+            if (i < param_names.size()) {
+                params_.dereference(heap()).emplace_back(string{heap(), param_names[i]}, is);
+            }
         }
 
-        put(global.common_string("arguments"), value{as}, property_attribute::dont_delete);
+        object::put(global.common_string("arguments"), value{as}, property_attribute::dont_delete);
 
-        // Parameters
+        // Add placeholders (see note above)
         for (size_t i = 0; i < param_names.size(); ++i) {
-            put(string{heap(), param_names[i]}, i < args.size() ? args[i] : value::undefined, property_attribute::dont_delete);
+            object::put(string{heap(), param_names[i]}, value::undefined, property_attribute::dont_delete);
         }
     }
 
     void fixup() {
-        arguments_.fixup(heap());
-        native_object::fixup();
+        auto& h = heap();
+        arguments_.fixup(h);
+        params_.fixup(h);
+        object::fixup();
     }
 };
 
