@@ -62,6 +62,7 @@ inline string operator+(const string& l, const string& r) {
     return string{l.heap(), std::wstring{l.view()} + std::wstring{r.view()}};
 }
 
+double to_number(const std::wstring_view& s);
 double to_number(const string& s);
 
 } // namespace mjs

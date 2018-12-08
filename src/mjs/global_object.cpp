@@ -45,7 +45,8 @@ create_result make_object_object(global_object& global) {
     auto& h = global.heap();
     auto o = global.make_function([global = global.self_ptr()](const value&, const std::vector<value>& args) {
         if (args.empty() || args.front().type() == value_type::undefined || args.front().type() == value_type::null) {
-            auto o = global->heap().make<object>(global->common_string("Object"), global->object_prototype());
+            auto prototype = global->object_prototype();
+            auto o = prototype.heap().make<object>(prototype->class_name(), prototype);
             return value{o};
         }
         return value{global->to_object(args.front())};
@@ -1053,7 +1054,7 @@ private:
     //
     void popuplate_global() {
         // The object and function prototypes are special
-        object_prototype_   = heap().make<object>(string{heap(), "ObjectPrototype"}, nullptr);
+        object_prototype_   = heap().make<object>(string{heap(), "Object"}, nullptr);
         function_prototype_ = heap().make<object>(common_string("Function"), object_prototype_);
 
          

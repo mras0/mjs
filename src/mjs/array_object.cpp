@@ -27,7 +27,7 @@ public:
             return;
         }
 
-        const uint32_t index = get_array_index(name);
+        const uint32_t index = get_array_index(name.view());
         if (index != invalid_array_index) {
             if (index >= length_) {
                 resize(index + 1);
@@ -87,14 +87,27 @@ private:
         return index < length_ && (present_mask_.dereference(heap())[index/64]&(1ULL<<(index%64)));
     }
 
-    static uint32_t get_array_index(const string& name) {
-        // TODO: Optimize this
-        uint32_t index = to_uint32(value{name});
-        return name.view() == to_string(name.heap(), index).view() ? index : invalid_array_index;
-    }
-
     uint32_t get_array_index(const std::wstring_view& name) const {
-        return get_array_index(string{heap(), name});
+        // TODO: Optimize this
+        const auto len = name.length();
+        if (len == 0 || len > 10) {
+            assert(len); // Shouldn't be passed the empty string
+            return invalid_array_index;
+        }
+        uint32_t index = 0;
+        for (uint32_t i = 0; i < len; ++i) {
+            const auto ch = name[i];
+            if (ch < L'0' || ch > L'9') {
+                return invalid_array_index;
+            }
+            const auto last = index;
+            index = index*10 + (ch - L'0');
+            if (index < last) {
+                // Overflow
+                return invalid_array_index;
+            }
+        }
+        return index;
     }
 
     void resize(uint32_t len) {

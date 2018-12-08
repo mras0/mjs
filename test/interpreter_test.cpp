@@ -361,7 +361,17 @@ delete a[2];
 a.length; //$number 4
 s = ''; for (var k in a) s += k + ','; s //$string 'false,'
 
+a = new Array(); a['10']=1; a.length //$number 11
+
 a = new Array(); a[1e3]=1; a.length //$number 1001
+s = ''; for (var k in a) s += k + ','; s //$string '1000,'
+
+a = new Array(); a['1e3'] = 42; a.length //$number 0
+s = ''; for (var k in a) s += k + ','; s //$string '1e3,'
+
+a = new Array(); a[4294967296]=1; a.length //$number 0
+
+ s = ''; for (var k in a) s += k + ','; s //$string '4294967296,'
 )");
 
     // String
