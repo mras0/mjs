@@ -11,11 +11,8 @@
 #include <unordered_map>
 #include <memory>
 
-// TODO: Use the well-known strings from global_object_impl in array_object
-// TODO: Use string pool for index_string()'s? (or at least the commonly used ones...)
-
-// TODO: Get rid of this stuff alltogether
 #ifndef _WIN32
+// TODO: Get rid of this stuff alltogether
 #define _mkgmtime timegm
 #endif
 
@@ -42,6 +39,143 @@ value get_arg(const std::vector<value>& args, int index) {
 struct create_result {
     object_ptr obj;
     object_ptr prototype;
+};
+
+//
+// native_object
+//
+
+class native_object : public object {
+public:
+    value get(const std::wstring_view& name) const override {
+        if (auto it = find(name)) {
+            return it->get(*this);
+        }
+        return object::get(name);
+    }
+
+    bool do_put(const string& name, const value& val) {
+        if (auto it = find(name.view())) {
+            if (!it->has_attribute(property_attribute::read_only)) {
+                it->put(*this, val);
+            }
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    void put(const string& name, const value& val, property_attribute attr) override {
+        if (!do_put(name, val)) {
+            object::put(name, val, attr);
+        }
+    }
+
+    bool can_put(const std::wstring_view& name) const override {
+        if (auto it = find(name)) {
+            return !it->has_attribute(property_attribute::read_only);
+        }
+        return object::can_put(name);
+    }
+
+    bool has_property(const std::wstring_view& name) const override {
+        return find(name) || object::has_property(name);
+    }
+
+    bool delete_property(const std::wstring_view& name) override {
+        if (auto it = find(name)) {
+            if (it->has_attribute(property_attribute::dont_delete)) {
+                return false;
+            }
+            std::wcout << "TODO: Handle " << __func__ << " for native property " << name << "\n";
+            std::abort();
+        }
+        return object::delete_property(name);
+    }
+
+private:
+    using get_func = value (*)(const native_object&);
+    using put_func = void (*)(native_object&, const value&);
+
+    struct native_object_property {
+        char               name[32];
+        property_attribute attributes;
+        get_func get;
+        put_func put;
+
+        bool has_attribute(property_attribute a) const { return (attributes & a) == a; }
+
+        native_object_property(const char* name, property_attribute attributes, get_func get, put_func put) : attributes(attributes), get(get), put(put) {
+            assert(strlen(name) < sizeof(this->name));
+            strcpy(this->name, name);
+        }
+    };
+    gc_heap_ptr_untracked<gc_vector<native_object_property>> native_properties_;
+
+    native_object_property* find(const char* name) const {
+        for (auto& p: native_properties_.dereference(heap())) {
+            if (!strcmp(p.name, name)) {
+                return &p;
+            }
+        }
+        return nullptr;
+    }
+
+    native_object_property* find(const std::wstring_view& v) const {
+        const auto len = v.length();
+        if (len >= sizeof(native_object_property::name)) {
+            return nullptr;
+        }
+        char name[sizeof(native_object_property::name)];
+        for (uint32_t i = 0; i < len; ++i) {
+            if (v[i] < 32 || v[i] >= 127) {
+                return nullptr;
+            }
+            name[i] = static_cast<char>(v[i]);
+        }
+        name[len] = '\0';
+        return find(name);
+    }
+
+    void do_add_native_property(const char* name, property_attribute attributes, get_func get, put_func put) {
+        assert(find(name) == nullptr);
+        assert(((attributes & property_attribute::read_only) != property_attribute::none) == !put);
+        native_properties_.dereference(heap()).push_back(native_object_property(name, attributes, get, put));
+    }
+
+protected:
+    explicit native_object(const string& class_name, const object_ptr& prototype) : object(class_name, prototype), native_properties_(gc_vector<native_object_property>::make(heap(), 16)) {
+    }
+
+    template<typename T, value (T::* Get)() const, void (T::* Put)(const value&) = nullptr>
+    void add_native_property(const char* name, property_attribute attributes) {
+        static_assert(std::is_base_of_v<native_object, T>);
+
+        put_func put = nullptr;
+        if (Put != nullptr) {
+            put = [](native_object& o, const value& v) {
+                (static_cast<T&>(o).*Put)(v);
+            };
+        }
+
+        do_add_native_property(name, attributes, [](const native_object& o) {
+                return (static_cast<const T&>(o).*Get)();
+            }, put);
+    }
+
+    void add_property_names(std::vector<string>& names) const override {
+        for (const auto& p: native_properties_.dereference(heap())) {
+            if (!p.has_attribute(property_attribute::dont_enum)) {
+                names.emplace_back(heap(), p.name);
+            }
+        }
+        object::add_property_names(names);
+    }
+
+    void fixup() {
+        native_properties_.fixup(heap());
+        object::fixup();
+    }
 };
 
 //
@@ -94,59 +228,142 @@ create_result make_function_object(global_object& global, const object_ptr& prot
 // Array
 //
 
-class array_object : public object {
+class array_object : public native_object {
 public:
     friend gc_type_info_registration<array_object>;
-
-    static constexpr const std::wstring_view length_str{L"length", 6};
 
     static gc_heap_ptr<array_object> make(const string& class_name, const object_ptr& prototype, uint32_t length) {
         return class_name.heap().make<array_object>(class_name, prototype, length);
     }
 
+    value get(const std::wstring_view& name) const override {
+        const uint32_t index = get_array_index(name);
+        if (index != invalid_array_index) {
+            auto& h = heap();
+            return index_present(index) ? values_.dereference(h)[index].get_value(h) : value::undefined;
+        } else {
+            return native_object::get(name);
+        }
+    }
+
     void put(const string& name, const value& val, property_attribute attr) override {
-        if (!can_put(name.view())) {
+        if (!can_put(name.view()) || do_put(name, val)) {
             return;
         }
-
-        if (name.view() == length_str) {
-            const uint32_t old_length = length();
-            const uint32_t new_length = to_uint32(val);
-            if (new_length < old_length) {
-                for (uint32_t i = new_length; i < old_length; ++i) {
-                    [[maybe_unused]] const bool res = object::delete_property(index_string(i));
-                    assert(res);
-                }
+        
+        const uint32_t index = get_array_index(name);
+        if (index != invalid_array_index) {
+            if (index >= length_) {
+                resize(index + 1);
             }
-            object::put(string{heap(), length_str}, value{static_cast<double>(new_length)});
+            unchecked_put(index, val);
         } else {
             object::put(name, val, attr);
-            uint32_t index = to_uint32(value{name});
-            if (name.view() == to_string(heap(), index).view() && index != UINT32_MAX && index >= length()) {
-                object::put(string{heap(), length_str}, value{static_cast<double>(index+1)});
-            }
         }
+    }
+
+    bool can_put(const std::wstring_view& name) const override {
+        if (const uint32_t index = get_array_index(name); index != invalid_array_index) {
+            return true;
+        }
+        return native_object::can_put(name);
+    }
+
+    bool has_property(const std::wstring_view& name) const override {
+        if (const uint32_t index = get_array_index(name); index != invalid_array_index) {
+            return index_present(index);
+        }
+        return native_object::has_property(name);
+    }
+
+    bool delete_property(const std::wstring_view& name) override {
+        if (const uint32_t index = get_array_index(name); index != invalid_array_index) {
+            if (index_present(index)) {
+                present_mask_.dereference(heap())[index/64] &= ~(1ULL<<(index%64));
+            }
+            return true;
+        }
+        return native_object::delete_property(name);
     }
 
     void unchecked_put(uint32_t index, const value& val) {
-        const auto name = index_string(index);
-        assert(index < to_uint32(get(length_str)) && can_put(name));
-        object::put(string{heap(), name}, val);
+        assert(index < length_);
+        values_.dereference(heap())[index] = value_representation{val};
+        present_mask_.dereference(heap())[index/64] |= 1ULL<<(index%64);
     }
 
 private:
-    uint32_t length() {
-        return to_uint32(object::get(length_str));
+    uint32_t length_;
+    gc_heap_ptr_untracked<gc_vector<value_representation>> values_;
+    gc_heap_ptr_untracked<gc_vector<uint64_t>> present_mask_;
+
+    value get_length() const {
+        return value{static_cast<double>(length_)};
     }
 
-    explicit array_object(const string& class_name, const object_ptr& prototype, uint32_t length) : object{class_name, prototype} {
-        object::put(string{heap(), length_str}, value{static_cast<double>(length)}, property_attribute::dont_enum | property_attribute::dont_delete);
+    void put_length(const value& v) {
+        resize(to_uint32(v));
+    }
+
+    static constexpr uint32_t invalid_array_index = UINT32_MAX;
+
+    bool index_present(uint32_t index) const {
+        return index < length_ && (present_mask_.dereference(heap())[index/64]&(1ULL<<(index%64)));
+    }
+
+    static uint32_t get_array_index(const string& name) {
+        // TODO: Optimize this
+        uint32_t index = to_uint32(value{name});
+        return name.view() == to_string(name.heap(), index).view() ? index : invalid_array_index;
+    }
+
+    uint32_t get_array_index(const std::wstring_view& name) const {
+        return get_array_index(string{heap(), name});
+    }
+
+    void resize(uint32_t len) {
+        if (len == 0) {
+            values_ = nullptr;
+            present_mask_ = nullptr;
+        } else  {
+            if (!values_) {
+                values_ = gc_vector<value_representation>::make(heap(), len);
+                present_mask_ = gc_vector<uint64_t>::make(heap(), (len+63) / 64);
+            }
+            values_.dereference(heap()).resize(len);
+            present_mask_.dereference(heap()).resize((len + 63) / 64);
+        }
+        length_ = len;
+    }
+
+    void fixup() {
+        values_.fixup(heap());
+        present_mask_.fixup(heap());
+        native_object::fixup();
+    }
+
+    void add_property_names(std::vector<string>& names) const override {
+        native_object::add_property_names(names);
+        if (length_) {
+            auto& h = heap();
+            const auto pm = present_mask_.dereference(h).data();
+            for (uint32_t i = 0; i < length_; ++i) {
+                if (pm[i/64] & (1ULL << (i%64))) {
+                    names.push_back(string{h, index_string(i)});
+                }
+            }
+        }
+    }
+
+    explicit array_object(const string& class_name, const object_ptr& prototype, uint32_t length) : native_object{class_name, prototype}, length_(0) {
+        add_native_property<array_object, &array_object::get_length, &array_object::put_length>("length", property_attribute::dont_enum | property_attribute::dont_delete);
+        resize(length);
     }
 };
 
 string join(const object_ptr& o, const std::wstring_view& sep) {
     auto& h = o.heap();
-    const uint32_t l = to_uint32(o->get(array_object::length_str));
+    const uint32_t l = to_uint32(o->get(L"length"));
     std::wstring s;
     for (uint32_t i = 0; i < l; ++i) {
         if (i) s += sep;
@@ -183,7 +400,7 @@ create_result make_array_object(global_object& global) {
     global.put_native_function(prototype, "reverse", [&h](const value& this_, const std::vector<value>&) {
         assert(this_.type() == value_type::object);
         const auto& o = this_.object_value();
-        const uint32_t length = to_uint32(o->get(array_object::length_str));
+        const uint32_t length = to_uint32(o->get(L"length"));
         for (uint32_t k = 0; k != length / 2; ++k) {
             const auto i1 = index_string(k);
             const auto i2 = index_string(length - k - 1);
@@ -198,7 +415,7 @@ create_result make_array_object(global_object& global) {
         assert(this_.type() == value_type::object);
         const auto& o = *this_.object_value();
         auto& h = o.heap(); // Capture heap reference (which continues to be valid even after GC) since `this` can move when calling a user-defined compare function (since this can cause GC)
-        const uint32_t length = to_uint32(o.get(array_object::length_str));
+        const uint32_t length = to_uint32(o.get(L"length"));
 
         native_function_type comparefn{};
         if (!args.empty()) {
@@ -253,127 +470,19 @@ create_result make_array_object(global_object& global) {
 // String
 //
 
-class native_object;
-using native_object_get_func = value (*)(const native_object&);
-using native_object_put_func = void (*)(native_object&, const value&);
-
-class native_object : public object {
-public:
-    virtual value get(const std::wstring_view& name) const override {
-        if (auto it = find(name)) {
-            return it->get(*this);
-        }
-        return object::get(name);
-    }
-
-    virtual void put(const string& name, const value& val, property_attribute attr) override {
-        if (auto it = find(name.view())) {
-            if (it->has_attribute(property_attribute::read_only)) {
-                return;
-            }
-            it->put(*this, val);
-        } else {
-            object::put(name, val, attr);
-        }
-    }
-
-    virtual bool can_put(const std::wstring_view& name) const override {
-        if (auto it = find(name)) {
-            return !it->has_attribute(property_attribute::read_only);
-        }
-        return object::can_put(name);
-    }
-
-    virtual bool has_property(const std::wstring_view& name) const override {
-        return find(name) || object::has_property(name);
-    }
-
-    virtual bool delete_property(const std::wstring_view& name) override {
-        if (auto it = find(name)) {
-            if (it->has_attribute(property_attribute::dont_delete)) {
-                return false;
-            }
-            std::wcout << "TODO: Handle " << __func__ << " for native property " << name << "\n";
-            std::abort();
-        }
-        return object::delete_property(name);
-    }
-
-private:
-    struct native_object_property {
-        char               name[32];
-        property_attribute attributes;
-        native_object_get_func get;
-        native_object_put_func put;
-
-        bool has_attribute(property_attribute a) const { return (attributes & a) == a; }
-
-        native_object_property(const char* name, property_attribute attributes, native_object_get_func get, native_object_put_func put) : attributes(attributes), get(get), put(put) {
-            assert(strlen(name) < sizeof(this->name));
-            strcpy(this->name, name);
-        }
-    };
-    gc_heap_ptr_untracked<gc_vector<native_object_property>> native_properties_;
-
-    native_object_property* find(const char* name) const {
-        for (auto& p: native_properties_.dereference(heap())) {
-            if (!strcmp(p.name, name)) {
-                return &p;
-            }
-        }
-        return nullptr;
-    }
-
-    native_object_property* find(const std::wstring_view& v) const {
-        const auto len = v.length();
-        if (len >= sizeof(native_object_property::name)) {
-            return nullptr;
-        }
-        char name[sizeof(native_object_property::name)];
-        for (uint32_t i = 0; i < len; ++i) {
-            if (v[i] < 32 || v[i] >= 127) {
-                return nullptr;
-            }
-            name[i] = static_cast<char>(v[i]);
-        }
-        name[len] = '\0';
-        return find(name);
-    }
-
-    void add_property_names(std::vector<string>& names) const override {
-        for (const auto& p: native_properties_.dereference(heap())) {
-            if (!p.has_attribute(property_attribute::dont_enum)) {
-                names.emplace_back(heap(), p.name);
-            }
-        }
-        object::add_property_names(names);
-    }
-
-protected:
-    explicit native_object(const string& class_name, const object_ptr& prototype) : object(class_name, prototype), native_properties_(gc_vector<native_object_property>::make(heap(), 16)) {
-    }
-
-    void add_native_property(const char* name, property_attribute attributes, native_object_get_func get, native_object_put_func put) {
-        assert(find(name) == nullptr);
-        assert(((attributes & property_attribute::read_only) != property_attribute::none) == !put);
-        native_properties_.dereference(heap()).push_back(native_object_property(name, attributes, get, put));
-    }
-
-    void fixup() {
-        native_properties_.fixup(heap());
-        object::fixup();
-    }
-};
-
 class string_object : public native_object {
 public:
 
 private:
     friend gc_type_info_registration<string_object>;
 
+    value get_length() const {
+        return value{static_cast<double>(internal_value().string_value().view().length())};
+    }
+
     explicit string_object(const object_ptr& prototype, const string& val) : native_object(prototype->class_name(), prototype) {
         internal_value(value{val});
-        add_native_property("length", global_object::prototype_attributes, [](const native_object& o) { return value{static_cast<double>(o.internal_value().string_value().view().length())}; }, nullptr);
+        add_native_property<string_object, &string_object::get_length>("length", global_object::prototype_attributes);
     }
 };
 

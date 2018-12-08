@@ -62,17 +62,35 @@ public:
     T* begin() const { return data(); }
     T* end() const { return data() + length(); }
 
+    void resize(uint32_t new_size) {
+        if (new_size > tab().capacity()) {
+            uint32_t new_cap = new_size > (1U<<31) ? new_size : tab().capacity();
+            while (new_cap < new_size) {
+                new_cap *= 2;
+            }
+            assert(new_cap >= new_size);
+            table_ = tab().copy_with_increased_capacity(new_cap);
+        }
+        auto& t = tab();
+        auto e = t.entries();
+        for (uint32_t i = tab().length(); i < new_size; ++i) {
+            new (e+i) T();
+        }
+        tab().length(new_size);
+    }
+
 private:
     friend gc_type_info_registration<gc_vector>;
 
     void ensure_capacity() {
-        if (tab().length() == tab().capacity()) {
-            table_ = tab().copy_with_increased_capacity();
+        auto& t = tab();
+        if (t.length() == t.capacity()) {
+            table_ = t.copy_with_increased_capacity(2 * t.capacity());
         }
     }
 
     // Could make this class generally available (again)
-    class alignas(T) gc_table {
+    class alignas(uint64_t) gc_table {
     public:
         gc_heap& heap() const { return const_cast<gc_heap&>(heap_); }
         uint32_t capacity() const { return capacity_; }
@@ -84,8 +102,9 @@ private:
             return h.allocate_and_construct<gc_table>(sizeof(gc_table) + capacity * sizeof(T), h, capacity, std::forward<Args>(args)...);
         }
 
-        [[nodiscard]] gc_heap_ptr<gc_table> copy_with_increased_capacity() const {
-            auto nt = make(heap(), capacity() * 2);
+        [[nodiscard]] gc_heap_ptr<gc_table> copy_with_increased_capacity(uint32_t new_capacity) const {
+            assert(new_capacity >= length());
+            auto nt = make(heap(), new_capacity);
             nt->length(length());
             // Since it's the same heap the representation can just be copied
             std::memcpy(nt->entries(), entries(), length() * sizeof(T));

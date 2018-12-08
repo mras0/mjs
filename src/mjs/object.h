@@ -133,7 +133,6 @@ private:
         }
     };
 
-
     gc_heap&                                   heap_;
     gc_heap_ptr_untracked<gc_string>           class_;
     gc_heap_ptr_untracked<object>              prototype_;

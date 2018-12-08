@@ -346,6 +346,24 @@ function f(x) {
     // Make sure we handle "large" arrays
     test(L"a=new Array(500);for (var i=0; i<a.length; ++i) a[i] = i; sum=0; for (var i=0; i<a.length; ++i) sum += a[i]; sum", value{499*500/2.});
 
+    RUN_TEST_SPEC(R"(
+var a = new Array();
+a[false] = 0;
+a.length; //$number 0
+a[2] = 42;
+a.length; //$number 3
+a[7] = 100;
+a.length; //$number 8
+var s = ''; for (var k in a) s += k + ','; s //$string 'false,2,7,'
+a.length=4;
+s = ''; for (var k in a) s += k + ','; s //$string 'false,2,'
+delete a[2];
+a.length; //$number 4
+s = ''; for (var k in a) s += k + ','; s //$string 'false,'
+
+a = new Array(); a[1e3]=1; a.length //$number 1001
+)");
+
     // String
     test(L"String()", value{string{h, ""}});
     test(L"String('test')", value{string{h, "test"}});
