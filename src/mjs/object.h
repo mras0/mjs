@@ -17,11 +17,6 @@ public:
         return heap_;
     }
 
-    // TODO: Remove this
-    static auto make(gc_heap& h, const string& class_name, const object_ptr& prototype) {
-        return h.make<object>(h, class_name, prototype);
-    }
-
     // §8.6.2, Page 22: Internal Properties and Methods
 
     //
@@ -46,7 +41,7 @@ public:
     void internal_value(const value& v) { value_ = value_representation{v}; }
 
     // [[Get]] (PropertyName)
-    value get(const std::wstring_view& name) const {
+    virtual value get(const std::wstring_view& name) const {
         auto [it, pp] = deep_find(name);
         return it != pp->end() ? it.value() : value::undefined;
     }
@@ -82,19 +77,19 @@ public:
     }
 
     // [[CanPut]] (PropertyName)
-    bool can_put(const std::wstring_view& name) const {
+    virtual bool can_put(const std::wstring_view& name) const {
         auto [it, pp] = deep_find(name);
         return it != pp->end() ? !it.has_attribute(property_attribute::read_only) : true;
     }
 
     // [[HasProperty]] (PropertyName)
-    bool has_property(const std::wstring_view& name) const {
+    virtual bool has_property(const std::wstring_view& name) const {
         auto [it, pp] = deep_find(name);
         return it != pp->end();
     }
 
     // [[Delete]] (PropertyName)
-    bool delete_property(const std::wstring_view& name) {
+    virtual bool delete_property(const std::wstring_view& name) {
         auto& props = properties_.dereference(heap_);
         auto it = props.find(name);
         if (it == props.end()) {
@@ -126,9 +121,10 @@ public:
     virtual void debug_print(std::wostream& os, int indent_incr, int max_nest = INT_MAX, int indent = 0) const;
 
 protected:
-    explicit object(gc_heap& heap, const string& class_name, const object_ptr& prototype);
+    explicit object(const string& class_name, const object_ptr& prototype);
     object(object&& o) = default;
     void fixup();
+    virtual void add_property_names(std::vector<string>& names) const;
 
 private:
     gc_heap& heap_;
@@ -138,8 +134,6 @@ private:
     gc_heap_ptr_untracked<gc_function>  call_;
     gc_heap_ptr_untracked<gc_table>     properties_;
     value_representation                value_;
-
-    void add_property_names(std::vector<string>& names) const;
 
     std::pair<gc_table::entry, gc_table*> deep_find(const std::wstring_view& key) const {
         auto& props = properties_.dereference(heap_);

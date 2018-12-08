@@ -19,15 +19,7 @@ struct gc_table_entry_representation {
 class gc_table : public gc_array_base<gc_table, gc_table_entry_representation> {
 public:
     using gc_array_base::make;
-
-    // TODO: Move to base?
-    [[nodiscard]] gc_heap_ptr<gc_table> copy_with_increased_capacity() const {
-        auto nt = make(heap(), capacity() * 2);
-        nt->length(length());
-        // Since it's the same heap the representation can just be copied
-        std::memcpy(nt->entries(), entries(), length() * sizeof(gc_table_entry_representation));
-        return nt;
-    }
+    using gc_array_base::copy_with_increased_capacity;
 
     class entry {
     public:
@@ -71,8 +63,7 @@ public:
 
         void erase() {
             assert(tab_ && index_ < tab_->length());
-            std::memmove(&tab_->entries()[index_], &tab_->entries()[index_+1], sizeof(gc_table_entry_representation) * (tab_->length() - 1 - index_));
-            tab_->length(tab_->length()-1);
+            tab_->erase(index_);
         }
 
     private:
@@ -91,23 +82,20 @@ public:
     void insert(const string& key, const value& v, property_attribute attr) {
         auto& raw_key = key.unsafe_raw_get();
         assert(&raw_key.heap() == &heap());
-        assert(length() < capacity());
         assert(find(key.view()) == end());
-        entries()[length()] = gc_table_entry_representation{
+        push_back(gc_table_entry_representation{
             raw_key,
             attr,
             value_representation{v}
-        };
-        length(length()+1);
+        });
     }
 
     entry find(const std::wstring_view& key) {
-        auto it = begin(); 
-        while (it != end()) {
+        auto it = begin();
+        for (auto e = end(); it != e; ++it) {
             if (it.key_view() == key) {
                 break;
             }
-            ++it;
         }
         return it;
     }

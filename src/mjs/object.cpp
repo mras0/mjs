@@ -5,8 +5,8 @@ namespace mjs {
 static_assert(gc_type_info_registration<object>::needs_fixup);
 static_assert(!gc_type_info_registration<object>::needs_destroy);
 
-object::object(gc_heap& heap, const string& class_name, const object_ptr& prototype)
-    : heap_(heap)
+object::object(const string& class_name, const object_ptr& prototype)
+    : heap_(class_name.heap()) // A class will always have a class_name - grab heap from that
     , class_(class_name.unsafe_raw_get())
     , prototype_(prototype)
     , properties_(gc_table::make(heap_, 32))

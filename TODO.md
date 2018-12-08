@@ -21,6 +21,8 @@
     - Experiment (again) with reference counting the object and string references stored in `value`
     - Add tests ! (for `value_representation`, all the pointer types etc.)
     - Perhaps using structure of arrays instead of array of structures for `gc_type_info` could give (marginal) speed benefits
+    - Create `fancy_object` that knows how to handle e.g. `length` and interger indecis correctly
+    - Move `string_cache` to its own file and create test for `string_cache` (and weak pointers in general)
 * Finish global object
     - Date
         - mutators

@@ -349,6 +349,8 @@ function f(x) {
     // String
     test(L"String()", value{string{h, ""}});
     test(L"String('test')", value{string{h, "test"}});
+    test(L"String('test').length", value{4.0});
+    test(L"s = new String('test'); s.length = 42; s.length", value{4.0});
     test(L"''+new String()", value{string{h, ""}});
     test(L"''+new String('test')", value{string{h, "test"}});
     test(L"Object('testXX').valueOf()", value{string{h, "testXX"}});

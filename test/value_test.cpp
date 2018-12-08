@@ -64,7 +64,7 @@ void test_value() {
 void test_object() {
     gc_heap h{128};
     {
-        auto o = object::make(h, string{h, "Object"}, nullptr);
+        auto o = h.make<object>(string{h, "Object"}, nullptr);
         REQUIRE_EQ(o->property_names(), (std::vector<string>{}));
         const auto n = string{h,"test"};
         const auto n2 = string{h,"foo"};
@@ -116,7 +116,7 @@ void test_type_conversion() {
     REQUIRE(to_boolean(value{42.0}));
     REQUIRE(!to_boolean(value{string{h,""}}));
     REQUIRE(to_boolean(value{string{h,"test"}}));
-    REQUIRE(to_boolean(value{object::make(h, string{h,"Object"}, nullptr)}));
+    REQUIRE(to_boolean(value{h.make<object>(string{h,"Object"}, nullptr)}));
 
     REQUIRE_EQ(value{to_number(value::undefined)}, value{NAN});
     REQUIRE_EQ(to_number(value::null), 0);

@@ -767,18 +767,18 @@ private:
         auto callee = global_->make_raw_function();
         auto func = [this, block, param_names, prev_scope, callee, ids = hoisting_visitor::scan(*block)](const value& this_, const std::vector<value>& args) {
             // Arguments array
-            auto as = object::make(heap_, string{heap_, "Object"}, global_->object_prototype());
-            as->put(string{heap_, "callee"}, value{callee}, property_attribute::dont_enum);
-            as->put(string{heap_, "length"}, value{static_cast<double>(args.size())}, property_attribute::dont_enum);
+            auto as = heap_.make<object>(global_->common_string("Object"), global_->object_prototype());
+            as->put(global_->common_string("callee"), value{callee}, property_attribute::dont_enum);
+            as->put(global_->common_string("length"), value{static_cast<double>(args.size())}, property_attribute::dont_enum);
             for (uint32_t i = 0; i < args.size(); ++i) {
                 as->put(string{heap_, index_string(i)}, args[i], property_attribute::dont_enum);
             }
 
             // Scope
-            auto activation = object::make(heap_, string{heap_, "Activation"}, nullptr);
+            auto activation = heap_.make<object>(global_->common_string("Activation"), nullptr);
             auto_scope auto_scope_{*this, activation, prev_scope};
-            activation->put(string{heap_, "this"}, this_, property_attribute::dont_delete | property_attribute::dont_enum | property_attribute::read_only);
-            activation->put(string{heap_, "arguments"}, value{as}, property_attribute::dont_delete);
+            activation->put(global_->common_string("this"), this_, property_attribute::dont_delete | property_attribute::dont_enum | property_attribute::read_only);
+            activation->put(global_->common_string("arguments"), value{as}, property_attribute::dont_delete);
             for (size_t i = 0; i < param_names.size(); ++i) {
                 activation->put(string{heap_, param_names[i]}, i < args.size() ? args[i] : value::undefined);
             }
@@ -795,7 +795,7 @@ private:
             assert(this_.type() == value_type::undefined); (void)this_; // [[maybe_unused]] not working with MSVC here?
             assert(!id.view().empty());
             auto p = callee->get(L"prototype");
-            auto o = value{object::make(global->heap(), id, p.type() == value_type::object ? p.object_value() : global->object_prototype())};
+            auto o = value{global->heap().make<object>(id, p.type() == value_type::object ? p.object_value() : global->object_prototype())};
             auto r = callee->call_function()->call(o, args);
             return r.type() == value_type::object ? r : value{o};
         }));
