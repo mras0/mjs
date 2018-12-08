@@ -13,7 +13,7 @@ public:
     static gc_heap_ptr<global_object> make(gc_heap& h);
     virtual ~global_object() {}
 
-    virtual const object_ptr& object_prototype() const = 0;
+    virtual object_ptr object_prototype() const = 0;
     virtual object_ptr make_raw_function() = 0;
     virtual object_ptr to_object(const value& v) = 0;
 

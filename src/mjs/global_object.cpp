@@ -54,13 +54,14 @@ create_result make_object_object(global_object& global) {
     global.make_constructable(o);
 
     // §15.2.4
-    global.put_native_function(global.object_prototype(), "toString", [&h](const value& this_, const std::vector<value>&){
+    auto prototype = global.object_prototype();
+    global.put_native_function(prototype, "toString", [&h](const value& this_, const std::vector<value>&){
         return value{string{h, "[object "} + this_.object_value()->class_name() + string{h, "]"}};
     }, 0);
-    global.put_native_function(global.object_prototype(), "valueOf", [](const value& this_, const std::vector<value>&){
+    global.put_native_function(prototype, "valueOf", [](const value& this_, const std::vector<value>&){
         return this_;
     }, 0);
-    return { o, global.object_prototype() };
+    return { o, prototype };
 }
 
 //
@@ -895,15 +896,24 @@ create_result make_console_object(global_object& global) {
 class string_cache {
 public:
     explicit string_cache(gc_heap& h, uint32_t capacity) : entries_(gc_vector<entry>::make(h, capacity)) {}
+#ifdef STRING_CACHE_STATS
+    ~string_cache() {
+        std::wcout << "string_cache capcity " << entries_->capacity() << " length " << entries_->length() << "\n";
+        std::wcout << " " << hits_ << " / " << lookups_ << " (" << 100.*hits_/lookups_ << "%) hit rate avg dist: " << 1.*dist_/hits_ << "\n";
+    }
+#endif
 
-    string get(const char* name) {
+    void fixup(gc_heap& h) {
+        entries_.fixup(h);
+    }
+
+    string get(gc_heap& h, const char* name) {
         const auto hash = calc_hash(name);
 
 #ifdef STRING_CACHE_STATS
         ++lookups_;
 #endif
-        auto& h = entries_.heap();
-        auto& es = *entries_;
+        auto& es = entries_.dereference(h);
 
         // In cache already?
         for (uint32_t i = 0; i < es.length(); ++i) {
@@ -953,7 +963,7 @@ private:
             s.fixup(h);
         }
     };
-    gc_heap_ptr<gc_vector<entry>> entries_;
+    gc_heap_ptr_untracked<gc_vector<entry>> entries_;
 
 #ifdef STRING_CACHE_STATS
     uint32_t lookups_ = 0;
@@ -978,13 +988,6 @@ private:
         }
         return h;
     }
-
-#ifdef STRING_CACHE_STATS
-    ~string_cache() {
-        std::wcout << "string_cache capcity " << entries_.capacity() << " length " << entries_.length() << "\n";
-        std::wcout << " " << hits_ << " / " << lookups_ << " (" << 100.*hits_/lookups_ << "%) hit rate avg dist: " << 1.*dist_/hits_ << "\n";
-    }
-#endif
 };
 
 #ifndef STRING_CACHE_STATS
@@ -998,11 +1001,13 @@ class global_object_impl : public global_object {
 public:
     friend gc_type_info_registration<global_object_impl>;
 
-    const object_ptr& object_prototype() const override { return object_prototype_; }
+    object_ptr object_prototype() const override { return object_prototype_.track(heap()); }
 
     object_ptr make_raw_function() override {
-        auto o = heap().make<object>(function_prototype_->class_name(), function_prototype_);
-        o->put(common_string("prototype"), value{heap().make<object>(common_string("Object"), object_prototype_)}, property_attribute::dont_enum);
+        auto fp = function_prototype_.track(heap());
+        auto op = object_prototype_.track(heap());
+        auto o = heap().make<object>(fp->class_name(), fp);
+        o->put(common_string("prototype"), value{heap().make<object>(op->class_name(), op)}, property_attribute::dont_enum);
         return o;
     }
 
@@ -1016,9 +1021,9 @@ public:
                 oss << "Cannot convert " << v.type() << " to object in " << __FUNCTION__;
                 THROW_RUNTIME_ERROR(oss.str());
             }
-        case value_type::boolean: return new_boolean(boolean_prototype_, v.boolean_value());
-        case value_type::number:  return new_number(number_prototype_, v.number_value());
-        case value_type::string:  return heap().make<string_object>(string_prototype_, v.string_value());
+        case value_type::boolean: return new_boolean(boolean_prototype_.track(heap()), v.boolean_value());
+        case value_type::number:  return new_number(number_prototype_.track(heap()), v.number_value());
+        case value_type::string:  return heap().make<string_object>(string_prototype_.track(heap()), v.string_value());
         case value_type::object:  return v.object_value();
         default:
             NOT_IMPLEMENTED(v.type());
@@ -1026,18 +1031,31 @@ public:
     }
 
     virtual gc_heap_ptr<global_object> self_ptr() const override {
-        return self_;
+        return self_.track(heap());
     }
 
 private:
     string_cache string_cache_;
-    object_ptr object_prototype_;
-    object_ptr function_prototype_;
-    object_ptr array_prototype_;
-    object_ptr string_prototype_;
-    object_ptr boolean_prototype_;
-    object_ptr number_prototype_;
-    gc_heap_ptr<global_object_impl> self_;
+    gc_heap_ptr_untracked<object> object_prototype_;
+    gc_heap_ptr_untracked<object> function_prototype_;
+    gc_heap_ptr_untracked<object> array_prototype_;
+    gc_heap_ptr_untracked<object> string_prototype_;
+    gc_heap_ptr_untracked<object> boolean_prototype_;
+    gc_heap_ptr_untracked<object> number_prototype_;
+    gc_heap_ptr_untracked<global_object_impl> self_;
+
+    void fixup() {
+        auto& h = heap();
+        string_cache_.fixup(h);
+        object_prototype_.fixup(h);
+        function_prototype_.fixup(h);
+        array_prototype_.fixup(h);
+        string_prototype_.fixup(h);
+        boolean_prototype_.fixup(h);
+        number_prototype_.fixup(h);
+        self_.fixup(h);
+        global_object::fixup();
+    }
 
     object_ptr do_make_function(const native_function_type& f, const string& body_text, int named_args) override {
         auto o = make_raw_function();
@@ -1046,7 +1064,7 @@ private:
     }
 
     value array_constructor(const value&, const std::vector<value>& args) override {
-        return value{make_array(array_prototype_, args)};
+        return value{make_array(array_prototype_.track(heap()), args)};
     }
 
     //
@@ -1054,11 +1072,12 @@ private:
     //
     void popuplate_global() {
         // The object and function prototypes are special
-        object_prototype_   = heap().make<object>(string{heap(), "Object"}, nullptr);
-        function_prototype_ = heap().make<object>(common_string("Function"), object_prototype_);
+        auto obj_proto = heap().make<object>(common_string("Object"), nullptr);
+        object_prototype_   = obj_proto;
+        function_prototype_ = heap().make<object>(common_string("Function"), obj_proto);
 
          
-        auto add = [&](const char* name, auto create_func, object_ptr* prototype = nullptr) {
+        auto add = [&](const char* name, auto create_func, gc_heap_ptr_untracked<object>* prototype = nullptr) {
             auto res = create_func(*this);
             put(common_string(name), value{res.obj}, default_attributes);
             if (res.prototype) {
@@ -1072,7 +1091,7 @@ private:
 
         // §15.1
         add("Object", make_object_object, &object_prototype_);          // Resetting it..
-        add("Function", [&](auto& g) { return make_function_object(g, function_prototype_); }, &function_prototype_);    // same
+        add("Function", [&](auto& g) { return make_function_object(g, function_prototype_.track(heap())); }, &function_prototype_);    // same
         add("Array", make_array_object, &array_prototype_);
         add("String", make_string_object, &string_prototype_);
         add("Boolean", make_boolean_object, &boolean_prototype_);
@@ -1119,7 +1138,7 @@ private:
     }
 
     string common_string(const char* str) override {
-        return string_cache_.get(str);
+        return string_cache_.get(heap(), str);
     }
 
     explicit global_object_impl(gc_heap& h) : global_object(string{h, "Global"}, object_ptr{}), string_cache_(h, 16) {
