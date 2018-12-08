@@ -6,6 +6,8 @@
 
 namespace mjs {
 
+// TODO: Clean up this mess
+
 class global_object : public object {
 public:
     static gc_heap_ptr<global_object> make(gc_heap& h);
@@ -63,6 +65,13 @@ protected:
 };
 
 extern std::wstring index_string(uint32_t index);
+
+// TODO: Need better name
+struct create_result {
+    object_ptr obj;
+    object_ptr prototype;
+};
+
 
 } // namespace mjs
 
