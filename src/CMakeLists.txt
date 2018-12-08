@@ -18,12 +18,10 @@ add_library(mjs_lib STATIC
     mjs/gc_heap.cpp
     mjs/gc_heap.h
     mjs/gc_function.h
-    mjs/gc_table.cpp
-    mjs/gc_table.h
     mjs/value_representation.cpp
     mjs/value_representation.h
     mjs/property_attribute.h
-    mjs/gc_array.h
+    mjs/gc_vector.h
     )
 target_include_directories(mjs_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 add_executable(mjs mjs.cpp)

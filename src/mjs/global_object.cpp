@@ -1,6 +1,6 @@
 #include "global_object.h"
 #include "lexer.h" // get_hex_value2/4
-#include "gc_array.h"
+#include "gc_vector.h"
 #include <sstream>
 #include <chrono>
 #include <algorithm>
@@ -253,58 +253,6 @@ create_result make_array_object(global_object& global) {
 // String
 //
 
-template<typename T>
-class gc_vector {
-public:
-    explicit gc_vector(gc_heap& h, uint32_t initial_capacity) : table_(table::make(h, initial_capacity)) { assert(initial_capacity); }
-
-    gc_heap& heap() { return table_.heap(); }
-
-    uint32_t length() const { return table_->length(); }
-
-    T* data() const {
-        return table_->entries();
-    }
-
-    T& operator[](uint32_t index) {
-        assert(index < table_->length());
-        return table_->entries()[index];
-    }
-
-    void push_back(const T& e) {
-        if (table_->length() == table_->capacity()) {
-            table_ = table_->copy_with_increased_capacity();
-        }
-        table_->push_back(e);
-    }
-
-    void erase(uint32_t index) {
-        table_->erase(index);
-    }
-
-    void erase(T* elem) {
-        assert(elem >= begin() && elem < end());
-        erase(static_cast<uint32_t>(elem - begin()));
-    }
-
-    T* begin() const { return data(); }
-    T* end() const { return data() + length(); }
-
-private:
-    class table : public gc_array_base<table, T> {
-    public:
-        using gc_array_base<table, T>::make;
-        using gc_array_base<table, T>::copy_with_increased_capacity;
-        using gc_array_base<table, T>::push_back;
-        using gc_array_base<table, T>::erase;
-        using gc_array_base<table, T>::entries;
-    private:
-        friend gc_type_info_registration<table>;
-        using gc_array_base<table, T>::gc_array_base;
-    };
-    gc_heap_ptr<table> table_;
-};
-
 class native_object;
 using native_object_get_func = value (*)(const native_object&);
 using native_object_put_func = void (*)(native_object&, const value&);
@@ -312,14 +260,14 @@ using native_object_put_func = void (*)(native_object&, const value&);
 class native_object : public object {
 public:
     virtual value get(const std::wstring_view& name) const override {
-        if (auto it = find(name); it) {
+        if (auto it = find(name)) {
             return it->get(*this);
         }
         return object::get(name);
     }
 
     virtual void put(const string& name, const value& val, property_attribute attr) override {
-        if (auto it = find(name.view()); it) {
+        if (auto it = find(name.view())) {
             if (it->has_attribute(property_attribute::read_only)) {
                 return;
             }
@@ -330,7 +278,7 @@ public:
     }
 
     virtual bool can_put(const std::wstring_view& name) const override {
-        if (auto it = find(name); it) {
+        if (auto it = find(name)) {
             return !it->has_attribute(property_attribute::read_only);
         }
         return object::can_put(name);
@@ -341,7 +289,7 @@ public:
     }
 
     virtual bool delete_property(const std::wstring_view& name) override {
-        if (auto it = find(name); it) {
+        if (auto it = find(name)) {
             if (it->has_attribute(property_attribute::dont_delete)) {
                 return false;
             }
@@ -365,12 +313,12 @@ private:
             strcpy(this->name, name);
         }
     };
-    gc_vector<native_object_property> native_properties_;
+    gc_heap_ptr_untracked<gc_vector<native_object_property>> native_properties_;
 
     native_object_property* find(const char* name) const {
-        for (auto it = native_properties_.begin(), e = native_properties_.end(); it != e; ++it) {
-            if (!strcmp(it->name, name)) {
-                return it;
+        for (auto& p: native_properties_.dereference(heap())) {
+            if (!strcmp(p.name, name)) {
+                return &p;
             }
         }
         return nullptr;
@@ -393,7 +341,7 @@ private:
     }
 
     void add_property_names(std::vector<string>& names) const override {
-        for (const auto& p: native_properties_) {
+        for (const auto& p: native_properties_.dereference(heap())) {
             if (!p.has_attribute(property_attribute::dont_enum)) {
                 names.emplace_back(heap(), p.name);
             }
@@ -402,13 +350,18 @@ private:
     }
 
 protected:
-    explicit native_object(const string& class_name, const object_ptr& prototype) : object(class_name, prototype), native_properties_(heap(), 16) {
+    explicit native_object(const string& class_name, const object_ptr& prototype) : object(class_name, prototype), native_properties_(gc_vector<native_object_property>::make(heap(), 16)) {
     }
 
     void add_native_property(const char* name, property_attribute attributes, native_object_get_func get, native_object_put_func put) {
         assert(find(name) == nullptr);
         assert(((attributes & property_attribute::read_only) != property_attribute::none) == !put);
-        native_properties_.push_back(native_object_property(name, attributes, get, put));
+        native_properties_.dereference(heap()).push_back(native_object_property(name, attributes, get, put));
+    }
+
+    void fixup() {
+        native_properties_.fixup(heap());
+        object::fixup();
     }
 };
 
@@ -1212,69 +1165,69 @@ create_result make_console_object(global_object& global) {
 
 //#define STRING_CACHE_STATS
 
-struct string_cache_entry {
-    uint32_t hash;
-    gc_heap_weak_ptr_untracked<gc_string> s;
-};
-
-class string_cache : public gc_array_base<string_cache, string_cache_entry> {
+class string_cache {
 public:
-    friend gc_type_info_registration<string_cache>;
-
-    using gc_array_base::make;
+    explicit string_cache(gc_heap& h, uint32_t capacity) : entries_(gc_vector<entry>::make(h, capacity)) {}
 
     string get(const char* name) {
         const auto hash = calc_hash(name);
-        auto e = entries();
 
 #ifdef STRING_CACHE_STATS
         ++lookups_;
 #endif
-        auto& h = heap();
+        auto& h = entries_.heap();
+        auto& es = *entries_;
 
         // In cache already?
-        for (uint32_t i = 0; i < length(); ++i) {
+        for (uint32_t i = 0; i < es.length(); ++i) {
             // Check if we encounterd an "lost" weak pointer (only happens first time after a garbage collection)
-            if (!e[i].s) {
+            if (!es[i].s) {
                 // Debugging note: Decrease the size of the cache to force this branch to occur (and increase rate of garbage collection)
-                erase(i);
+                es.erase(i);
                 --i; // Redo this one
                 continue;
             }
 
-            if (e[i].hash == hash && string_equal(name, e[i].s.dereference(h).view())) {
+            if (es[i].hash == hash && string_equal(name, es[i].s.dereference(h).view())) {
 #ifdef STRING_CACHE_STATS
                 ++hits_;
                 dist_ += i;
 #endif
                 // Move first
                 for (; i; --i) {
-                    std::swap(e[i], e[i-1]);
+                    std::swap(es[i], es[i-1]);
                 }
-                return e[0].s.track(h);
+                return es[0].s.track(h);
             }
         }
 
-        // No. Move all entries up and insert
-
-        if (length() < capacity()) {
-            length(length()+1);
-        }
-
-        for (uint32_t i = length(); --i; ) {
-            e[i] = e[i-1];
-        }
-
-
-        // Insert
+        // No. Move existing entries up
         string s{h, name};
-        e[0].hash = hash;
-        e[0].s = s.unsafe_raw_get(); 
+
+        if (es.length() < es.capacity()) {
+            es.push_back(entry{0, nullptr});
+        }
+
+        for (uint32_t i = es.length(); --i; ) {
+            es[i] = es[i-1];
+        }
+
+        es[0] = { hash, s.unsafe_raw_get() };
 
         return s;
     }
 
 private:
+    struct entry {
+        uint32_t hash;
+        gc_heap_weak_ptr_untracked<gc_string> s;
+
+        void fixup(gc_heap& h) {
+            s.fixup(h);
+        }
+    };
+    gc_heap_ptr<gc_vector<entry>> entries_;
+
 #ifdef STRING_CACHE_STATS
     uint32_t lookups_ = 0;
     uint32_t hits_    = 0;
@@ -1299,28 +1252,18 @@ private:
         return h;
     }
 
-    using gc_array_base::gc_array_base;
-
 #ifdef STRING_CACHE_STATS
     ~string_cache() {
-        std::wcout << "string_cache capcity " << capacity() << " length " << length() << "\n";
+        std::wcout << "string_cache capcity " << entries_.capacity() << " length " << entries_.length() << "\n";
         std::wcout << " " << hits_ << " / " << lookups_ << " (" << 100.*hits_/lookups_ << "%) hit rate avg dist: " << 1.*dist_/hits_ << "\n";
     }
 #endif
-
-    void fixup() {
-        auto e = entries();
-        auto& h = heap();
-        for (uint32_t i = 0, l = length(); i < l; ++i) {
-            e[i].s.fixup(h);
-        }
-    }
 };
 
 #ifndef STRING_CACHE_STATS
-static_assert(!gc_type_info_registration<string_cache>::needs_destroy);
+//static_assert(!gc_type_info_registration<string_cache>::needs_destroy); // FIXME
 #endif
-static_assert(gc_type_info_registration<string_cache>::needs_fixup);
+static_assert(!gc_type_info_registration<string_cache>::needs_fixup);
 
 } // unnamed namespace
 
@@ -1360,7 +1303,7 @@ public:
     }
 
 private:
-    gc_heap_ptr<string_cache> string_cache_;
+    string_cache string_cache_;
     object_ptr object_prototype_;
     object_ptr function_prototype_;
     object_ptr array_prototype_;
@@ -1456,10 +1399,10 @@ private:
     }
 
     string common_string(const char* str) override {
-        return string_cache_->get(str);
+        return string_cache_.get(str);
     }
 
-    explicit global_object_impl(gc_heap& h) : global_object(string{h, "Global"}, object_ptr{}), string_cache_(string_cache::make(h, 16)) {
+    explicit global_object_impl(gc_heap& h) : global_object(string{h, "Global"}, object_ptr{}), string_cache_(h, 16) {
     }
 
     global_object_impl(global_object_impl&& other) = default;

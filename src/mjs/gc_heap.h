@@ -374,6 +374,7 @@ class gc_heap_ptr_untracked {
     //       NOTE: this will probably make gc_table have a non-trivial destructor, so will need global flag/define
 public:
     gc_heap_ptr_untracked() : pos_(0) {}
+    gc_heap_ptr_untracked(std::nullptr_t) : pos_(0) {}
     gc_heap_ptr_untracked(const gc_heap_ptr<T>& p) : pos_(p.pos_) {}
     gc_heap_ptr_untracked(const gc_heap_ptr_untracked&) = default;
     gc_heap_ptr_untracked& operator=(const gc_heap_ptr_untracked&) = default;

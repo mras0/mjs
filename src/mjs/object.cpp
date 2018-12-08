@@ -9,7 +9,7 @@ object::object(const string& class_name, const object_ptr& prototype)
     : heap_(class_name.heap()) // A class will always have a class_name - grab heap from that
     , class_(class_name.unsafe_raw_get())
     , prototype_(prototype)
-    , properties_(gc_table::make(heap_, 32))
+    , properties_(gc_vector<property>::make(heap_, 32))
     , value_(value::undefined) {
 }
 
@@ -30,10 +30,9 @@ std::vector<string> object::property_names() const {
 }
 
 void object::add_property_names(std::vector<string>& names) const {
-    auto& props = properties_.dereference(heap_);
-    for (auto it = props.begin(); it != props.end(); ++it) {
-        if (!it.has_attribute(property_attribute::dont_enum)) {
-            names.push_back(it.key());
+    for (auto& p : properties_.dereference(heap_)) { 
+        if (!p.has_attribute(property_attribute::dont_enum)) {
+            names.push_back(p.key.track(heap_));
         }
     }
     if (prototype_) {
@@ -53,13 +52,9 @@ void object::debug_print(std::wostream& os, int indent_incr, int max_nest, int i
         os << "\n";
     };
     os << "{\n";
-    auto& props = properties_.dereference(heap_);
-    for (auto it = props.begin(); it != props.end(); ++it) {
-        if (it.key()->view() == L"constructor") {
-            print_prop(it.key()->view(), it.value(), true);
-        } else {
-            print_prop(it.key()->view(), it.value(), false);
-        }
+    for (auto& p: properties_.dereference(heap_)) {
+        const auto key = p.key.dereference(heap_).view();
+        print_prop(key, p.value.get_value(heap_), key == L"constructor");
     }
     print_prop("[[Class]]", class_name(), true);
     print_prop("[[Prototype]]", prototype_ ? value{prototype_.track(heap())} : value::null, true);

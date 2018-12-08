@@ -1,8 +1,9 @@
 #ifndef MJS_OBJECT_H
 #define MJS_OBJECT_H
 
-#include "value.h"
-#include "gc_table.h"
+#include "value_representation.h"
+#include "property_attribute.h"
+#include "gc_vector.h"
 #include "gc_function.h"
 
 namespace mjs {
@@ -42,64 +43,52 @@ public:
 
     // [[Get]] (PropertyName)
     virtual value get(const std::wstring_view& name) const {
-        auto [it, pp] = deep_find(name);
-        return it != pp->end() ? it.value() : value::undefined;
+        auto it = deep_find(name).first;
+        return it ? it->value.get_value(heap_) : value::undefined;
     }
 
     // [[Put]] (PropertyName, Value)
     virtual void put(const string& name, const value& val, property_attribute attr = property_attribute::none) {
         // See if there is already a property with this name
         auto& props = properties_.dereference(heap_);
-        if (auto [it, pp] = deep_find(name.view()); it != pp->end()) {
+        if (auto [it, pp] = deep_find(name.view()); it) {
             // CanPut?
-            if (it.has_attribute(property_attribute::read_only)) {
+            if (it->has_attribute(property_attribute::read_only)) {
                 return;
             }
             // Did the property come from this object's property list?
             if (pp == &props) {
                 // Yes, update
-                it.value(val);
+                it->value = value_representation{val};
                 return;
             }
             // Handle as insertion
         }
-        // Room to insert another element?
-        if (props.length() != props.capacity()) {
-            // Yes, insert into existing table
-            props.insert(name, val, attr);
-        } else {
-            // No, increase the capacity
-            properties_ = props.copy_with_increased_capacity();
-            // let props (old properties_) be collected
-            // MUST dereference again here
-            properties_.dereference(heap_).insert(name, val, attr);
-        }
+        props.emplace_back(name, val, attr);
     }
 
     // [[CanPut]] (PropertyName)
     virtual bool can_put(const std::wstring_view& name) const {
-        auto [it, pp] = deep_find(name);
-        return it != pp->end() ? !it.has_attribute(property_attribute::read_only) : true;
+        auto it = deep_find(name).first;
+        return it ? !it->has_attribute(property_attribute::read_only) : true;
     }
 
     // [[HasProperty]] (PropertyName)
     virtual bool has_property(const std::wstring_view& name) const {
-        auto [it, pp] = deep_find(name);
-        return it != pp->end();
+        return deep_find(name).first;
     }
 
     // [[Delete]] (PropertyName)
     virtual bool delete_property(const std::wstring_view& name) {
-        auto& props = properties_.dereference(heap_);
-        auto it = props.find(name);
-        if (it == props.end()) {
+        auto it = find(name);
+        if (!it) {
             return true;
 
         }
-        if (it.has_attribute(property_attribute::dont_delete)) {
+        if (it->has_attribute(property_attribute::dont_delete)) {
             return false;
         }
-        it.erase();
+        properties_.dereference(heap_).erase(it);
         return true;
     }
 
@@ -127,18 +116,44 @@ protected:
     virtual void add_property_names(std::vector<string>& names) const;
 
 private:
-    gc_heap& heap_;
-    gc_heap_ptr_untracked<gc_string>    class_;
-    gc_heap_ptr_untracked<object>       prototype_;
-    gc_heap_ptr_untracked<gc_function>  construct_;
-    gc_heap_ptr_untracked<gc_function>  call_;
-    gc_heap_ptr_untracked<gc_table>     properties_;
-    value_representation                value_;
+    struct property {
+        gc_heap_ptr_untracked<gc_string> key;
+        property_attribute               attributes;
+        value_representation             value;
 
-    std::pair<gc_table::entry, gc_table*> deep_find(const std::wstring_view& key) const {
-        auto& props = properties_.dereference(heap_);
-        auto it = props.find(key);
-        return it != props.end() || !prototype_ ? std::make_pair(it, &props) : prototype_.dereference(heap_).deep_find(key);
+        explicit property(const string& key, const mjs::value& v, property_attribute attr) : key(key.unsafe_raw_get()), attributes(attr), value(v) {}
+
+        void fixup(gc_heap& h) {
+            key.fixup(h);
+            value.fixup(h);
+        }
+
+        bool has_attribute(property_attribute a) const {
+            return (attributes & a) == a;
+        }
+    };
+
+
+    gc_heap&                                   heap_;
+    gc_heap_ptr_untracked<gc_string>           class_;
+    gc_heap_ptr_untracked<object>              prototype_;
+    gc_heap_ptr_untracked<gc_function>         construct_;
+    gc_heap_ptr_untracked<gc_function>         call_;
+    gc_heap_ptr_untracked<gc_vector<property>> properties_;
+    value_representation                       value_;
+
+    property* find(const std::wstring_view& key) const {
+        for (auto& p: properties_.dereference(heap_)) {
+            if (p.key.dereference(heap_).view() == key) {
+                return &p;
+            }
+        }
+        return nullptr;
+    }
+
+    std::pair<property*, gc_vector<property>*> deep_find(const std::wstring_view& key) const {
+        auto it = find(key);
+        return it || !prototype_ ? std::make_pair(it, &properties_.dereference(heap_)) : prototype_.dereference(heap_).deep_find(key);
     }
 };
 
