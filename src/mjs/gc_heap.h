@@ -189,6 +189,8 @@ public:
     void debug_print(std::wostream& os) const;
     uint32_t calc_used() const;
 
+    int use_percentage() const { return static_cast<int>(next_free_ * 100ULL / capacity_); }
+
     void garbage_collect();
 
     template<typename T, typename... Args>

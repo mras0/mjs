@@ -177,6 +177,15 @@ public:
     }
 
     completion eval(const statement& s) {
+        if (!gc_cooldown_) {
+            if (heap_.use_percentage() > 90) {
+                heap_.garbage_collect();
+                gc_cooldown_ = 1000; // Arbitrary, but avoid collecting all the time when close to full
+            }
+        } else {
+            --gc_cooldown_;
+        }
+
         if (on_statement_executed_) {
             auto res = accept(s, *this);
             on_statement_executed_(s, res);
@@ -715,6 +724,7 @@ private:
     gc_heap_ptr<global_object>     global_;
     on_statement_executed_type     on_statement_executed_;
     std::vector<source_extend>     stack_trace_;
+    int                            gc_cooldown_ = 0;
 
     static scope_ptr make_scope(const object_ptr& act, const scope_ptr& prev) {
         return act.heap().make<scope>(act, prev);

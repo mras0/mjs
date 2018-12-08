@@ -879,7 +879,7 @@ create_result make_console_object(global_object& global) {
             woss << "Timer not found: " << label;
             THROW_RUNTIME_ERROR(woss.str());
         }
-        std::wcout << "timeEnd " << label << ": " << show_duration(end_time - it->second) << "\n";
+        std::wcout << label << ": " << show_duration(end_time - it->second) << "\n";
         timers->erase(it);
         return value::undefined;
     }, 1);
