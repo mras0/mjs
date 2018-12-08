@@ -22,7 +22,8 @@
     - Add tests ! (for `value_representation`, all the pointer types etc.)
     - Perhaps using structure of arrays instead of array of structures for `gc_type_info` could give (marginal) speed benefits
     - Move `string_cache` to its own file and create test for `string_cache` (and weak pointers in general)
-    - Consider making gc_table available for geenral use (e.g. by string_cache)
+    - Consider making `gc_table` available for geenral use (e.g. by `string_cache`)
+    - Have `native_object::add_native_property` take the name as a no-type template parameter and do some constexpr stuff (or something)
 * Finish global object
     - Date
         - mutators

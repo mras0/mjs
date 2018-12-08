@@ -339,6 +339,11 @@ public:
         return const_cast<void*>(static_cast<const void*>(&heap_->storage_[pos_]));
     }
 
+    template<typename T>
+    bool has_type() const {
+        return pos_ && heap_->storage_[pos_-1].allocation.type == gc_type_info_registration<T>::index();
+    }
+
 protected:
     explicit gc_heap_ptr_untyped(gc_heap& heap, uint32_t pos) : heap_(&heap), pos_(pos) {
         heap_->attach(*this);

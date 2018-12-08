@@ -1,6 +1,7 @@
 #include "interpreter.h"
 #include "parser.h"
 #include "global_object.h"
+#include "native_object.h"
 
 #include <sstream>
 #include <algorithm>
@@ -89,6 +90,39 @@ private:
     explicit hoisting_visitor() {}
     std::vector<std::wstring> ids_;
 };
+
+class activation_object : public native_object {
+public:
+    object_ptr arguments() const { return arguments_.track(heap()); }
+
+private:
+    friend gc_type_info_registration<activation_object>;
+    gc_heap_ptr_untracked<object> arguments_;
+
+    explicit activation_object(global_object& global, const std::vector<std::wstring>& param_names, const std::vector<value>& args) : native_object(global.common_string("Activation"), global.object_prototype()) {
+        // Arguments array
+        auto as = heap().make<object>(global.common_string("Object"), global.object_prototype());
+        arguments_ = as;
+        as->put(global.common_string("length"), value{static_cast<double>(args.size())}, property_attribute::dont_enum);
+        for (uint32_t i = 0; i < args.size(); ++i) {
+            as->put(string{heap(), index_string(i)}, args[i], property_attribute::dont_enum);
+        }
+
+        put(global.common_string("arguments"), value{as}, property_attribute::dont_delete);
+
+        // Parameters
+        for (size_t i = 0; i < param_names.size(); ++i) {
+            put(string{heap(), param_names[i]}, i < args.size() ? args[i] : value::undefined, property_attribute::dont_delete);
+        }
+    }
+
+    void fixup() {
+        arguments_.fixup(heap());
+        native_object::fixup();
+    }
+};
+
+
 
 static std::string get_eval_exception_repr(const std::vector<source_extend>& stack_trace, const std::wstring_view& msg) {
     std::ostringstream oss;
@@ -229,7 +263,7 @@ public:
         }
         auto this_ = value::null;
         if (member.type() == value_type::reference) {
-            if (auto o = member.reference_value().base(); o->class_name().view() != L"Activation") {  // TODO: Have better way of checking for Activation object
+            if (auto o = member.reference_value().base(); !o.has_type<activation_object>()) {
                 this_ = value{o};
             }
         }
@@ -776,27 +810,16 @@ private:
         // §15.3.2.1
         auto callee = global_->make_raw_function();
         auto func = [this, block, param_names, prev_scope, callee, ids = hoisting_visitor::scan(*block)](const value& this_, const std::vector<value>& args) {
-            // Arguments array
-            auto as = heap_.make<object>(global_->common_string("Object"), global_->object_prototype());
-            as->put(global_->common_string("callee"), value{callee}, property_attribute::dont_enum);
-            as->put(global_->common_string("length"), value{static_cast<double>(args.size())}, property_attribute::dont_enum);
-            for (uint32_t i = 0; i < args.size(); ++i) {
-                as->put(string{heap_, index_string(i)}, args[i], property_attribute::dont_enum);
-            }
-
             // Scope
-            auto activation = heap_.make<object>(global_->common_string("Activation"), nullptr);
-            auto_scope auto_scope_{*this, activation, prev_scope};
+            auto activation = heap_.make<activation_object>(*global_, param_names, args);
             activation->put(global_->common_string("this"), this_, property_attribute::dont_delete | property_attribute::dont_enum | property_attribute::read_only);
-            activation->put(global_->common_string("arguments"), value{as}, property_attribute::dont_delete);
-            for (size_t i = 0; i < param_names.size(); ++i) {
-                activation->put(string{heap_, param_names[i]}, i < args.size() ? args[i] : value::undefined);
-            }
+            activation->arguments()->put(global_->common_string("callee"), value{callee}, property_attribute::dont_enum);
             // Variables
             for (const auto& id: ids) {
                 assert(!activation->has_property(id)); // TODO: Handle this..
-                activation->put(string{heap_, id}, value::undefined);
+                activation->put(string{heap_, id}, value::undefined, property_attribute::dont_delete);
             }
+            auto_scope auto_scope_{*this, activation, prev_scope};
             return eval(*block).result;
         };
         global_->put_function(callee, gc_function::make(heap_, func), string{heap_, L"function " + std::wstring{id.view()} + body_text}, static_cast<int>(param_names.size()));

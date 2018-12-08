@@ -464,6 +464,26 @@ a = new Array(); a[4294967296]=1; a.length //$number 0
     test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; s.foo", value::undefined);
     test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; s.prototype.prop", value::undefined);
     test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; s.prototype.foo", value{string{h, "bar"}});
+
+    /* FIXME !!!
+    // Test arguments
+    RUN_TEST_SPEC(R"(
+function evil(x, y) {
+    arguments.length; //$ number 2
+    arguments[0]; //$number 12
+    arguments[1]; //$number 34
+    x; //$number 12
+    y; //$number 34
+    arguments[0] = 56;
+    y = 78;
+    arguments[0]; //$number 56
+    arguments[1]; //$number 78
+    x; //$number 56
+    y; //$number 78
+}
+evil(12, 34);
+)");
+*/
 }
 
 void test_global_functions() {
