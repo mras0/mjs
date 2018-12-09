@@ -240,11 +240,32 @@ private:
         //  this
         //  Identifier
         //  Literal
+        //  ArrayLiteral
+        //  ObjectLiteral
         //  ( Expression )
         if (auto id = accept(token_type::identifier)) {
             return make_expression<identifier_expression>(id.text());
         } else if (accept(token_type::this_)) {
             return make_expression<identifier_expression>(std::wstring{L"this"});
+        } else if (version_ >= version::es3 && accept(token_type::lbracket)) {
+            // ArrayLiteral
+            std::vector<expression_ptr> elements;
+            bool last_was_assignment_expression = false;
+            while (!accept(token_type::rbracket)) {
+                if (accept(token_type::comma)) {
+                    if (!last_was_assignment_expression) {
+                        elements.push_back(nullptr);
+                    }
+                    last_was_assignment_expression = false;
+                } else {
+                    if (last_was_assignment_expression) {
+                        EXPECT(token_type::comma);
+                    }
+                    elements.push_back(parse_assignment_expression());
+                    last_was_assignment_expression = true;
+                }
+            }
+            return make_expression<array_literal_expression>(std::move(elements));
         } else if (accept(token_type::lparen)) {
             auto e = parse_expression();
             EXPECT(token_type::rparen);

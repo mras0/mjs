@@ -47,7 +47,7 @@ struct source_extend {
     bool operator==(const source_extend& rhs) const {
         return file == rhs.file && start == rhs.start && end == rhs.end;
     }
- 
+
     bool operator!=(const source_extend& rhs) const {
         return !(*this == rhs);
     }
@@ -90,6 +90,8 @@ private:
 enum class expression_type {
     identifier,
     literal,
+    array_literal,
+    //object_literal,
     call,
     prefix,
     postfix,
@@ -167,6 +169,28 @@ private:
 
     void print(std::wostream& os) const override {
         os << "literal_expression{" << t_ << "}";
+    }
+};
+
+class array_literal_expression : public expression {
+public:
+    explicit array_literal_expression(const source_extend& extend, std::vector<expression_ptr>&& elements) : expression(extend), elements_(std::move(elements)) {
+    }
+
+    expression_type type() const override { return expression_type::array_literal; }
+
+    const std::vector<expression_ptr>& elements() const { return elements_; }
+
+private:
+    std::vector<expression_ptr> elements_;
+
+    void print(std::wostream& os) const override {
+        os << "array_literal_expression{";
+        for (size_t i = 0; i < elements_.size(); ++i) {
+            if (i) os << ", ";
+            if (elements_[i]) os << *elements_[i];
+        }
+        os << "}";
     }
 };
 
@@ -286,13 +310,14 @@ private:
 template<typename Visitor>
 auto accept(const expression& e, Visitor& v) {
     switch (e.type()) {
-    case expression_type::identifier: return v(static_cast<const identifier_expression&>(e));
-    case expression_type::literal:    return v(static_cast<const literal_expression&>(e));
-    case expression_type::call:       return v(static_cast<const call_expression&>(e));
-    case expression_type::prefix:     return v(static_cast<const prefix_expression&>(e));
-    case expression_type::postfix:    return v(static_cast<const postfix_expression&>(e));
-    case expression_type::binary:     return v(static_cast<const binary_expression&>(e));
-    case expression_type::conditional:return v(static_cast<const conditional_expression&>(e));
+    case expression_type::identifier:       return v(static_cast<const identifier_expression&>(e));
+    case expression_type::literal:          return v(static_cast<const literal_expression&>(e));
+    case expression_type::array_literal:    return v(static_cast<const array_literal_expression&>(e));
+    case expression_type::call:             return v(static_cast<const call_expression&>(e));
+    case expression_type::prefix:           return v(static_cast<const prefix_expression&>(e));
+    case expression_type::postfix:          return v(static_cast<const postfix_expression&>(e));
+    case expression_type::binary:           return v(static_cast<const binary_expression&>(e));
+    case expression_type::conditional:      return v(static_cast<const conditional_expression&>(e));
     }
     assert(!"Not implemented");
     return v(e);

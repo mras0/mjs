@@ -14,6 +14,7 @@ public:
     virtual ~global_object() {}
 
     virtual object_ptr object_prototype() const = 0;
+    virtual object_ptr array_prototype() const = 0;
     virtual object_ptr make_raw_function() = 0;
     virtual object_ptr to_object(const value& v) = 0;
 
@@ -24,7 +25,6 @@ public:
     static constexpr auto default_attributes = property_attribute::dont_enum;
 
     virtual void put_function(const object_ptr& o, const native_function_type& f, const string& body_text, int named_args) = 0;
-    virtual value array_constructor(const value&, const std::vector<value>& args) = 0; // FIXME: String.split() needs this
     virtual gc_heap_ptr<global_object> self_ptr() const = 0; // FIXME: Remove need for this
 
     template<typename F>

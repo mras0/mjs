@@ -4,23 +4,6 @@
 #include <vector>
 #include <sstream>
 
-namespace mjs {
-bool operator==(const token& l, const token& r) {
-    if (l.type() != r.type()) {
-        return false;
-    } else if (l.has_text()) {
-        return l.text() == r.text();
-    } else if (l.type() == token_type::numeric_literal) {
-        return l.dvalue() == r.dvalue();
-    }
-    return true;
-}
-
-bool operator!=(const token& l, const token& r) {
-    return !(l == r);
-}
-}
-
 using namespace mjs;
 
 version lexer_version = default_version;

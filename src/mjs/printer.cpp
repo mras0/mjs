@@ -29,6 +29,19 @@ public:
             NOT_IMPLEMENTED(e);
         }
     }
+
+    void operator()(const array_literal_expression& e) {
+        os_ << '[';
+        const auto& es = e.elements();
+        for (size_t i = 0; i < es.size(); ++i) {
+            os_ << (i ? ", " : "");
+            if (es[i]) {
+                accept(*es[i], *this);
+            }
+        }
+        os_ << ']';
+    }
+
     void operator()(const call_expression& e) {
         accept(e.member(), *this);
         os_ << '(';

@@ -10,7 +10,7 @@
 #include <mjs/version.h>
 
 #define REQUIRE_EQ(l, r) do { auto _l = l; auto _r = r; if (_l != _r) { std::wcerr << __func__ << " in " << __FILE__ << ":" << __LINE__ << ":\n" << #l << " != " << #r << "\n" << _l << " != " << _r << "\n"; std::abort(); } } while (0)
-#define REQUIRE(e) REQUIRE_EQ(e, true)
+#define REQUIRE(e) REQUIRE_EQ(!!e, true)
 
 template<typename CharT, typename T>
 std::basic_ostream<CharT>& operator<<(std::basic_ostream<CharT>& os, const std::vector<T>& v) {
@@ -27,10 +27,22 @@ std::basic_ostream<CharT>& operator<<(std::basic_ostream<CharT>& os, const mjs::
     return os;
 }
 
-
 extern mjs::version parser_version;
 
 extern void run_test(const std::wstring_view& text, const mjs::value& expected);
+
+
+namespace mjs {
+
+class token;
+bool operator==(const token& l, const token& r);
+
+inline bool operator!=(const token& l, const token& r) {
+    return !(l == r);
+}
+
+} // namespace mjs
+
 
 
 #endif

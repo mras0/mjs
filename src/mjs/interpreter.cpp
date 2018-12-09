@@ -2,6 +2,8 @@
 #include "parser.h"
 #include "global_object.h"
 #include "native_object.h"
+#include "array_object.h"
+#include "printer.h"
 
 #include <sstream>
 #include <algorithm>
@@ -305,6 +307,20 @@ public:
         }
     }
 
+    value operator()(const array_literal_expression& e) {
+        auto a = make_array(global_->array_prototype(), {});
+        const auto& es = e.elements();
+        for (unsigned i = 0; i < es.size(); ++i) {
+            if (es[i]) {
+                auto val = get_value(eval(*es[i]));
+                a->put(string{heap_, index_string(i)}, val);
+            } else {
+                a->put(string{heap_, index_string(i)}, value::undefined);
+            }
+        }
+        return value{a};
+    }
+
     value operator()(const call_expression& e) {
         auto member = eval(e.member());
         auto mval = get_value(member);
@@ -566,7 +582,9 @@ public:
     }
 
     value operator()(const expression& e) {
-        NOT_IMPLEMENTED(e);
+        std::wostringstream woss;
+        print(woss, e);
+        NOT_IMPLEMENTED(woss.str());
     }
 
     //
@@ -730,7 +748,9 @@ public:
     }
 
     completion operator()(const statement& s) {
-        NOT_IMPLEMENTED(s);
+        std::wostringstream woss;
+        print(woss, s);
+        NOT_IMPLEMENTED(woss.str());
     }
 
 private:

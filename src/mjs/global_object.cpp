@@ -179,7 +179,7 @@ create_result make_string_object(global_object& global) {
 
     make_string_function("split", 1, [global = global.self_ptr()](const std::wstring_view& s, const std::vector<value>& args){
         auto& h = global->heap();
-        auto a = global->array_constructor(value::null, {}).object_value();
+        auto a = make_array(global->array_prototype(), {});
         if (args.empty()) {
             a->put(string{h, index_string(0)}, value{string{h, s}});
         } else {
@@ -1002,6 +1002,7 @@ public:
     friend gc_type_info_registration<global_object_impl>;
 
     object_ptr object_prototype() const override { return object_prototype_.track(heap()); }
+    object_ptr array_prototype() const override { return array_prototype_.track(heap()); }
 
     object_ptr make_raw_function() override {
         auto fp = function_prototype_.track(heap());
@@ -1061,10 +1062,6 @@ private:
         auto o = make_raw_function();
         put_function(o, f, body_text, named_args);
         return o;
-    }
-
-    value array_constructor(const value&, const std::vector<value>& args) override {
-        return value{make_array(array_prototype_.track(heap()), args)};
     }
 
     //

@@ -169,8 +169,8 @@ create_result make_array_object(global_object& global) {
     auto Array_str_ = global.common_string("Array");
     auto prototype = array_object::make(Array_str_, global.object_prototype(), 0);
 
-    auto c = global.make_function([global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
-        return global->array_constructor(this_, args);
+    auto c = global.make_function([prototype](const value&, const std::vector<value>& args) {
+        return value{make_array(prototype, args)};
     }, global.native_function_body(Array_str_), 1);
     global.make_constructable(c);
 
