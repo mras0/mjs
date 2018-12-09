@@ -1,31 +1,14 @@
 #include <sstream>
 #include <string>
 #include <iostream>
-#include <cstdlib>
 #include <cmath>
 
 #include <mjs/value.h>
 #include <mjs/object.h>
 #include <mjs/gc_heap.h>
-
-#define REQUIRE_EQ(l, r) do { auto _l = l; auto _r = r; if (_l != _r) { std::wcerr << __FILE__ << ":" << __LINE__ << #l << " != " << #r << ": " << _l << " != " << _r << "\n"; std::abort(); } } while (0)
-#define REQUIRE(e) REQUIRE_EQ(e, true)
+#include "test.h"
 
 using namespace mjs;
-
-template<typename CharT, typename T>
-std::basic_ostream<CharT>& operator<<(std::basic_ostream<CharT>& os, const std::vector<T>& v) {
-    os << "{";
-    for (size_t i = 0; i < v.size(); ++i) {
-        os << (i ? ", " : "") << v[i];
-    }
-    return os << "}";
-}
-
-std::wostream& operator<<(std::wostream& os, const value& v) {
-    debug_print(os, v, 4);
-    return os;
-}
 
 void test_value() {
     REQUIRE_EQ(value::undefined.type(), value_type::undefined);

@@ -363,6 +363,26 @@ unsigned get_hex_value4(const wchar_t* s) {
     return get_hex_value(s[0])<<12 | get_hex_value(s[1])<<8 | get_hex_value(s[2])<<4 | get_hex_value(s[3]);
 }
 
+// Returns decimal value of 'ch' or UINT_MAX on error
+unsigned try_get_decimal_value(int ch) {
+    if (ch >= '0' && ch <= '9') return ch - '0';
+    return UINT_MAX;
+}
+
+std::pair<wchar_t, size_t> get_octal_escape_sequence(const std::wstring_view& text, size_t pos) {
+    auto value = try_get_decimal_value(text[pos]);
+    assert(value < 8);
+    const size_t max_len = value < 4 ? 3 : 2;
+    size_t len = 1;
+    for (; len < max_len && pos+len < text.size(); ++len) {
+        const auto this_digit = try_get_decimal_value(text[pos+len]);
+        if (this_digit > 7) {
+            break;
+        }
+        value = value*8 + this_digit;
+    }
+    return { static_cast<wchar_t>(value), len };
+}
 
 void lexer::next_token() {
     if (text_pos_ < text_.size()) {
@@ -391,6 +411,26 @@ void lexer::next_token() {
                     case 'n': s.push_back('\n'); break;
                     case 'r': s.push_back('\r'); break;
                     case 't': s.push_back('\t'); break;
+                        // HexEscapeSeqeunce
+                    case 'x': case 'X':
+                        ++token_end;
+                        if (token_end + 2 >= text_.size()) {
+                            throw std::runtime_error("Invalid hex escape sequence");
+                        }
+                        s.push_back(static_cast<wchar_t>(get_hex_value2(&text_[token_end])));
+                        token_end += 1; // Incremented in loop
+                        break;
+                        // OctalEscapeSequence
+                    case '0': case '1': case '2': case '3':
+                    case '4': case '5': case '6': case '7':
+                        {
+                            const auto [och, len] =  get_octal_escape_sequence(text_, token_end);
+                            token_end += len-1; // Incremented in loop
+                            s.push_back(static_cast<wchar_t>(och));
+                            break;
+                        }
+                        break;
+                        // UnicodeEscapeSequence
                     case 'u': case 'U':
                         ++token_end;
                         if (token_end + 4 >= text_.size()) {

@@ -2,6 +2,7 @@
     - Use `wstring_view` for token text (it's kept alive by the `source_file`)
     - Better handling of e.g. number literals..
     - Missing stuff?
+    - Add more test cases...
 * Parser
     - Create `parse_test` (and move `test_semicolon_insertion` from interpreter test)
     - Test `source_extend` logic (could probably be more precise for expressions/statements)

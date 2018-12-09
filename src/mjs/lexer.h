@@ -169,6 +169,9 @@ public:
     friend std::ostream& operator<<(std::ostream& os, const token& t);
     friend std::wostream& operator<<(std::wostream& os, const token& t);
 
+    bool has_text() const {
+        return type_ == token_type::identifier || type_ == token_type::string_literal;
+    }
 private:
     token_type type_;
     union {
@@ -181,10 +184,6 @@ private:
         if (has_text()) {
             text_.~basic_string();
         }
-    }
-
-    bool has_text() const {
-        return type_ == token_type::identifier || type_ == token_type::string_literal;
     }
 };
 
