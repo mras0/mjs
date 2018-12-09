@@ -4,8 +4,8 @@
     - Missing stuff?
     - Add more test cases...
 * Parser
-    - Create `parse_test` (and move `test_semicolon_insertion` from interpreter test)
     - Test `source_extend` logic (could probably be more precise for expressions/statements)
+    - More tests...
 * Better GC
     - Ensure exception safety
     - Support growing the heap (and support growing it as needed)

@@ -1,4 +1,5 @@
 #include "test_spec.h"
+#include "test.h" // for parser_version
 #include <mjs/parser.h>
 #include <mjs/interpreter.h>
 #include <mjs/printer.h>
@@ -203,7 +204,7 @@ void run_test_spec(const std::string_view& source_text, const std::string_view& 
             throw std::runtime_error("Invalid test spec." + std::string(name) + ": No specs found");
         }
 
-        auto bs = parse(std::make_shared<source_file>(std::wstring(name.begin(), name.end()), std::wstring(source_text.begin(), source_text.end())));
+        auto bs = parse(std::make_shared<source_file>(std::wstring(name.begin(), name.end()), std::wstring(source_text.begin(), source_text.end())), parser_version);
         const auto index = test_spec_runner::run(heap, specs, *bs);
         if (index != specs.size()) {
             throw std::runtime_error("Invalid test spec." + std::string(name) + ": Only " + std::to_string(index) + " of " + std::to_string(specs.size()) + " specs ran");

@@ -98,7 +98,7 @@ bool is_right_to_left(token_type tt) {
 
 class parser {
 public:
-    explicit parser(const std::shared_ptr<source_file>& source) : source_(source), lexer_(source_->text) {}
+    explicit parser(const std::shared_ptr<source_file>& source, version ver) : source_(source), lexer_(source_->text, ver), version_(ver) {}
     ~parser() {
         assert(!expression_pos_);
         assert(!statement_pos_);
@@ -149,6 +149,7 @@ private:
 
     std::shared_ptr<source_file> source_;
     lexer lexer_;
+    const version version_;
     uint32_t token_start_ = 0;
     position_stack_node* expression_pos_ = nullptr;
     position_stack_node* statement_pos_ = nullptr;
@@ -565,8 +566,8 @@ private:
     }
 };
 
-std::unique_ptr<block_statement> parse(const std::shared_ptr<source_file>& source) {
-    return parser{source}.parse();
+std::unique_ptr<block_statement> parse(const std::shared_ptr<source_file>& source, version ver) {
+    return parser{source, ver}.parse();
 }
 
 } // namespace mjs
