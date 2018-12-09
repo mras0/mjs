@@ -56,7 +56,9 @@ int operator_precedence(token_type tt) {
     case token_type::gtequal:
         return 8;
     case token_type::equalequal:
+    case token_type::equalequalequal:
     case token_type::notequal:
+    case token_type::notequalequal:
         return 9;
     case token_type::and_:
         return 10;

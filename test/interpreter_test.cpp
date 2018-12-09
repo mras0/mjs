@@ -84,6 +84,29 @@ void eval_tests() {
     run_test(L"1 >= 2", value{false});
     run_test(L"1 == 2", value{false});
     run_test(L"1 != 2", value{true});
+    run_test(L"1 == '1'", value{true});
+    run_test(L"NaN == NaN", value{false});
+    if (parser_version >= version::es3) {
+        run_test(L"1 === '1'", value{false});
+        run_test(L"1 !== '1'", value{true});
+        run_test(L"undefined === undefined", value{true});
+        run_test(L"undefined === null", value{false});
+        run_test(L"undefined !== null", value{true});
+        run_test(L"null === null", value{true});
+        run_test(L"NaN !== NaN", value{true});
+        run_test(L"NaN === NaN", value{false});
+        run_test(L"+0 === -0", value{true});
+        run_test(L"-0 === +0", value{true});
+        run_test(L"true === false", value{false});
+        run_test(L"true === true", value{true});
+        run_test(L"'1234' === '1234'", value{true});
+        run_test(L"'1234' === '1234 '", value{false});
+        run_test(L"Object === Object", value{true});
+        run_test(L"Object !== Object", value{false});
+        run_test(L"Object === Function", value{false});
+        run_test(L"Object !== Function", value{true});
+    }
+
     run_test(L"255 & 128", value{128.0});
     run_test(L"255 ^ 128", value{127.0});
     run_test(L"64 | 128", value{192.0});

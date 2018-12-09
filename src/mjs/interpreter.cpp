@@ -467,6 +467,7 @@ public:
         }
         return l < r;
     }
+
     static bool compare_equal(const value& l, const value& r) {
         if (l.type() == r.type()) {
             if (l.type() == value_type::undefined || l.type() == value_type::null) {
@@ -510,6 +511,27 @@ public:
         return false;
     }
 
+    static bool compare_strict_equal(const value& l, const value& r) {
+        if (l.type() != r.type()) return false;
+        if (l.type() == value_type::undefined) return true;
+        if (l.type() == value_type::null) return true;
+        if (l.type() == value_type::number) {
+            const auto x = l.number_value(), y = r.number_value();
+            if (std::isnan(x) || std::isnan(y)) return false;
+            return x==y || (x==0.0 && y == 0.0);
+        } else if (l.type() == value_type::string) {
+            return l.string_value() == r.string_value();
+        } else if (l.type() == value_type::boolean) {
+            return l.boolean_value() == r.boolean_value();
+        }
+        assert(l.type() == value_type::object);
+        if (l.object_value().get() == r.object_value().get()) {
+            return true;
+        }
+        // TODO: Return true if they refer to objects joined to each other (see §13.1.2).
+        return false;
+    }
+
     value do_binary_op(const token_type op, value& l, value& r) {
         if (op == token_type::plus) {
             l = to_primitive(l);
@@ -548,6 +570,9 @@ public:
         } else if (op == token_type::equalequal || op == token_type::notequal) {
             const bool eq = compare_equal(l ,r);
             return value{op == token_type::equalequal ? eq : !eq};
+        } else if (op == token_type::equalequalequal || op == token_type::notequalequal) {
+            const bool eq = compare_strict_equal(l ,r);
+            return value{op == token_type::equalequalequal ? eq : !eq};
         }
 
         const auto ln = to_number(l);

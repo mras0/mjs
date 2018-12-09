@@ -240,6 +240,7 @@ int main() {
             parser_version = ver;
             test_array_literal();
             test_object_literal();
+
         }
 
     } catch (const std::runtime_error& e) {

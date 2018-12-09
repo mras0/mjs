@@ -46,6 +46,8 @@
         * Handling unicode space separator characters (§7.2)
         * Handling unicode characters (and escape sequences) in identifiers (§7.6)
         * Regular expression literals (§7.8.5) - only basic support for now
+    - Interpreter
+        * Handle "joined object" (§13.1.2) in comparison
 * REPL
     - Add tests
     - Add support for specifying the wanted ECMAScript version as a commandline argument
