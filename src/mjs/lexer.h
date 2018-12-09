@@ -4,8 +4,98 @@
 #include <iosfwd>
 #include <cassert>
 #include <string>
+#include "version.h"
 
 namespace mjs {
+
+#define MJS_RESERVED_WORDS(X) \
+    X(undefined,    es1)        \
+    X(null,         es1)        \
+    X(false,        es1)        \
+    X(true,         es1)        \
+    X(break,        es1)        \
+    X(continue,     es1)        \
+    X(delete,       es1)        \
+    X(else,         es1)        \
+    X(for,          es1)        \
+    X(function,     es1)        \
+    X(if,           es1)        \
+    X(in,           es1)        \
+    X(new,          es1)        \
+    X(return,       es1)        \
+    X(this,         es1)        \
+    X(typeof,       es1)        \
+    X(var,          es1)        \
+    X(void,         es1)        \
+    X(while,        es1)        \
+    X(with,         es1)        \
+    X(case,         future)     \
+    X(catch,        future)     \
+    X(class,        future)     \
+    X(const,        future)     \
+    X(debugger,     future)     \
+    X(default,      future)     \
+    X(do,           future)     \
+    X(enum,         future)     \
+    X(export,       future)     \
+    X(extends,      future)     \
+    X(finally,      future)     \
+    X(import,       future)     \
+    X(super,        future)     \
+    X(switch,       future)     \
+    X(throw,        future)     \
+    X(try,          future)
+
+
+// Must be kept sorted in order of descending length
+#define MJS_PUNCTUATORS(X)              \
+    X(rshiftshiftequal,   ">>>=")       \
+    X(rshiftshift,        ">>>")        \
+    X(lshiftequal,        "<<=")        \
+    X(rshiftequal,        ">>=")        \
+    X(equalequal,         "==")         \
+    X(ltequal,            "<=")         \
+    X(gtequal,            ">=")         \
+    X(notequal,           "!=")         \
+    X(andand,             "&&")         \
+    X(oror,               "||")         \
+    X(plusplus,           "++")         \
+    X(minusminus,         "--")         \
+    X(lshift,             "<<")         \
+    X(rshift,             ">>")         \
+    X(plusequal,          "+=")         \
+    X(minusequal,         "-=")         \
+    X(multiplyequal,      "*=")         \
+    X(divideequal,        "/=")         \
+    X(andequal,           "&=")         \
+    X(orequal,            "|=")         \
+    X(xorequal,           "^=")         \
+    X(modequal,           "%=")         \
+    X(equal,              "=")          \
+    X(gt,                 ">")          \
+    X(lt,                 "<")          \
+    X(comma,              ",")          \
+    X(not_,               "!")          \
+    X(tilde,              "~")          \
+    X(question,           "?")          \
+    X(colon,              ":")          \
+    X(dot,                ".")          \
+    X(plus,               "+")          \
+    X(minus,              "-")          \
+    X(multiply,           "*")          \
+    X(divide,             "/")          \
+    X(and_,               "&")          \
+    X(or_,                "|")          \
+    X(xor_,               "^")          \
+    X(mod,                "%")          \
+    X(lparen,             "(")          \
+    X(rparen,             ")")          \
+    X(lbrace,             "{")          \
+    X(rbrace,             "}")          \
+    X(lbracket,           "[")          \
+    X(rbracket,           "]")          \
+    X(semicolon,          ";")
+
 
 enum class token_type {
     whitespace,         // TAB/VT/FF/SP \x09, \x0B, \0x0C, \0x20
@@ -14,74 +104,13 @@ enum class token_type {
     numeric_literal,
     string_literal,
     // Punctuators
-    equal,              // =
-    gt,                 // >
-    lt,                 // <
-    equalequal,         // ==
-    ltequal,            // <=
-    gtequal,            // >=
-    notequal,           // !=
-    comma,              // ,
-    not_,               // !
-    tilde,              // ~
-    question,           // ?
-    colon,              // :
-    dot,                // .
-    andand,             // &&
-    oror,               // ||
-    plusplus,           // ++
-    minusminus,         // --
-    plus,               // +
-    minus,              // -
-    multiply,           // *
-    divide,             // /
-    and_,               // &
-    or_,                // |
-    xor_,               // ^
-    mod,                // %
-    lshift,             // <<
-    rshift,             // >>
-    rshiftshift,        // >>>
-    plusequal,          // +=
-    minusequal,         // -=
-    multiplyequal,      // *=
-    divideequal,        // /=
-    andequal,           // &=
-    orequal,            // |=
-    xorequal,           // ^=
-    modequal,           // %=
-    lshiftequal,        // <<=
-    rshiftequal,        // >>=
-    rshiftshiftequal,   // >>>=
-    lparen,             // (
-    rparen,             // )
-    lbrace,             // {
-    rbrace,             // }
-    lbracket,           // [
-    rbracket,           // ]
-    semicolon,          // ;
+#define DEFINE_PUCTUATOR(name, ...) name,
+    MJS_PUNCTUATORS(DEFINE_PUCTUATOR)
+#undef DEFINE_PUCTUATOR
     // Reserved Words
-    undefined_,
-    null_,
-    false_,
-    true_,
-
-    break_,
-    continue_,
-    delete_,
-    else_,
-    for_,
-    function_,
-    if_,
-    in_,
-    new_,
-    return_,
-    this_,
-    typeof_,
-    var_,
-    void_,
-    while_,
-    with_,
+#define DEFINE_RESERVER_WORD(name, ...) name ## _,
+    MJS_RESERVED_WORDS(DEFINE_RESERVER_WORD)
+#undef DEFINE_RESERVER_WORD
 
     eof,
 };
@@ -191,7 +220,7 @@ extern const token eof_token;
 
 class lexer {
 public:
-    explicit lexer(const std::wstring_view& text);
+    explicit lexer(const std::wstring_view& text, version ver = default_version);
 
     const token& current_token() const { return current_token_; }
 
@@ -202,9 +231,9 @@ public:
 
 private:
     std::wstring_view text_;
+    version version_;
     size_t text_pos_ = 0;
-
-    token current_token_;
+    token current_token_ = eof_token;
 };
 
 std::wstring cpp_quote(const std::wstring_view& s);

@@ -8,11 +8,14 @@ namespace mjs {
 enum class version {
     es1,
     es3,
+
+    future,
 };
 
 constexpr auto default_version = version::es3;
 
-std::wostream& operator<<(std::wostream& os, version v);
+template<typename CharT>
+std::basic_ostream<CharT>& operator<<(std::basic_ostream<CharT>& os, version v);
 
 } // namespace mjs
 

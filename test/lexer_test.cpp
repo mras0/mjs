@@ -2,6 +2,7 @@
 
 #include <mjs/lexer.h>
 #include <vector>
+#include <sstream>
 
 namespace mjs {
 bool operator==(const token& l, const token& r) {
@@ -22,18 +23,34 @@ bool operator!=(const token& l, const token& r) {
 
 using namespace mjs;
 
+version lexer_version = default_version;
+
 std::vector<token> lex(const std::wstring_view& s) {
     try {
         std::vector<token> ts;
-        lexer l{s};
+        lexer l{s, lexer_version};
         for (; l.current_token(); l.next_token()) {
             ts.push_back(l.current_token());
         }
         return ts;
     } catch (...) {
         std::wcerr << "Error while processing " << s << "\n";
+        std::wcerr << "Lexer version: " << lexer_version << "\n";
         throw;
     }
+}
+
+std::string check_lex_fails(const std::wstring_view& s) {
+    try {
+        lexer l{s, lexer_version};
+        while (l.current_token()) {
+            l.next_token();
+        }
+    } catch (const std::exception& e) {
+        return e.what();
+    }
+    std::wcerr << "Lexer (version=" << lexer_version << ") should have failed for '" << s << "'\n";
+    std::abort();
 }
 
 #define TOKENS(...) std::vector<token>({__VA_ARGS__});
@@ -83,18 +100,57 @@ void basic_tests() {
     //      HexEscapeSequence
     SIMPLE_TEST(LR"('\xAB\x0A')", STR("\xAB\n"));
     //      OctalEscapeSequence
-    SIMPLE_TEST(LR"('\7\77\123')", STR("\x07\x3f\x53"));
+    SIMPLE_TEST(LR"('\7\77\123\400')", STR("\x07\x3f\x53\x20\x30"));
     //      UnicodeEscapeSequence
     SIMPLE_TEST(LR"('\u1234')", STR("\x1234"));
 
+    // A combined example
     SIMPLE_TEST(LR"(if (1) foo['x']=bar();)", T(if_), WS, T(lparen), token{1.}, T(rparen), WS, ID("foo"), T(lbracket), STR("x"), T(rbracket), T(equal), ID("bar"), T(lparen), T(rparen), T(semicolon));
+}
+
+const char* const v1_keywords[] = { "break", "for", "new", "var", "continue", "function", "return", "void", "delete", "if", "this", "while", "else", "in", "typeof", "with" };
+const char* const v1_reserved_words[] = { "case", "catch", "class", "const", "debugger", "default", "do", "enum", "export", "extends", "finally", "import", "super", "switch", "throw", "try" };
+
+template<size_t size>
+void check_keywords(const char* const (&list)[size]) {
+    for (auto s: list) {
+        const auto tt = std::wstring(s, s+std::strlen(s));
+        const auto ts = lex(tt);
+        REQUIRE_EQ(ts.size(), 1U);
+        REQUIRE(!ts[0].has_text());
+        std::wostringstream woss;
+        woss << ts[0];
+        REQUIRE_EQ(woss.str(), L"token{" + tt + L"}");
+    }
+}
+
+template<size_t size>
+void check_reserved_words(const char* const (&list)[size]) {
+    for (auto s: list) {
+        auto exc = check_lex_fails(std::wstring(s, s+std::strlen(s)));
+        if (exc.find(exc) == std::string::npos) {
+            std::wcerr << "Did not find " << s << " in exception message '" << exc.c_str() << "' in " << __func__ << "\n";
+            std::abort();
+        }
+    }
+}
+
+void check_v1_keywords() {
+    lexer_version = version::es1;
+    check_keywords(v1_keywords);
+    check_reserved_words(v1_reserved_words);
 }
 
 int main() {
     try {
-        basic_tests();
+        for (const auto v: { version::es1, version::es3 }) {
+            lexer_version = v;
+            basic_tests();
+        }
+        check_v1_keywords();
     } catch (const std::exception& e) {
         std::wcerr << e.what() << "\n";
+        std::wcerr << "Lexer version: " << lexer_version << "\n";
         return 1;
     }
 }

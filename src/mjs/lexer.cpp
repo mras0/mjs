@@ -3,29 +3,7 @@
 #include <sstream>
 #include <cstring>
 #include <tuple>
-
-#define RESERVED_WORDS(X) \
-    X(undefined)          \
-    X(null)               \
-    X(false)              \
-    X(true)               \
-    X(break)              \
-    X(continue)           \
-    X(delete)             \
-    X(else)               \
-    X(for)                \
-    X(function)           \
-    X(if)                 \
-    X(in)                 \
-    X(new)                \
-    X(return)             \
-    X(this)               \
-    X(typeof)             \
-    X(var)                \
-    X(void)               \
-    X(while)              \
-    X(with)
-
+#include <climits>
 
 namespace mjs {
 
@@ -71,115 +49,29 @@ std::wostream& operator<<(std::wostream& os, const token& t) {
 
 std::ostream& operator<<(std::ostream& os, token_type t) {
     switch (t) {
-#define CASE_TOKEN_TYPE(n) case token_type::n: return os << #n
-        CASE_TOKEN_TYPE(whitespace);
-        CASE_TOKEN_TYPE(line_terminator);
-        CASE_TOKEN_TYPE(identifier);
-        CASE_TOKEN_TYPE(numeric_literal);
-        CASE_TOKEN_TYPE(string_literal);
-        CASE_TOKEN_TYPE(equal);              // =
-        CASE_TOKEN_TYPE(gt);                 // >
-        CASE_TOKEN_TYPE(lt);                 // <
-        CASE_TOKEN_TYPE(equalequal);         // ==
-        CASE_TOKEN_TYPE(ltequal);            // <=
-        CASE_TOKEN_TYPE(gtequal);            // >=
-        CASE_TOKEN_TYPE(notequal);           // !=
-        CASE_TOKEN_TYPE(comma);              // ,
-        CASE_TOKEN_TYPE(not_);               // !
-        CASE_TOKEN_TYPE(tilde);              // ~
-        CASE_TOKEN_TYPE(question);           // ?
-        CASE_TOKEN_TYPE(colon);              // :
-        CASE_TOKEN_TYPE(dot);                // .
-        CASE_TOKEN_TYPE(andand);             // &&
-        CASE_TOKEN_TYPE(oror);               // ||
-        CASE_TOKEN_TYPE(plusplus);           // ++
-        CASE_TOKEN_TYPE(minusminus);         // --
-        CASE_TOKEN_TYPE(plus);               // +
-        CASE_TOKEN_TYPE(minus);              // -
-        CASE_TOKEN_TYPE(multiply);           // *
-        CASE_TOKEN_TYPE(divide);             // /
-        CASE_TOKEN_TYPE(and_);               // &
-        CASE_TOKEN_TYPE(or_);                // |
-        CASE_TOKEN_TYPE(xor_);               // ^
-        CASE_TOKEN_TYPE(mod);                // %
-        CASE_TOKEN_TYPE(lshift);             // <<
-        CASE_TOKEN_TYPE(rshift);             // >>
-        CASE_TOKEN_TYPE(rshiftshift);        // >>>
-        CASE_TOKEN_TYPE(plusequal);          // +=
-        CASE_TOKEN_TYPE(minusequal);         // -=
-        CASE_TOKEN_TYPE(multiplyequal);      // *=
-        CASE_TOKEN_TYPE(divideequal);        // /=
-        CASE_TOKEN_TYPE(andequal);           // &=
-        CASE_TOKEN_TYPE(orequal);            // |=
-        CASE_TOKEN_TYPE(xorequal);           // ^=
-        CASE_TOKEN_TYPE(modequal);           // %=
-        CASE_TOKEN_TYPE(lshiftequal);        // <<=
-        CASE_TOKEN_TYPE(rshiftequal);        // >>=
-        CASE_TOKEN_TYPE(rshiftshiftequal);   // >>>=
-        CASE_TOKEN_TYPE(lparen);             // (
-        CASE_TOKEN_TYPE(rparen);             // )
-        CASE_TOKEN_TYPE(lbrace);             // {
-        CASE_TOKEN_TYPE(rbrace);             // }
-        CASE_TOKEN_TYPE(lbracket);           // [
-        CASE_TOKEN_TYPE(rbracket);           // ]
-        CASE_TOKEN_TYPE(semicolon);          // ;
-        CASE_TOKEN_TYPE(eof);
-#define X(rw) case token_type::rw ## _: return os << #rw;
-        RESERVED_WORDS(X)
-#undef X
+#define CASE_TOKEN_TYPE(n) case token_type::n: return os << #n;
+        CASE_TOKEN_TYPE(whitespace)
+        CASE_TOKEN_TYPE(line_terminator)
+        CASE_TOKEN_TYPE(identifier)
+        CASE_TOKEN_TYPE(numeric_literal)
+        CASE_TOKEN_TYPE(string_literal)
+        CASE_TOKEN_TYPE(eof)
 #undef CASE_TOKEN_TYPE
+#define CASE_PUNCTUATOR(n, ...) case token_type::n: return os << #n;
+        MJS_PUNCTUATORS(CASE_PUNCTUATOR)
+#undef CASE_PUNCTUATOR
+#define CASE_RESERVED_WORD(n, ...) case token_type::n ## _: return os << #n;
+        MJS_RESERVED_WORDS(CASE_RESERVED_WORD)
+#undef CASE_RESERVED_WORD
     }
     return os << "token_type{" << (int)t << "}";
 }
 
 const char* op_text(token_type tt) {
     switch (tt) {
-    case token_type::equal:              return "=";
-    case token_type::gt:                 return ">";
-    case token_type::lt:                 return "<";
-    case token_type::equalequal:         return "==";
-    case token_type::ltequal:            return "<=";
-    case token_type::gtequal:            return ">=";
-    case token_type::notequal:           return "!=";
-    case token_type::comma:              return ":";
-    case token_type::not_:               return "!";
-    case token_type::tilde:              return "~";
-    case token_type::question:           return "?";
-    case token_type::colon:              return ":";
-    case token_type::dot:                return ". ";
-    case token_type::andand:             return "&&";
-    case token_type::oror:               return "||";
-    case token_type::plusplus:           return "++";
-    case token_type::minusminus:         return "--";
-    case token_type::plus:               return "+";
-    case token_type::minus:              return "-";
-    case token_type::multiply:           return "*";
-    case token_type::divide:             return "/";
-    case token_type::and_:               return "&";
-    case token_type::or_:                return "|";
-    case token_type::xor_:               return "^";
-    case token_type::mod:                return "%";
-    case token_type::lshift:             return "<<";
-    case token_type::rshift:             return ">>";
-    case token_type::rshiftshift:        return ">>>";
-    case token_type::plusequal:          return "+=";
-    case token_type::minusequal:         return "-=";
-    case token_type::multiplyequal:      return "*=";
-    case token_type::divideequal:        return "/=";
-    case token_type::andequal:           return "&=";
-    case token_type::orequal:            return "|=";
-    case token_type::xorequal:           return "^=";
-    case token_type::modequal:           return "%=";
-    case token_type::lshiftequal:        return "<<=";
-    case token_type::rshiftequal:        return ">>=";
-    case token_type::rshiftshiftequal:   return ">>>=";
-    case token_type::lparen:             return "(";
-    case token_type::rparen:             return ")";
-    case token_type::lbrace:             return "{";
-    case token_type::rbrace:             return "}";
-    case token_type::lbracket:           return "[";
-    case token_type::rbracket:           return "]";
-    case token_type::semicolon:          return ";";
+#define CASE_PUNCTUATOR(name, str) case token_type::name: return str;
+        MJS_PUNCTUATORS(CASE_PUNCTUATOR)
+#undef CASE_PUNCTUATOR
     default:
         throw std::runtime_error("Invalid token type in op_text: " + std::to_string((int)tt));
     }
@@ -225,97 +117,17 @@ constexpr bool is_digit(int ch) {
     return ch >= '0' && ch <= '9';
 }
 
-std::pair<token_type, int> get_punctuation(std::wstring_view v) {
-    using p = std::pair<token_type, int>;
+std::tuple<token_type, int> get_punctuation(std::wstring_view v) {
     assert(!v.empty());
-    switch (v[0]) {
-#if 0
 
-#endif
-    case '=': return v.length() > 1 && v[1] == '=' ? p{ token_type::equalequal, 2} : p{ token_type::equal, 1};
-    case '>':
-        if (v.length() > 1 && v[1] == '>') {
-            if (v.length() > 2 && v[2] == '>') {
-                if(v.length() > 3 && v[3] == '=') {
-                    return p{token_type::rshiftshiftequal, 4};
-                } else {
-                    return p{token_type::rshiftshift, 3};
-                }
-            } else if (v.length() > 2 && v[2] == '=') {
-                return p{token_type::rshiftequal, 3};
-            } else {
-                return p{token_type::rshift, 2};
-            }
-        } else if (v.length() > 1 && v[1] == '=') {
-            return p{token_type::gtequal, 2};
-        } else {
-            return p{token_type::gt, 1};
-        }
-    case '<':
-        if (v.length() > 1 && v[1] == '<') {
-            if (v.length() > 2 && v[2] == '=') {
-                return p{token_type::lshiftequal, 3};
-            } else {
-                return p{token_type::lshift, 2};
-            }
-        } else if (v.length() > 1 && v[1] == '=') {
-            return p{token_type::ltequal, 2};
-        } else {
-            return p{token_type::lt, 1};
-        }
-    case ',': return { token_type::comma, 1 };
-    case '!': return v.length() > 1 && v[1] == '=' ? p{ token_type::notequal, 2} : p{ token_type::not_, 1};
-    case '~': return { token_type::tilde, 1 };
-    case '?': return { token_type::question, 1 };
-    case ':': return { token_type::colon, 1 };
-    case '.': return { token_type::dot, 1 };
-    case '+':
-        if (v.length() > 1 && v[1] == '+') {
-            return p{ token_type::plusplus, 2};
-        } else if (v.length() > 1 && v[1] == '=') {
-            return p{ token_type::plusequal, 2};
-        } else {
-            return p{ token_type::plus, 1};
-        }
-    case '-':
-        if (v.length() > 1 && v[1] == '-') {
-            return p{ token_type::minusminus, 2};
-        } else if (v.length() > 1 && v[1] == '=') {
-            return p{ token_type::minusequal, 2};
-        } else {
-            return p{ token_type::minus, 1};
-        }
-    case '*': return v.length() > 1 && v[1] == '=' ? p{ token_type::multiplyequal, 2} : p{ token_type::multiply, 1};
-    case '/': return v.length() > 1 && v[1] == '=' ? p{ token_type::divideequal, 2} : p{ token_type::divide, 1};
-    case '%': return v.length() > 1 && v[1] == '=' ? p{ token_type::modequal, 2} : p{ token_type::mod, 1};
-    case '&':
-        if (v.length() > 1 && v[1] == '&') {
-            return p{ token_type::andand, 2};
-        } else if (v.length() > 1 && v[1] == '=') {
-            return p{ token_type::andequal, 2};
-        } else {
-            return p{ token_type::and_, 1};
-        }
-    case '^': return v.length() > 1 && v[1] == '=' ? p{ token_type::xorequal, 2} : p{ token_type::xor_, 1};
-    case '|':
-        if (v.length() > 1 && v[1] == '|') {
-            return p{ token_type::oror, 2};
-        } else if (v.length() > 1 && v[1] == '=') {
-            return p{ token_type::orequal, 2};
-        } else {
-            return p{ token_type::or_, 1};
-        }
-    case '(': return { token_type::lparen, 1};
-    case ')': return { token_type::rparen, 1};
-    case '{': return { token_type::lbrace, 1};
-    case '}': return { token_type::rbrace, 1};
-    case '[': return { token_type::lbracket, 1};
-    case ']': return { token_type::rbracket, 1};
-    case ';': return { token_type::semicolon, 1};
-    }
+#define CHECK_PUNCTUATORS(name, str) if (v.length() >= sizeof(str)-1 && v.compare(0, sizeof(str)-1, L##str) == 0) return std::pair<token_type, int>{token_type::name, static_cast<int>(sizeof(str)-1)};
+    MJS_PUNCTUATORS(CHECK_PUNCTUATORS)
+#undef CHECK_PUNCTUATORS
+
     std::ostringstream oss;
-    oss << "Unhandled character in " << __FUNCTION__ << ": " << (char)v[0] << " 0x" << std::hex << (int)v[0] << "\n";
-    throw std::runtime_error(oss.str());
+    auto s = cpp_quote(v.substr(0, 4));
+    oss << "Unhandled character(s) in " << __FUNCTION__ << ": " << std::string(s.begin(), s.end()) << "\n";
+    throw std::runtime_error(oss.str());   
 }
 
 std::pair<token, size_t> skip_comment(const std::wstring_view& text, size_t pos) {
@@ -344,12 +156,12 @@ std::pair<token, size_t> skip_comment(const std::wstring_view& text, size_t pos)
     }
 }
 
-lexer::lexer(const std::wstring_view& text) : text_(text), current_token_{eof_token} {
+lexer::lexer(const std::wstring_view& text, version ver) : text_(text), version_(ver) {
     next_token();
 }
 
 unsigned get_hex_value(int ch) {
-    if (ch >= '0' && ch <= '9') return ch - '0';
+    if (is_digit(ch)) return ch - '0';
     if (ch >= 'A' && ch <= 'F') return ch - 'A' + 10;
     if (ch >= 'a' && ch <= 'f') return ch - 'a' + 10;
     throw std::runtime_error("Invalid hex digit: " + std::string(1, (char)ch));
@@ -365,8 +177,7 @@ unsigned get_hex_value4(const wchar_t* s) {
 
 // Returns decimal value of 'ch' or UINT_MAX on error
 unsigned try_get_decimal_value(int ch) {
-    if (ch >= '0' && ch <= '9') return ch - '0';
-    return UINT_MAX;
+    return is_digit(ch) ? ch - '0' : UINT_MAX;
 }
 
 std::pair<wchar_t, size_t> get_octal_escape_sequence(const std::wstring_view& text, size_t pos) {
@@ -470,8 +281,8 @@ void lexer::next_token() {
             }
             auto id = std::wstring{text_.begin() + text_pos_, text_.begin() + token_end};
             if (0) {}
-#define X(rw) else if (id == L ## #rw) current_token_ = token{token_type::rw ## _};
-            RESERVED_WORDS(X)
+#define X(rw, ver) else if (id == L ## #rw) { if (version::ver > version_) { std::ostringstream oss; oss << #rw << " is not available until " << version::ver; throw std::runtime_error(oss.str()); }  current_token_ = token{token_type::rw ## _}; }
+            MJS_RESERVED_WORDS(X)
 #undef X
             else current_token_  = token{token_type::identifier, id};
         } else if (is_digit(ch) || (ch == '.' && token_end < text_.size() && is_digit(text_[token_end]))) {
