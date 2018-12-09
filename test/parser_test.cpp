@@ -25,9 +25,21 @@ auto make_source(const char* text) {
     return std::make_shared<source_file>(L"test", std::wstring(text, text+std::strlen(text)));
 }
 
+auto parse_text(const char* text) {
+    return parse(make_source(text), parser_version);
+}
+
+
+auto parse_one_statement(const char* text) {
+    auto bs = parse_text(text);
+    REQUIRE_EQ(bs->l().size(), 1U);
+    return std::move(const_cast<statement_ptr&>(bs->l().front()));
+}
+
+
 void test_parse_fails(const char* text) {
     try {
-        parse(make_source(text), parser_version);
+        parse_text(text);
     } catch (const std::exception&) {
         //std::wcerr << "\n'" << text << "' ---->\n" << e.what() << "\n\n";
         return;
@@ -37,13 +49,11 @@ void test_parse_fails(const char* text) {
     throw std::runtime_error(oss.str());
 }
 
-std::pair<std::unique_ptr<block_statement>, const expression*> parse_expression(const char* text) {
+std::unique_ptr<expression_statement> parse_expression(const char* text) {
     try {
-        auto bs = parse(make_source(text), parser_version);
-        REQUIRE_EQ(bs->l().size(), 1U);
-        auto& s = *bs->l().front();
-        REQUIRE_EQ(s.type(), statement_type::expression);
-        return { std::move(bs), &static_cast<const expression_statement&>(s).e() };
+        auto s = parse_one_statement(text);
+        REQUIRE_EQ(s->type(), statement_type::expression);
+        return std::unique_ptr<expression_statement>{static_cast<expression_statement*>(s.release())};
     } catch (...) {
         std::wcerr << "Parse failed for '" << text << "' parser version " << parser_version << "\n";
         throw;
@@ -51,7 +61,6 @@ std::pair<std::unique_ptr<block_statement>, const expression*> parse_expression(
 }
 
 void test_semicolon_insertion() {
-    // TODO: Check other examples
     test_parse_fails(R"({ 1 2 } 3)");
     run_test(LR"({ 1
 2 } 3)", value{3.});
@@ -87,8 +96,47 @@ a = b + c
 x++; x //$ number 2
 )");
 
-    if (parser_version >= version::es3) {
-        // TODO: Check no-line-break between break/continue and identifier
+    {
+        auto cont_s = parse_one_statement("continue");
+        REQUIRE_EQ(cont_s->type(), statement_type::continue_);
+        REQUIRE_EQ(static_cast<const continue_statement&>(*cont_s).id(), L"");
+    }
+    {
+        auto break_s = parse_one_statement("break");
+        REQUIRE_EQ(break_s->type(), statement_type::break_);
+        REQUIRE_EQ(static_cast<const break_statement&>(*break_s).id(), L"");
+    }
+
+    {
+        auto es = parse_text("continue\nid");
+        REQUIRE_EQ(es->l().size(), 2U);
+        REQUIRE_EQ(es->l()[0]->type(), statement_type::continue_);
+        REQUIRE_EQ(static_cast<const continue_statement&>(*es->l()[0]).id(), L"");
+        REQUIRE_EQ(es->l()[1]->type(), statement_type::expression);
+        
+    }
+    {
+        auto es = parse_text("break\nid");
+        REQUIRE_EQ(es->l().size(), 2U);
+        REQUIRE_EQ(es->l()[0]->type(), statement_type::break_);
+        REQUIRE_EQ(static_cast<const break_statement&>(*es->l()[0]).id(), L"");
+        REQUIRE_EQ(es->l()[1]->type(), statement_type::expression);
+    }
+
+    if (parser_version < version::es3) {
+        test_parse_fails("continue id");
+        test_parse_fails("break id");
+    } else {
+        {
+            auto cont_s = parse_one_statement("continue id");
+            REQUIRE_EQ(cont_s->type(), statement_type::continue_);
+            REQUIRE_EQ(static_cast<const continue_statement&>(*cont_s).id(), L"id");
+        }
+        {
+            auto break_s = parse_one_statement("break id");
+            REQUIRE_EQ(break_s->type(), statement_type::break_);
+            REQUIRE_EQ(static_cast<const break_statement&>(*break_s).id(), L"id");
+        }
         // TODO: Check no-line-break between throw and expression (like return)
     }
 }
@@ -125,31 +173,31 @@ const T& expression_cast(const expression_ptr& e, expression_type expected) {
 
 void test_array_literal() {
     auto parse_array_literal = [](const char* text) {
-        auto [bs, e] = parse_expression(text);
-        return std::make_pair(std::move(bs), &CHECK_EXPR_TYPE(*e, array_literal));
+        auto es = parse_expression(text);
+        return std::make_pair(std::move(es), &CHECK_EXPR_TYPE(es->e(), array_literal));
     };
 
     {
-        const auto& [bs, e] = parse_array_literal("[]");
-        (void)bs;
-        REQUIRE_EQ(e->elements().size(), 0U);
+        auto [es, a] = parse_array_literal("[]");
+        (void)es;
+        REQUIRE_EQ(a->elements().size(), 0U);
     }
 
     {
-        const auto& [bs, e] = parse_array_literal("[1]");
-        (void)bs;
-        REQUIRE_EQ(e->elements().size(), 1U);
-        auto& ale = CHECK_EXPR_TYPE(e->elements().front(), literal);
+        auto [es, a] = parse_array_literal("[1]");
+        (void)es;
+        REQUIRE_EQ(a->elements().size(), 1U);
+        auto& ale = CHECK_EXPR_TYPE(a->elements().front(), literal);
         REQUIRE_EQ(ale.t(), token{1.});
     }
 
     // Elision
 
     {
-        const auto& [bs, e] = parse_array_literal("[,]");
-        (void)bs;
-        REQUIRE_EQ(e->elements().size(), 1U);
-        REQUIRE(!e->elements().front());
+        auto [es, a] = parse_array_literal("[,]");
+        (void)es;
+        REQUIRE_EQ(a->elements().size(), 1U);
+        REQUIRE(!a->elements().front());
     }
 
     {
@@ -186,8 +234,8 @@ a[2][1]; //$number 42
 
 void test_object_literal() {
     auto parse_object_literal = [](const char* text) {
-        auto [bs, e] = parse_expression(text);
-        return std::make_pair(std::move(bs), &CHECK_EXPR_TYPE(*e, object_literal));
+        auto es = parse_expression(text);
+        return std::make_pair(std::move(es), &CHECK_EXPR_TYPE(es->e(), object_literal));
     };
 
     {
@@ -228,10 +276,9 @@ o3['y']['3']; //$number 4
 }
 
 void test_labelled_statements() {
-    auto bs = parse(make_source("x:y:;"), parser_version);
-    REQUIRE_EQ(bs->l().size(), 1U);
-    REQUIRE_EQ(bs->l()[0]->type(), statement_type::labelled);
-    const auto& lsx = static_cast<const labelled_statement&>(*bs->l()[0]);
+    auto s = parse_one_statement("x:y:;");
+    REQUIRE_EQ(s->type(), statement_type::labelled);
+    const auto& lsx = static_cast<const labelled_statement&>(*s);
     REQUIRE_EQ(lsx.id(), L"x");
     REQUIRE_EQ(lsx.s().type(), statement_type::labelled);
     const auto& lsy = static_cast<const labelled_statement&>(lsx.s());

@@ -41,7 +41,7 @@ Weird stuff/notes:
     - Unicode characters can suddenly appear more in the source text (and escape sequences can be used in identifiers)
     - Array literal allows item elision (!) and supports trailing comma
     - Object literals don't support trailing comma (until ES5)
-    - Regular expression literals makes the lexer context sensitive
+    - Regular expression literals makes the lexer context sensitive (TOOD: mention [oil shell](https://www.oilshell.org/blog/2017/12/15.html))
     - Labelled statements / break/continue with identifier (how often have you seen that used in JS?)
     - `do...while` and `switch` were not in ES1
     - `switch`

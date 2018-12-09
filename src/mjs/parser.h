@@ -600,21 +600,33 @@ private:
 
 class continue_statement : public statement {
 public:
-    explicit continue_statement(const source_extend& extend) : statement(extend) {}
+    explicit continue_statement(const source_extend& extend, const std::wstring& id) : statement(extend), id_(id) {}
     statement_type type() const override { return statement_type::continue_; }
+    const std::wstring& id() const { return id_; }
 private:
+    std::wstring id_;
     void print(std::wostream& os) const override {
-        os << "continue_statement{}";
+        os << "continue_statement{";
+        if (!id_.empty()) {
+            os << id_;
+        }
+        os << "}";
     }
 };
 
 class break_statement : public statement {
 public:
-    explicit break_statement(const source_extend& extend) : statement(extend) {}
+    explicit break_statement(const source_extend& extend, const std::wstring& id) : statement(extend), id_(id) {}
     statement_type type() const override { return statement_type::break_; }
+    const std::wstring& id() const { return id_; }
 private:
+    std::wstring id_;
     void print(std::wostream& os) const override {
-        os << "break_statement{}";
+        os << "break_statement{";
+        if (!id_.empty()) {
+            os << id_;
+        }
+        os << "}";
     }
 };
 

@@ -484,6 +484,16 @@ private:
         return l;
     }
 
+    std::wstring get_label() {
+        // no line break before
+        if (version_ >= version::es3 && !line_break_skipped_) {
+            if (auto t = accept(token_type::identifier)) {
+                return t.text();
+            }
+        }
+        return L"";
+    }
+
     statement_ptr parse_statement() {
         RECORD_STATEMENT_START;
         // Statement :
@@ -563,11 +573,13 @@ private:
             }
             return make_statement<for_statement>(std::move(init), std::move(cond), std::move(iter), parse_statement());
         } else if (accept(token_type::continue_)) {
+            auto id = get_label();
             EXPECT_SEMICOLON_ALLOW_INSERTION();
-            return make_statement<continue_statement>();
+            return make_statement<continue_statement>(std::move(id));
         } else if (accept(token_type::break_)) {
+            auto id = get_label();
             EXPECT_SEMICOLON_ALLOW_INSERTION();
-            return make_statement<break_statement>();
+            return make_statement<break_statement>(std::move(id));
         } else if (accept(token_type::return_)) {
             // no line break before
             expression_ptr e{};
