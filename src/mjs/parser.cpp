@@ -624,6 +624,13 @@ private:
             UNHANDLED();
         } else {
             auto e = parse_expression();
+            if (version_ >= version::es3 && accept(token_type::colon)) {
+                if (e->type() != expression_type::identifier) {
+                    // TODO: Better error message when encountering an invalid label (or other invalid construct)
+                    UNHANDLED();
+                }
+                return make_statement<labelled_statement>(static_cast<const identifier_expression&>(*e).id(), parse_statement());
+            }
             EXPECT_SEMICOLON_ALLOW_INSERTION();
             return make_statement<expression_statement>(std::move(e));
         }

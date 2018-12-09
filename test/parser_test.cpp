@@ -227,6 +227,19 @@ o3['y']['3']; //$number 4
 )");
 }
 
+void test_labelled_statements() {
+    auto bs = parse(make_source("x:y:;"), parser_version);
+    REQUIRE_EQ(bs->l().size(), 1U);
+    REQUIRE_EQ(bs->l()[0]->type(), statement_type::labelled);
+    const auto& lsx = static_cast<const labelled_statement&>(*bs->l()[0]);
+    REQUIRE_EQ(lsx.id(), L"x");
+    REQUIRE_EQ(lsx.s().type(), statement_type::labelled);
+    const auto& lsy = static_cast<const labelled_statement&>(lsx.s());
+    REQUIRE_EQ(lsy.id(), L"y");
+    REQUIRE_EQ(lsy.s().type(), statement_type::empty);
+}
+
+
 int main() {
     try {
         for (const auto ver: { version::es1, version::es3 }) {
@@ -240,7 +253,7 @@ int main() {
             parser_version = ver;
             test_array_literal();
             test_object_literal();
-
+            test_labelled_statements();
         }
 
     } catch (const std::runtime_error& e) {

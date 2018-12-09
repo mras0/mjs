@@ -725,6 +725,7 @@ f(7); s //$ string 'c1c2c3c4c5c6defs4s5'
 
 int main() {
     try {
+        // TODO: Make sure we test all relevant versions...
         if (parser_version >= version::es3) {
             test_es3_statements();
         }

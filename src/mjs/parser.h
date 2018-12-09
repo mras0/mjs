@@ -659,9 +659,23 @@ private:
 
 class labelled_statement : public statement {
 public:
-    // TODO
+    explicit labelled_statement(const source_extend& extend, const std::wstring& id, statement_ptr&& s) : statement(extend), id_(id), s_(std::move(s)) {
+        assert(!id_.empty());
+        assert(s_);
+    }
 
     statement_type type() const override { return statement_type::labelled; }
+
+    const std::wstring& id() const { return id_; };
+    const statement& s() const { return *s_; };
+
+private:
+    std::wstring id_;
+    statement_ptr s_;
+
+    void print(std::wostream& os) const override {
+        os << "labelled_statement{" << id_<< ", " << *s_ << "}";
+    }
 };
 
 // The default clause is repesented by case_clause with a null expression
