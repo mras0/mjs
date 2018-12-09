@@ -14,6 +14,10 @@ Most of ES1 should be implemented (to some degree...), but see the
 haven't programmed in ES1 before and will find most modern conveniences
 (e.g. array and object literals) missing from the specification.
 
+Support for [ECMAScript 3rd
+edition](http://www.ecma-international.org/publications/files/ECMA-ST-ARCH/ECMA-262,%203rd%20edition,%20December%201999.pdf)
+is currently (slowly) under way.
+
 ## Building
 
 You need a modern C++ compiler that supports C++17 and CMake 3.7 or
@@ -35,6 +39,15 @@ These steps should work for most people:
     cmake .. # Here you may want to use e.g. CXX=g++-8 cmake ..
     cmake --build .
     cmake --build . --target check
+
+## Documentation
+
+The project is currently light on the documentation front, but here is
+what's available so far:
+
+* [Implementing a Garbage Collector in C++](https://mras0.github.io/mjs/doc/gc/initial.html) about how the garbage collector was implemented
+* [Supporting ECMAScript 3rd Edition](doc/es3/es3.md) on the work being
+  done to support ES3 (very incomplete)
 
 ## Support
 

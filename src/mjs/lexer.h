@@ -8,7 +8,7 @@
 
 namespace mjs {
 
-#define MJS_RESERVED_WORDS(X) \
+#define MJS_RESERVED_WORDS(X)   \
     X(undefined,    es1)        \
     X(null,         es1)        \
     X(false,        es1)        \
@@ -29,77 +29,103 @@ namespace mjs {
     X(void,         es1)        \
     X(while,        es1)        \
     X(with,         es1)        \
-    X(case,         future)     \
-    X(catch,        future)     \
+    X(case,         es3)        \
+    X(catch,        es3)        \
+    X(default,      es3)        \
+    X(do,           es3)        \
+    X(finally,      es3)        \
+    X(instanceof,   es3)        \
+    X(switch,       es3)        \
+    X(throw,        es3)        \
+    X(try,          es3)        \
+    X(abstract,     future)     \
+    X(boolean,      future)     \
+    X(byte,         future)     \
+    X(char,         future)     \
     X(class,        future)     \
     X(const,        future)     \
     X(debugger,     future)     \
-    X(default,      future)     \
-    X(do,           future)     \
+    X(double,       future)     \
     X(enum,         future)     \
     X(export,       future)     \
     X(extends,      future)     \
-    X(finally,      future)     \
+    X(final,        future)     \
+    X(float,        future)     \
+    X(goto,         future)     \
+    X(implements,   future)     \
     X(import,       future)     \
+    X(int,          future)     \
+    X(interface,    future)     \
+    X(long,         future)     \
+    X(native,       future)     \
+    X(package,      future)     \
+    X(private,      future)     \
+    X(protected,    future)     \
+    X(public,       future)     \
+    X(short,        future)     \
+    X(static,       future)     \
     X(super,        future)     \
-    X(switch,       future)     \
-    X(throw,        future)     \
-    X(try,          future)
+    X(synchronized, future)     \
+    X(throws,       future)     \
+    X(transient,    future)     \
+    X(volatile,     future)
 
 
 // Must be kept sorted in order of descending length
 #define MJS_PUNCTUATORS(X)              \
-    X(rshiftshiftequal,   ">>>=")       \
-    X(rshiftshift,        ">>>")        \
-    X(lshiftequal,        "<<=")        \
-    X(rshiftequal,        ">>=")        \
-    X(equalequal,         "==")         \
-    X(ltequal,            "<=")         \
-    X(gtequal,            ">=")         \
-    X(notequal,           "!=")         \
-    X(andand,             "&&")         \
-    X(oror,               "||")         \
-    X(plusplus,           "++")         \
-    X(minusminus,         "--")         \
-    X(lshift,             "<<")         \
-    X(rshift,             ">>")         \
-    X(plusequal,          "+=")         \
-    X(minusequal,         "-=")         \
-    X(multiplyequal,      "*=")         \
-    X(divideequal,        "/=")         \
-    X(andequal,           "&=")         \
-    X(orequal,            "|=")         \
-    X(xorequal,           "^=")         \
-    X(modequal,           "%=")         \
-    X(equal,              "=")          \
-    X(gt,                 ">")          \
-    X(lt,                 "<")          \
-    X(comma,              ",")          \
-    X(not_,               "!")          \
-    X(tilde,              "~")          \
-    X(question,           "?")          \
-    X(colon,              ":")          \
-    X(dot,                ".")          \
-    X(plus,               "+")          \
-    X(minus,              "-")          \
-    X(multiply,           "*")          \
-    X(divide,             "/")          \
-    X(and_,               "&")          \
-    X(or_,                "|")          \
-    X(xor_,               "^")          \
-    X(mod,                "%")          \
-    X(lparen,             "(")          \
-    X(rparen,             ")")          \
-    X(lbrace,             "{")          \
-    X(rbrace,             "}")          \
-    X(lbracket,           "[")          \
-    X(rbracket,           "]")          \
-    X(semicolon,          ";")
+    X(rshiftshiftequal,   ">>>=", es1)  \
+    X(rshiftshift,        ">>>" , es1)  \
+    X(lshiftequal,        "<<=" , es1)  \
+    X(rshiftequal,        ">>=" , es1)  \
+    X(equalequalequal,    "===" , es3)  \
+    X(notequalequal,      "!==" , es3)  \
+    X(equalequal,         "=="  , es1)  \
+    X(notequal,           "!="  , es1)  \
+    X(ltequal,            "<="  , es1)  \
+    X(gtequal,            ">="  , es1)  \
+    X(andand,             "&&"  , es1)  \
+    X(oror,               "||"  , es1)  \
+    X(plusplus,           "++"  , es1)  \
+    X(minusminus,         "--"  , es1)  \
+    X(lshift,             "<<"  , es1)  \
+    X(rshift,             ">>"  , es1)  \
+    X(plusequal,          "+="  , es1)  \
+    X(minusequal,         "-="  , es1)  \
+    X(multiplyequal,      "*="  , es1)  \
+    X(divideequal,        "/="  , es1)  \
+    X(andequal,           "&="  , es1)  \
+    X(orequal,            "|="  , es1)  \
+    X(xorequal,           "^="  , es1)  \
+    X(modequal,           "%="  , es1)  \
+    X(equal,              "="   , es1)  \
+    X(gt,                 ">"   , es1)  \
+    X(lt,                 "<"   , es1)  \
+    X(comma,              ","   , es1)  \
+    X(not_,               "!"   , es1)  \
+    X(tilde,              "~"   , es1)  \
+    X(question,           "?"   , es1)  \
+    X(colon,              ":"   , es1)  \
+    X(dot,                "."   , es1)  \
+    X(plus,               "+"   , es1)  \
+    X(minus,              "-"   , es1)  \
+    X(multiply,           "*"   , es1)  \
+    X(divide,             "/"   , es1)  \
+    X(and_,               "&"   , es1)  \
+    X(or_,                "|"   , es1)  \
+    X(xor_,               "^"   , es1)  \
+    X(mod,                "%"   , es1)  \
+    X(lparen,             "("   , es1)  \
+    X(rparen,             ")"   , es1)  \
+    X(lbrace,             "{"   , es1)  \
+    X(rbrace,             "}"   , es1)  \
+    X(lbracket,           "["   , es1)  \
+    X(rbracket,           "]"   , es1)  \
+    X(semicolon,          ";"   , es1)
 
 
 enum class token_type {
-    whitespace,         // TAB/VT/FF/SP \x09, \x0B, \0x0C, \0x20
-    line_terminator,    // LF/CR        \x0A, \x0D
+    whitespace,
+    line_terminator,
     identifier,
     numeric_literal,
     string_literal,

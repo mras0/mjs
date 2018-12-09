@@ -289,7 +289,7 @@ public:
     }
 
     value operator()(const identifier_expression& e) {
-        // ง10.1.4
+        // ยง10.1.4
         return value{active_scope_->lookup(e.id())};
     }
 
@@ -481,7 +481,7 @@ public:
             l = to_primitive(l, value_type::number);
             r = to_primitive(r, value_type::number);
             if (l.type() == value_type::string && r.type() == value_type::string) {
-                // TODO: See ง11.8.5 step 16-21
+                // TODO: See ยง11.8.5 step 16-21
                 NOT_IMPLEMENTED(op);
             }
             const auto ln = to_number(l);
@@ -866,7 +866,7 @@ private:
     }
 
     object_ptr create_function(const string& id, const std::shared_ptr<block_statement>& block, const std::vector<std::wstring>& param_names, const std::wstring& body_text, const scope_ptr& prev_scope) {
-        // ง15.3.2.1
+        // ยง15.3.2.1
         auto callee = global_->make_raw_function();
         auto func = [this, block, param_names, prev_scope, callee, ids = hoisting_visitor::scan(*block)](const value& this_, const std::vector<value>& args) {
             // Scope

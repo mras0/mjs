@@ -18,7 +18,7 @@ public:
         return heap_;
     }
 
-    // ง8.6.2, Page 22: Internal Properties and Methods
+    // ยง8.6.2, Page 22: Internal Properties and Methods
 
     //
     // [[Prototype]] ()

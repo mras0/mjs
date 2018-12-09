@@ -40,6 +40,12 @@
     - Make sure deep recursion is supported without running out of space
     - Handle error conditions better
     - Make sure nested function definitions aren't processed multiple times
+* Known to be missing from ES3 support:
+    - Lexer
+        * Handling unicode format-control characters (§7.1)
+        * Handling unicode space separator characters (§7.2)
+        * Handling unicode characters (and escape sequences) in identifiers (§7.6)
+        * Regular expression literals (§7.8.5)
 * REPL
     - Add tests
     - Garbage collect "sometimes"
@@ -55,4 +61,4 @@
 * Compile under Linux
 * Use `char16_t` instead of `wchar_t` (and update `wstring`/`wistringstream` etc. etc.)
 * Avoid duplicating `duration_cast`/`typeid()` logic with `expression_type`/`statement_type`. Consider using std::variant.
-* General refactoring, implement ES3, ES5, ES...., JIT, etc. :)
+* General refactoring, implement ES5, ES...., JIT, etc. :)

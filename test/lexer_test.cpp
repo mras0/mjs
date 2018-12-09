@@ -27,8 +27,8 @@ version lexer_version = default_version;
 
 std::vector<token> lex(const std::wstring_view& s) {
     try {
-        std::vector<token> ts;
         lexer l{s, lexer_version};
+        std::vector<token> ts;
         for (; l.current_token(); l.next_token()) {
             ts.push_back(l.current_token());
         }
@@ -43,14 +43,16 @@ std::vector<token> lex(const std::wstring_view& s) {
 std::string check_lex_fails(const std::wstring_view& s) {
     try {
         lexer l{s, lexer_version};
-        while (l.current_token()) {
-            l.next_token();
+        std::vector<token> ts;
+        for (; l.current_token(); l.next_token()) {
+            ts.push_back(l.current_token());
         }
+        std::wcerr << "Lexer (version=" << lexer_version << ") should have failed for '" << s << "'\n";
+        std::wcerr << "Returned:\n" << ts << "\n";
+        std::abort();
     } catch (const std::exception& e) {
         return e.what();
     }
-    std::wcerr << "Lexer (version=" << lexer_version << ") should have failed for '" << s << "'\n";
-    std::abort();
 }
 
 #define TOKENS(...) std::vector<token>({__VA_ARGS__});
@@ -65,8 +67,18 @@ std::string check_lex_fails(const std::wstring_view& s) {
 void basic_tests() {
     // Whitespace
     SIMPLE_TEST(L"\x09\x0b\x0c\x20 ab", WS, ID("ab"));
+    if (lexer_version > version::es1) {
+        // <NBSP> + <USP> are considered whitespace in ES3+
+        SIMPLE_TEST(L"\xA0", WS);
+        // TODO: Check other unicode space characters (e.g. \u2000)
+    }
     // Line terminators
     SIMPLE_TEST(L"\012x\015", NL, ID("x"), NL);
+    if (lexer_version > version::es1) {
+        // In ES3+ \u2028 and \u2029 are considered line terminators
+        SIMPLE_TEST(L"\x2028\x2029", NL);
+        SIMPLE_TEST(L"x//\x2029", ID("x"), WS, NL);
+    }
     // Comments
     SIMPLE_TEST(L"/*hello world!*/", WS);
     SIMPLE_TEST(L"/*hello\nworld!*/", NL);
@@ -77,9 +89,19 @@ void basic_tests() {
     // Identifier
     SIMPLE_TEST(LR"(test)", ID("test"));
     SIMPLE_TEST(L"a b cd", ID("a"), WS, ID("b"), WS, ID("cd"));
+    SIMPLE_TEST(L"$ _ $foo2_", ID("$"), WS, ID("_"), WS, ID("$foo2_"));
+    SIMPLE_TEST(L"1a", token{1.}, ID("a"));
+    // TODO: Support more unicode characters (and escape sequences!) in indentifiers
     // Punctuator
     SIMPLE_TEST(LR"(<<>>>=)", T(lshift), T(rshiftshiftequal));
-    SIMPLE_TEST(LR"(= = ===)", T(equal), WS, T(equal), WS, T(equalequal), T(equal));
+    if (lexer_version == version::es1) {
+        SIMPLE_TEST(LR"(= = ===)", T(equal), WS, T(equal), WS, T(equalequal), T(equal));
+        SIMPLE_TEST(LR"(!==)", T(notequal), T(equal));
+    } else {
+        // ===/ !== are new in ES3
+        SIMPLE_TEST(LR"(= = ===)", T(equal), WS, T(equal), WS, T(equalequalequal));
+        SIMPLE_TEST(LR"(!==)", T(notequalequal));
+    }
     // Literal
     //  - null literal
     SIMPLE_TEST(LR"(null)", T(null_));
@@ -97,6 +119,16 @@ void basic_tests() {
     SIMPLE_TEST(LR"("blahblah''")", STR("blahblah''"));
     //      SingleEscapeCharacter
     SIMPLE_TEST(LR"('\'\"\\\b\f\n\r\t')", STR("\'\"\\\b\f\n\r\t"));
+
+    check_lex_fails(L"'\\\n'"); // a line terminator cannot appear in a string literal (even if preceded by a backslash)
+
+    // Vertical tab (<VT>) supported from es3 on
+    const auto vert_tab_str = LR"('\v')";
+    if (lexer_version == version::es1) {
+        check_lex_fails(vert_tab_str);
+    } else {
+        SIMPLE_TEST(vert_tab_str, STR("\x0B"));
+    }
     //      HexEscapeSequence
     SIMPLE_TEST(LR"('\xAB\x0A')", STR("\xAB\n"));
     //      OctalEscapeSequence
@@ -107,9 +139,6 @@ void basic_tests() {
     // A combined example
     SIMPLE_TEST(LR"(if (1) foo['x']=bar();)", T(if_), WS, T(lparen), token{1.}, T(rparen), WS, ID("foo"), T(lbracket), STR("x"), T(rbracket), T(equal), ID("bar"), T(lparen), T(rparen), T(semicolon));
 }
-
-const char* const v1_keywords[] = { "break", "for", "new", "var", "continue", "function", "return", "void", "delete", "if", "this", "while", "else", "in", "typeof", "with" };
-const char* const v1_reserved_words[] = { "case", "catch", "class", "const", "debugger", "default", "do", "enum", "export", "extends", "finally", "import", "super", "switch", "throw", "try" };
 
 template<size_t size>
 void check_keywords(const char* const (&list)[size]) {
@@ -135,10 +164,24 @@ void check_reserved_words(const char* const (&list)[size]) {
     }
 }
 
-void check_v1_keywords() {
+const char* const es1_keywords[] = { "break", "continue", "delete", "else", "for", "function", "if", "in", "new", "return", "this", "typeof", "var", "void", "while", "with" };
+const char* const es1_reserved_words[] = { "case", "catch", "class", "const", "debugger", "default", "do", "enum", "export", "extends", "finally", "import", "super", "switch", "throw", "try" };
+
+// New keywords
+const char* const es3_keywords[] = { "case", "catch", "default", "do", "finally", "instanceof", "switch", "throw", "try", };
+const char* const es3_reserved_words[] = { "abstract", "boolean", "byte", "char", "class", "const", "debugger", "double", "enum", "export", "extends", "final", "float", "goto", "implements", "import", "int", "interface", "long", "native", "package", "private", "protected", "public", "short", "static", "super", "synchronized", "throws", "transient", "volatile" };
+
+void check_es1_keywords() {
     lexer_version = version::es1;
-    check_keywords(v1_keywords);
-    check_reserved_words(v1_reserved_words);
+    check_keywords(es1_keywords);
+    check_reserved_words(es1_reserved_words);
+}
+
+void check_es3_keywords() {
+    lexer_version = version::es3;
+    check_keywords(es1_keywords);
+    check_keywords(es3_keywords);
+    check_reserved_words(es3_reserved_words);
 }
 
 int main() {
@@ -147,7 +190,8 @@ int main() {
             lexer_version = v;
             basic_tests();
         }
-        check_v1_keywords();
+        check_es1_keywords();
+        check_es3_keywords();
     } catch (const std::exception& e) {
         std::wcerr << e.what() << "\n";
         std::wcerr << "Lexer version: " << lexer_version << "\n";

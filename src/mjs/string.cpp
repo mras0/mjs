@@ -19,7 +19,7 @@ std::wostream& operator<<(std::wostream& os, const string& s) {
 }
 
 double to_number(const std::wstring_view& s) {
-    // TODO: Implement real algorithm from ง9.3.1 ToNumber Applied to the String Type
+    // TODO: Implement real algorithm from ยง9.3.1 ToNumber Applied to the String Type
     if (s.empty()) {
         return 0;
     }
@@ -29,7 +29,7 @@ double to_number(const std::wstring_view& s) {
 }
 
 double to_number(const string& s) {
-    // TODO: Implement real algorithm from ง9.3.1 ToNumber Applied to the String Type
+    // TODO: Implement real algorithm from ยง9.3.1 ToNumber Applied to the String Type
     return to_number(s.view());
 }
 

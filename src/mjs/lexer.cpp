@@ -69,7 +69,7 @@ std::ostream& operator<<(std::ostream& os, token_type t) {
 
 const char* op_text(token_type tt) {
     switch (tt) {
-#define CASE_PUNCTUATOR(name, str) case token_type::name: return str;
+#define CASE_PUNCTUATOR(name, str, ...) case token_type::name: return str;
         MJS_PUNCTUATORS(CASE_PUNCTUATOR)
 #undef CASE_PUNCTUATOR
     default:
@@ -101,12 +101,14 @@ std::wostream& operator<<(std::wostream& os, token_type t) {
     return os << oss.str().c_str();
 }
 
-constexpr bool is_whitespace(int ch) {
-    return ch == 0x09 || ch == 0x0B || ch == 0x0C || ch == 0x20;
+constexpr bool is_whitespace(int ch, version v) {
+    if (ch == 0x09 || ch == 0x0B || ch == 0x0C || ch == 0x20) return true;
+    return v != version::es1 && ch == /*<NBSP>*/ 0xA0; // TODO: Support <USP> i.e. other unicode space separators (§7.2)
 }
 
-constexpr bool is_line_terminator(int ch) {
-    return ch == 0x0A || ch == 0x0D;
+constexpr bool is_line_terminator(int ch, version v) {
+    if (ch == 0x0A || ch == 0x0D) return true;
+    return v != version::es1 && (ch == /*<LS>*/ 0x2028 || ch == /*<PS>*/ 0x2029);
 }
 
 constexpr bool is_identifier_letter(int ch) {
@@ -117,26 +119,26 @@ constexpr bool is_digit(int ch) {
     return ch >= '0' && ch <= '9';
 }
 
-std::tuple<token_type, int> get_punctuation(std::wstring_view v) {
-    assert(!v.empty());
+std::tuple<token_type, int> get_punctuation(std::wstring_view s, version v) {
+    assert(!s.empty());
 
-#define CHECK_PUNCTUATORS(name, str) if (v.length() >= sizeof(str)-1 && v.compare(0, sizeof(str)-1, L##str) == 0) return std::pair<token_type, int>{token_type::name, static_cast<int>(sizeof(str)-1)};
+#define CHECK_PUNCTUATORS(name, str, ver) if (v >= version::ver && s.length() >= sizeof(str)-1 && s.compare(0, sizeof(str)-1, L##str) == 0) return std::pair<token_type, int>{token_type::name, static_cast<int>(sizeof(str)-1)};
     MJS_PUNCTUATORS(CHECK_PUNCTUATORS)
 #undef CHECK_PUNCTUATORS
 
     std::ostringstream oss;
-    auto s = cpp_quote(v.substr(0, 4));
-    oss << "Unhandled character(s) in " << __FUNCTION__ << ": " << std::string(s.begin(), s.end()) << "\n";
+    auto qs = cpp_quote(s.substr(0, s.length() < 4 ? s.length() : 4));
+    oss << "Unhandled character(s) in " << __FUNCTION__ << ": " << std::string(qs.begin(), qs.end()) << "\n";
     throw std::runtime_error(oss.str());   
 }
 
-std::pair<token, size_t> skip_comment(const std::wstring_view& text, size_t pos) {
+std::pair<token, size_t> skip_comment(const std::wstring_view& text, size_t pos, version v) {
     assert(pos < text.size());
     assert(text[pos] == '/' || text[pos] == '*');
     const bool is_single_line = text[pos++] == '/';
     if (is_single_line) {
         for (; pos < text.size(); ++pos) {
-            if (is_line_terminator(text[pos])) {
+            if (is_line_terminator(text[pos], v)) {
                 // Don't consume line terminator
                 break;
             }
@@ -148,7 +150,7 @@ std::pair<token, size_t> skip_comment(const std::wstring_view& text, size_t pos)
                 return {token{line_terminator_seen ? token_type::line_terminator : token_type::whitespace}, ++pos};
             }
             last_was_asterisk = text[pos] == '*';
-            if (is_line_terminator(text[pos])) {
+            if (is_line_terminator(text[pos], v)) {
                 line_terminator_seen = true;
             }
         }
@@ -208,8 +210,8 @@ void lexer::next_token() {
                     throw std::runtime_error("Unterminated string");
                 }
                 const auto qch = text_[token_end];
-                if (is_line_terminator(qch)) {
-                    throw std::runtime_error("Line temrinator in string");
+                if (is_line_terminator(qch, version_)) {
+                    throw std::runtime_error("Line terminator in string");
                 }
                 if (escape) {
                     escape = !escape;
@@ -222,6 +224,13 @@ void lexer::next_token() {
                     case 'n': s.push_back('\n'); break;
                     case 'r': s.push_back('\r'); break;
                     case 't': s.push_back('\t'); break;
+                    case 'v':
+                        // '\v' only support in ES3 onwards
+                        if (version_ == version::es1) {
+                            goto invalid_escape_sequence;
+                        }
+                        s.push_back('\v');
+                        break;
                         // HexEscapeSeqeunce
                     case 'x': case 'X':
                         ++token_end;
@@ -251,8 +260,9 @@ void lexer::next_token() {
                         token_end += 3; // Incremented in loop
                         break;
                     default:
+                    invalid_escape_sequence:
                         std::ostringstream oss;
-                        oss << "Unahdled escape sequence: \\" << (char)qch;
+                        oss << "Unhandled escape sequence: \\" << (char)qch;
                         throw std::runtime_error(oss.str());
                     }
                 } else if (qch == '\\') {
@@ -265,13 +275,13 @@ void lexer::next_token() {
                 }
             }
             current_token_ = token{token_type::string_literal, std::move(s)};
-        } else if (is_whitespace(ch)) {
-            while (token_end < text_.size() && is_whitespace(text_[token_end])) {
+        } else if (is_whitespace(ch, version_)) {
+            while (token_end < text_.size() && is_whitespace(text_[token_end], version_)) {
                 ++token_end;
             }
             current_token_  = token{token_type::whitespace};
-        } else if (is_line_terminator(ch)) {
-            while (token_end < text_.size() && is_line_terminator(text_[token_end])) {
+        } else if (is_line_terminator(ch, version_)) {
+            while (token_end < text_.size() && is_line_terminator(text_[token_end], version_)) {
                 ++token_end;
             }
             current_token_  = token{token_type::line_terminator};
@@ -336,9 +346,9 @@ void lexer::next_token() {
             }
         } else if (std::strchr("!%&()*+,-./:;<=>?[]^{|}~", ch)) {
             if (ch == '/' && token_end < text_.size() && (text_[token_end] == '/' || text_[token_end] == '*')) {
-                std::tie(current_token_, token_end)  = skip_comment(text_, token_end);
+                std::tie(current_token_, token_end)  = skip_comment(text_, token_end, version_);
             } else {
-                auto [tok, len] = get_punctuation(std::wstring_view{&text_[text_pos_], text_.size() - text_pos_});
+                auto [tok, len] = get_punctuation(std::wstring_view{&text_[text_pos_], text_.size() - text_pos_}, version_);
                 token_end = text_pos_ + len;
                 current_token_ = token{tok};
             }

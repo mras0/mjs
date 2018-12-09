@@ -53,7 +53,7 @@ create_result make_object_object(global_object& global) {
     }, global.native_function_body(h, L"Object"), 1);
     global.make_constructable(o);
 
-    // ง15.2.4
+    // ยง15.2.4
     auto prototype = global.object_prototype();
     global.put_native_function(prototype, "toString", [&h](const value& this_, const std::vector<value>&){
         return value{string{h, "[object "} + this_.object_value()->class_name() + string{h, "]"}};
@@ -73,7 +73,7 @@ create_result make_function_object(global_object& global, const object_ptr& prot
 
     auto c = h.make<object>(prototype->class_name(), prototype); // Note: function constructor is added by interpreter
 
-    // ง15.3.4
+    // ยง15.3.4
     prototype->call_function(gc_function::make(h, [](const value&, const std::vector<value>&) {
         return value::undefined;
     }));
@@ -1089,7 +1089,7 @@ private:
             }
         };
 
-        // ง15.1
+        // ยง15.1
         add("Object", make_object_object, &object_prototype_);          // Resetting it..
         add("Function", [&](auto& g) { return make_function_object(g, function_prototype_.track(heap())); }, &function_prototype_);    // same
         add("Array", make_array_object, &array_prototype_);

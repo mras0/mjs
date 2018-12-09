@@ -33,7 +33,7 @@ class object;
 class value;
 using object_ptr = gc_heap_ptr<object>;
 
-// ง8.7
+// ยง8.7
 class reference {
 public:
     explicit reference(const object_ptr& base, const string& property_name) : base_(base), property_name_(property_name) {
@@ -105,7 +105,7 @@ inline value get_value(value&& v) {
 
 [[nodiscard]] bool put_value(const value& ref, const value& val);
 
-// ง9 Type Conversions
+// ยง9 Type Conversions
 value to_primitive(const value& v, value_type hint = value_type::undefined);
 bool to_boolean(const value& v);
 double to_number(const value& v);
