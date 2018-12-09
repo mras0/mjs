@@ -130,7 +130,7 @@ void eval_tests() {
     run_test(L"var x = 0; for(var i = 10, dec = 1; i; i = i - dec) x = x + i; x", value{55.0});
     run_test(L"var x=0; for (i=2; i; i=i-1) x=x+i; x+i", value{3.0});
     run_test(L"for (var i=0;!i;) { i=1 }", value{1.});
-    
+
     // for in statement
     // FIXME: The order of the objects are unspecified in earlier revisions of ECMAScript..
     RUN_TEST_SPEC(R"(
@@ -660,9 +660,75 @@ f(4);
     EX_EQUAL("call_expression{identifier_expression{parseInt}, {literal_expression{token{numeric_literal, 42}}}} is not constructable\ntest:1:1-1:17", expect_exception<eval_exception>(L"new parseInt(42);"));
 }
 
+void test_es3_statements() {
+    gc_heap h{8192};
+
+    // do..while
+    run_test(L"s=''; i=1;do{s+=i;}while(++i<3); s", value{string{h,"12"}});
+    run_test(L"s=''; i=1;do{s+=i;break;}while(++i<3); s", value{string{h,"1"}});
+    run_test(L"s=''; i=1;do{if(i==1)continue;s+=i;}while(++i<3); s", value{string{h,"2"}});
+
+    // switch
+    run_test(L"switch(1){}", value::undefined);
+    run_test(L"switch(1){case 0:x=42;break;case 1:x=12;break;} x", value{12.});
+
+    RUN_TEST_SPEC(R"(
+s='';
+function c(x) { s+=x; return x; }
+switch (42) {
+    case c('42'): break;
+    case c(40+1): break;
+    case c(42): s+='Hit!';break;
+    default:
+        s+='xx';
+}
+s;//$string '424142Hit!'
+)");
+    RUN_TEST_SPEC(R"(
+s = '';
+switch(1+2) {
+case 2.0:break;
+case 3.0: s+='a';
+default:
+    s+='b';
+    s+='c';
+}
+s;//$string 'abc'
+)");
+    RUN_TEST_SPEC(R"(
+function f(y) {
+    s='';
+    function t(x) { s+=x; }
+    function c(x) { t('c'+x); return x; };
+    switch (y) {
+        case c(1): t('s1');
+        case c(2): t('s2'); break;
+        case c(3): t('s3');
+        default: t('def');
+        case c(4): t('s4');
+        case c(5): t('s5'); break;
+        case c(6): t('s6');
+    }
+}
+
+f(0); s //$ string 'c1c2c3c4c5c6defs4s5'
+f(1); s //$ string 'c1s1s2'
+f(2); s //$ string 'c1c2s2'
+f(3); s //$ string 'c1c2c3s3defs4s5'
+f(4); s //$ string 'c1c2c3c4s4s5'
+f(5); s //$ string 'c1c2c3c4c5s5'
+f(6); s //$ string 'c1c2c3c4c5c6s6'
+f(7); s //$ string 'c1c2c3c4c5c6defs4s5'
+
+)");
+}
+
 int main() {
     try {
-        eval_tests();
+        if (parser_version >= version::es3) {
+            test_es3_statements();
+        }
+        eval_tests(); // TODO: Move back first
         test_global_functions();
         test_math_functions();
         test_date_functions();

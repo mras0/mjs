@@ -5,6 +5,7 @@
 #include <memory>
 #include <vector>
 #include <cassert>
+#include <algorithm>
 
 #include "lexer.h"
 
@@ -112,6 +113,7 @@ enum class statement_type {
     empty,
     expression,
     if_,
+    do_,
     while_,
     for_,
     for_in,
@@ -119,6 +121,10 @@ enum class statement_type {
     break_,
     return_,
     with,
+    labelled,
+    switch_,
+    throw_,
+    try_,
     function_definition,
 };
 
@@ -491,6 +497,27 @@ private:
     }
 };
 
+class do_statement : public statement {
+public:
+    explicit do_statement(const source_extend& extend, expression_ptr&& cond, statement_ptr&& s) : statement(extend), cond_(std::move(cond)), s_(std::move(s)) {
+        assert(cond_);
+        assert(s_);
+    }
+
+    statement_type type() const override { return statement_type::do_; }
+
+    const expression& cond() const { return *cond_; }
+    const statement& s() const { return *s_; }
+
+private:
+    expression_ptr cond_;
+    statement_ptr s_;
+
+    void print(std::wostream& os) const override {
+        os  << "do_statement{" << *cond_ << ", " << *s_ << "}";
+    }
+};
+
 class while_statement : public statement {
 public:
     explicit while_statement(const source_extend& extend, expression_ptr&& cond, statement_ptr&& s) : statement(extend), cond_(std::move(cond)), s_(std::move(s)) {
@@ -630,6 +657,84 @@ private:
     }
 };
 
+class labelled_statement : public statement {
+public:
+    // TODO
+
+    statement_type type() const override { return statement_type::labelled; }
+};
+
+// The default clause is repesented by case_clause with a null expression
+class case_clause {
+public:
+    explicit case_clause(expression_ptr&& e, statement_list&& sl) : e_(std::move(e)), sl_(std::move(sl)) {
+    }
+
+    bool is_default() const { return !e_; }
+
+    const expression_ptr& e() const { return e_; }
+    const statement_list& sl() const { return sl_; }
+
+private:
+    expression_ptr e_;
+    statement_list sl_;
+};
+
+using clause_list = std::vector<case_clause>;
+
+class switch_statement : public statement {
+public:
+    explicit switch_statement(const source_extend& extend, expression_ptr&& e, clause_list&& cl) : statement(extend), e_(std::move(e)), cl_(std::move(cl)) {
+        assert(e_);
+    }
+
+    statement_type type() const override { return statement_type::switch_; }
+
+    const expression& e() const { return *e_; }
+    const clause_list& cl() const { return cl_; }
+
+    auto default_clause() const {
+        return std::find_if(cl_.begin(), cl_.end(), [](const auto& c) { return !c.e(); });
+    }
+
+private:
+    expression_ptr e_;
+    clause_list cl_;
+
+    void print(std::wostream& os) const override {
+        os << "switch_statement{" << e() << ", [";
+        bool first = true;
+        for (const auto& c: cl()) {
+            if (!first) os << ", ";
+            first = false;
+            os << "{";
+            if (c.e()) {
+                os << *c.e() << ", ";
+            }
+            os << "[";
+            for (size_t i = 0; i < c.sl().size(); ++i) {
+                if (i) os << ", ";
+                os << *c.sl()[i];
+            }
+            os << "]}";
+        }
+        os << "]}";
+    }
+};
+
+class throw_statement : public statement {
+public:
+    // TODO
+    statement_type type() const override { return statement_type::throw_; }
+};
+
+
+class try_statement : public statement {
+public:
+    // TODO
+    statement_type type() const override { return statement_type::try_; }
+};
+
 class function_definition : public statement {
 public:
     explicit function_definition(const source_extend& extend, const source_extend& body_extend, const std::wstring& id, std::vector<std::wstring>&& params, statement_ptr&& block) : statement(extend), body_extend_(body_extend), id_(id), params_(std::move(params)) {
@@ -669,6 +774,7 @@ auto accept(const statement& s, Visitor& v) {
     case statement_type::empty:                 return v(static_cast<const empty_statement&>(s));
     case statement_type::expression:            return v(static_cast<const expression_statement&>(s));
     case statement_type::if_:                   return v(static_cast<const if_statement&>(s));
+    case statement_type::do_:                   return v(static_cast<const do_statement&>(s));
     case statement_type::while_:                return v(static_cast<const while_statement&>(s));
     case statement_type::for_:                  return v(static_cast<const for_statement&>(s));
     case statement_type::for_in:                return v(static_cast<const for_in_statement&>(s));
@@ -676,6 +782,10 @@ auto accept(const statement& s, Visitor& v) {
     case statement_type::break_:                return v(static_cast<const break_statement&>(s));
     case statement_type::return_:               return v(static_cast<const return_statement&>(s));
     case statement_type::with:                  return v(static_cast<const with_statement&>(s));
+    case statement_type::labelled:              return v(static_cast<const labelled_statement&>(s));
+    case statement_type::switch_:               return v(static_cast<const switch_statement&>(s));
+    case statement_type::throw_:                return v(static_cast<const throw_statement&>(s));
+    case statement_type::try_:                  return v(static_cast<const try_statement&>(s));
     case statement_type::function_definition:   return v(static_cast<const function_definition&>(s));
     }
     assert(!"Not implemented");

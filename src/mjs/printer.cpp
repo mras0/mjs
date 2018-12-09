@@ -155,6 +155,14 @@ public:
         }
     }
 
+    void operator()(const do_statement& s) {
+        os_ << "do ";
+        accept(s.s(), *this);
+        os_ << " while (";
+        accept(s.cond(), *this);
+        os_ << ") ";
+    }
+
     void operator()(const while_statement& s) {
         os_ << "while (";
         accept(s.cond(), *this);
@@ -217,6 +225,38 @@ public:
         accept(s.e(), *this);
         os_ << ") ";
         accept(s.s(), *this);
+    }
+
+    void operator()(const labelled_statement& s) {
+        NOT_IMPLEMENTED(s);
+    }
+
+    void operator()(const switch_statement& s) {
+        os_ << "switch (";
+        accept(s.e(), *this);
+        os_ << ") {";
+        for (const auto& c: s.cl()) {
+            os_ << " ";
+            if (const auto& e = c.e()) {
+                os_ << "case ";
+                accept(*e, *this);
+            } else {
+                os_ << "default";
+            }
+            os_ << ": ";
+            for (const auto& cs: c.sl()) {
+                accept(*cs, *this);
+            }
+        }
+        os_ << "}";
+    }
+
+    void operator()(const throw_statement& s) {
+        NOT_IMPLEMENTED(s);
+    }
+
+    void operator()(const try_statement& s) {
+        NOT_IMPLEMENTED(s);
     }
 
     void operator()(const function_definition& s) {

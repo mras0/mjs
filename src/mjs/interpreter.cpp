@@ -60,32 +60,57 @@ public:
         }
     }
 
-    void operator()(const while_statement& s){
+    void operator()(const do_statement& s) {
         accept(s.s(), *this);
     }
 
-    void operator()(const for_statement& s){
+    void operator()(const while_statement& s) {
+        accept(s.s(), *this);
+    }
+
+    void operator()(const for_statement& s) {
         if (s.init()) accept(*s.init(), *this);
         accept(s.s(), *this);
     }
 
-    void operator()(const for_in_statement& s){
+    void operator()(const for_in_statement& s) {
         accept(s.init(), *this);
         accept(s.s(), *this);
     }
 
-    void operator()(const continue_statement&){}
-    void operator()(const break_statement&){}
-    void operator()(const return_statement&){}
-    void operator()(const with_statement&){}
+    void operator()(const continue_statement&) {}
+    void operator()(const break_statement&) {}
+    void operator()(const return_statement&) {}
+    void operator()(const with_statement& s) {
+        accept(s.s(), *this);
+    }
 
-    void operator()(const function_definition& s) {
-        assert(!s.id().empty());
-        ids_.push_back(s.id());
+    void operator()(const labelled_statement& s) {
+        NOT_IMPLEMENTED(s);
+    }
+
+    void operator()(const switch_statement& s) {
+        for (const auto& c: s.cl()) {
+            for (const auto& cs: c.sl()) {
+                accept(*cs, *this);
+            }
+        }
+    }
+
+    void operator()(const try_statement& s) {
+        NOT_IMPLEMENTED(s);
+    }
+
+    void operator()(const throw_statement&) {}
+
+    void operator()(const function_definition& f) {
+        ids_.push_back(f.id());
     }
 
     void operator()(const statement& s) {
-        NOT_IMPLEMENTED(s);
+        std::wostringstream woss;
+        print(woss, s);
+        NOT_IMPLEMENTED(woss.str());
     }
 
 private:
@@ -681,6 +706,20 @@ public:
         return completion{};
     }
 
+    completion operator()(const do_statement& s) {
+        completion c{};
+        do {
+            c = eval(s.s());
+            if (c.type == completion_type::break_) {
+                return completion{};
+            } else if (c.type == completion_type::return_) {
+                return c;
+            }
+            assert(c.type == completion_type::normal || c.type == completion_type::continue_);
+        } while (to_boolean(get_value(eval(s.cond()))));
+        return completion{completion_type::normal, c.result};
+    }
+
     completion operator()(const while_statement& s) {
         while (to_boolean(get_value(eval(s.cond())))) {
             auto c = eval(s.s());
@@ -792,6 +831,53 @@ public:
         auto val = get_value(eval(s.e()));
         auto_scope with_scope{*this, global_->to_object(val), active_scope_};
         return eval(s.s());
+    }
+
+    completion operator()(const labelled_statement& s) {
+        NOT_IMPLEMENTED(s);
+    }
+
+    completion operator()(const switch_statement& s) {
+        auto to_run = s.default_clause(); // Unless we find a match, we'll run the default caluse (if it exists)
+        const auto switch_val = get_value(eval(s.e())); // Evaluate the switch value
+        for (auto it = s.cl().begin(), e = s.cl().end(); it != e; ++it) {
+            const auto& clause_e = it->e();
+            if (!clause_e) {
+                // This is the default clause, but we're not ready to run it yet
+                continue;
+            }
+            const auto clause_val = get_value(eval(*clause_e));
+            if (!compare_strict_equal(switch_val, clause_val)) {
+                continue;
+            }
+            // We found a match, run it
+            to_run = it;
+            break;
+        }
+
+        // We've decided which cases need to be run (if any), process them
+        completion c{};
+        for (auto end = s.cl().end(); to_run != end; ++to_run) {
+            for (const auto& cs: to_run->sl()) {
+                c = eval(*cs);
+                if (c) {
+                    if (c.type == completion_type::break_) {
+                        // TOD: Check target...
+                        return completion{completion_type::normal, c.result};
+                    }
+                    return c;
+                }
+            }
+        }
+        return c;
+    }
+
+    completion operator()(const try_statement& s) {
+        NOT_IMPLEMENTED(s);
+    }
+
+    completion operator()(const throw_statement& s) {
+        NOT_IMPLEMENTED(s);
     }
 
     completion operator()(const function_definition& s) {

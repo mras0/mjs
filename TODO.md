@@ -1,11 +1,36 @@
 * Lexer
-    - Use `wstring_view` for token text (it's kept alive by the `source_file`), can't be used for string literals though
-    - Better handling of e.g. number literals..
+    - Follow specification exactly when handling e.g. number literals..
     - Missing stuff?
     - Add more test cases...
+    - ES3 support:
+        * Handling unicode format-control characters (§7.1)
+        * Handling unicode space separator characters (§7.2)
+        * Handling unicode characters (and escape sequences) in identifiers (§7.6)
+        * Regular expression literals (§7.8.5) - only basic support for now
 * Parser
     - Test `source_extend` logic (could probably be more precise for expressions/statements)
     - More tests...
+* Interpreter
+    - Lessen stack usage
+    - Make sure deep recursion is supported without running out of space
+    - Handle error conditions better
+    - Make sure nested function definitions aren't processed multiple times
+    - Optimize `NumberToString()` (and related functions)
+    - Optimize nested functions (they only need to be processed once (?))
+    - AST optimizations (constant propagation etc.)
+    - Escape analysis
+    - ES3 support:
+        * Handle "joined object" (§13.1.2) in comparison
+* Global object
+    - Date
+        - mutators
+        - time zone adjustments
+        - to/from string
+    - Split into multiple classes/files
+    - Optimize `array_object` - may need to make more `object` functions virtual and do the same for string objects
+    - Add test cases for directly relatable to clauses in the spec (e.g. `Boolean.prototype.constructor` exists and is correct)
+    - ES3 support
+    - Probably other missing stuff and non-compliant implementations...
 * Better GC
     - Ensure exception safety
     - Support growing the heap (and support growing it as needed)
@@ -26,41 +51,14 @@
     - Consider making `gc_table` available for geenral use (e.g. by `string_cache`)
     - Have `native_object::add_native_property` take the name as a no-type template parameter and do some constexpr stuff (or something)
     - `native_object` should handle the issues faced by`activation_object` and `array_object` or probably die (or be repurposed)
-* Finish global object
-    - Date
-        - mutators
-        - time zone adjustments
-        - to/from string
-    - Probably other missing stuff and non-compliant implementations...
-    - Split into multiple classes/files
-    - Optimize `array_object` - may need to make more `object` functions virtual and do the same for string objects
-    - Add test cases for directly relatable to clauses in the spec (e.g. `Boolean.prototype.constructor` exists and is correct)
-* Interpreter
-    - Lessen stack usage
-    - Make sure deep recursion is supported without running out of space
-    - Handle error conditions better
-    - Make sure nested function definitions aren't processed multiple times
-* Known to be missing from ES3 support:
-    - Lexer
-        * Handling unicode format-control characters (§7.1)
-        * Handling unicode space separator characters (§7.2)
-        * Handling unicode characters (and escape sequences) in identifiers (§7.6)
-        * Regular expression literals (§7.8.5) - only basic support for now
-    - Interpreter
-        * Handle "joined object" (§13.1.2) in comparison
 * REPL
     - Add tests
     - Add support for specifying the wanted ECMAScript version as a commandline argument
-* Optimize `NumberToString()`
 * Create example(s)
     - Embedding mjs (I.e. adding user-defined classes)
 * Make `string` easier to use - without going back to having a static `local_heap`
     - make `string_builder` class or drop support for operator+?
 * Make it easy to evaluate Javascript expressions (e.g. String('12') + 34)
-* Optimize nested functions (they only need to be processed once (?))
-* AST optimizations (constant propagation etc.)
-* Optimize Array(), etc.
-* Compile under Linux
 * Use `char16_t` instead of `wchar_t` (and update `wstring`/`wistringstream` etc. etc.)
 * Avoid duplicating `duration_cast`/`typeid()` logic with `expression_type`/`statement_type`. Consider using std::variant.
 * General refactoring, implement ES5, ES...., JIT, etc. :)

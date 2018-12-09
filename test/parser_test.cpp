@@ -29,7 +29,7 @@ void test_parse_fails(const char* text) {
     try {
         parse(make_source(text), parser_version);
     } catch (const std::exception&) {
-        // std::wcerr << "\n'" << text << "' ---->\n" << e.what() << "\n\n";
+        //std::wcerr << "\n'" << text << "' ---->\n" << e.what() << "\n\n";
         return;
     }
     std::ostringstream oss;

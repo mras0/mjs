@@ -497,6 +497,10 @@ private:
         //  BreakStatement
         //  ReturnStatement
         //  WithStatement
+        //  LabelledStatement
+        //  SwitchStatement
+        //  ThrowStatement
+        //  TryStatement
 
         if (current_token_type() == token_type::lbrace) {
             return parse_block();
@@ -515,6 +519,13 @@ private:
             accept(token_type::semicolon);
             auto else_s = accept(token_type::else_) ? parse_statement() : statement_ptr{};
             return make_statement<if_statement>(std::move(cond), std::move(if_s), std::move(else_s));
+        } else if (/*version_ >= version::es3 && */accept(token_type::do_)) {
+            auto s = parse_statement();
+            EXPECT(token_type::while_);
+            EXPECT(token_type::lparen);
+            auto cond = parse_expression();
+            EXPECT(token_type::rparen);
+            return make_statement<do_statement>(std::move(cond), std::move(s));
         } else if (accept(token_type::while_)) {
             EXPECT(token_type::lparen);
             auto cond = parse_expression();
@@ -572,6 +583,45 @@ private:
             auto e = parse_expression();
             EXPECT(token_type::rparen);
             return make_statement<with_statement>(std::move(e), parse_statement());
+        } else if (/*version_ >= version::es3 && */accept(token_type::switch_)) {
+            EXPECT(token_type::lparen);
+            auto switch_e = parse_expression();
+            EXPECT(token_type::rparen);
+            EXPECT(token_type::lbrace);
+            clause_list cl;
+            bool has_default = false;
+            while (!accept(token_type::rbrace)) {
+                // CaseClause
+                expression_ptr e{};
+                if (!accept(token_type::default_)) {
+                    EXPECT(token_type::case_);
+                    e = parse_expression();
+                } else {
+                    if (has_default) {
+                        // TODO: Better error message when a switch has multiple default clauses
+                        UNHANDLED();
+                    }
+                    has_default = true;
+                }
+                EXPECT(token_type::colon);
+                statement_list sl;
+                for (;;) {
+                    const auto tt = current_token_type();
+                    if (tt == token_type::rbrace
+                        || tt == token_type::case_
+                        || tt ==  token_type::default_
+                        || tt == token_type::eof) {
+                        break;
+                    }
+                    sl.emplace_back(parse_statement());
+                }
+                cl.push_back(case_clause{std::move(e), std::move(sl)});
+            }
+            return make_statement<switch_statement>(std::move(switch_e), std::move(cl));
+        } else if (/*version_ >= version::es3 && */accept(token_type::throw_)) {
+            UNHANDLED();
+        } else if (/*version_ >= version::es3 && */accept(token_type::try_)) {
+            UNHANDLED();
         } else {
             auto e = parse_expression();
             EXPECT_SEMICOLON_ALLOW_INSERTION();

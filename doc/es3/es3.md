@@ -2,9 +2,8 @@
 
 https://www.ecma-international.org/publications/standards/Ecma-262-arch.htm
 
-ES2:
- ?? Only editorial changes according to Wikipedia
-No ES4 (again according to Wikipedia)
+* ES2: ?? Only editorial changes according to Wikipedia
+* No ES4 (again according to Wikipedia)
 
 Wikipedia: "Added regular expressions, better string handling, new control statements, try/catch exception handling, tighter definition of errors, formatting for numeric output and other enhancements "
 
@@ -44,4 +43,9 @@ Weird stuff/notes:
     - Object literals don't support trailing comma (until ES5)
     - Regular expression literals makes the lexer context sensitive
     - Labelled statements / break/continue with identifier (how often have you seen that used in JS?)
+    - `do...while` and `switch` were not in ES1
+    - `switch`
+        * case clauses are full expression that can have side effects!
+        * `switch(0){default:}` is legal ECMAScript but not C(++)! (Need an empty statement `;` after before the closing brace)
+        * Maybe some (all?) of this is also legal Java - need to check
 
