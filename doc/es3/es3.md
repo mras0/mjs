@@ -2,6 +2,12 @@
 
 https://www.ecma-international.org/publications/standards/Ecma-262-arch.htm
 
+ES2:
+ ?? Only editorial changes according to Wikipedia
+No ES4 (again according to Wikipedia)
+
+Wikipedia: "Added regular expressions, better string handling, new control statements, try/catch exception handling, tighter definition of errors, formatting for numeric output and other enhancements "
+
 - Keep supporting ES1?
     * Yes, need versioning starting with lexer
 - Lexer changes
@@ -31,8 +37,11 @@ https://www.ecma-international.org/publications/standards/Ecma-262-arch.htm
     - Global object extensions
 
 
-ES2:
- ?? Only editorial changes according to Wikipedia
-No ES4 (again according to Wikipedia)
+Weird stuff/notes:
+    - `\v` added as escape sequence
+    - Unicode characters can suddenly appear more in the source text (and escape sequences can be used in identifiers)
+    - Array literal allows item elision (!) and supports trailing comma
+    - Object literals don't support trailing comma (until ES5)
+    - Regular expression literals makes the lexer context sensitive
+    - Labelled statements / break/continue with identifier (how often have you seen that used in JS?)
 
-Wikipedia: "Added regular expressions, better string handling, new control statements, try/catch exception handling, tighter definition of errors, formatting for numeric output and other enhancements "

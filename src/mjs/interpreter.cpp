@@ -321,6 +321,33 @@ public:
         return value{a};
     }
 
+    value operator()(const object_literal_expression& e) {
+        auto o = heap_.make<object>(global_->common_string("Object"), global_->object_prototype());
+        for (const auto& i : e.elements()) {
+            auto v = get_value(eval(*i.second));
+            switch (i.first->type()) {
+            case expression_type::identifier:
+                o->put(string{heap_, static_cast<const identifier_expression&>(*i.first).id()}, v);
+                break;
+            case expression_type::literal:
+                {
+                    const auto& le = static_cast<const literal_expression&>(*i.first);
+                    if (le.t().type() == token_type::string_literal) {
+                        o->put(string{heap_, le.t().text()}, v);
+                        break;
+                    } else if (le.t().type() == token_type::numeric_literal) {
+                        o->put(to_string(heap_, le.t().dvalue()), v);
+                        break;
+                    }
+                }
+                [[fallthrough]];
+            default:
+                NOT_IMPLEMENTED(*i.first);
+            }
+        }
+        return value{o};
+    }
+
     value operator()(const call_expression& e) {
         auto member = eval(e.member());
         auto mval = get_value(member);

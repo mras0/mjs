@@ -91,7 +91,7 @@ enum class expression_type {
     identifier,
     literal,
     array_literal,
-    //object_literal,
+    object_literal,
     call,
     prefix,
     postfix,
@@ -193,6 +193,41 @@ private:
         os << "}";
     }
 };
+
+using property_name_and_value = std::pair<expression_ptr, expression_ptr>;
+using property_name_and_value_list = std::vector<property_name_and_value>;
+
+class object_literal_expression : public expression {
+public:
+    explicit object_literal_expression(const source_extend& extend, property_name_and_value_list&& elements) : expression(extend), elements_(std::move(elements)) {
+#ifndef  NDEBUG
+        for (const auto& p : elements_) {
+            assert(p.first && p.second);
+            assert(p.first->type() == expression_type::identifier
+            || (p.first->type() == expression_type::literal
+                && (static_cast<const literal_expression&>(*p.first).t().type() == token_type::string_literal
+                    || static_cast<const literal_expression&>(*p.first).t().type() == token_type::numeric_literal)));
+        }
+#endif
+    }
+
+    expression_type type() const override { return expression_type::object_literal; }
+
+    const property_name_and_value_list& elements() const { return elements_; }
+
+private:
+    property_name_and_value_list elements_;
+
+    void print(std::wostream& os) const override {
+        os << "object_literal_expression{";
+        for (size_t i = 0; i < elements_.size(); ++i) {
+            if (i) os << ", ";
+            os << *elements_[i].first << ": " << *elements_[i].second;
+        }
+        os << "}";
+    }
+};
+
 
 class call_expression : public expression {
 public:
@@ -313,6 +348,7 @@ auto accept(const expression& e, Visitor& v) {
     case expression_type::identifier:       return v(static_cast<const identifier_expression&>(e));
     case expression_type::literal:          return v(static_cast<const literal_expression&>(e));
     case expression_type::array_literal:    return v(static_cast<const array_literal_expression&>(e));
+    case expression_type::object_literal:   return v(static_cast<const object_literal_expression&>(e));
     case expression_type::call:             return v(static_cast<const call_expression&>(e));
     case expression_type::prefix:           return v(static_cast<const prefix_expression&>(e));
     case expression_type::postfix:          return v(static_cast<const postfix_expression&>(e));

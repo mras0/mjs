@@ -1,5 +1,5 @@
 * Lexer
-    - Use `wstring_view` for token text (it's kept alive by the `source_file`)
+    - Use `wstring_view` for token text (it's kept alive by the `source_file`), can't be used for string literals though
     - Better handling of e.g. number literals..
     - Missing stuff?
     - Add more test cases...
@@ -48,7 +48,7 @@
         * Regular expression literals (§7.8.5) - only basic support for now
 * REPL
     - Add tests
-    - Garbage collect "sometimes"
+    - Add support for specifying the wanted ECMAScript version as a commandline argument
 * Optimize `NumberToString()`
 * Create example(s)
     - Embedding mjs (I.e. adding user-defined classes)

@@ -98,8 +98,9 @@ void test_es1_fails_with_new_constructs() {
 
     test_parse_fails("[1]");
     test_parse_fails("[1,2]");
-    test_parse_fails("{a:42}");
-    test_parse_fails("{1:2}");
+    test_parse_fails("({a:42})");
+    test_parse_fails("({1:2})");
+    run_test(L"{1,2,3}", value{3.}); // Not an object literal!
     test_parse_fails("switch (x){}");
     test_parse_fails("do {} while(1);");
     test_parse_fails("lab: foo();");
@@ -183,6 +184,49 @@ a[2][1]; //$number 42
 )");
 }
 
+void test_object_literal() {
+    auto parse_object_literal = [](const char* text) {
+        auto [bs, e] = parse_expression(text);
+        return std::make_pair(std::move(bs), &CHECK_EXPR_TYPE(*e, object_literal));
+    };
+
+    {
+        const auto& [bs, e] = parse_object_literal("({ })");
+        (void)bs;
+        REQUIRE_EQ(e->elements().size(), 0U);
+    }
+
+    {
+        const auto& [bs, e] = parse_object_literal("({1:2})");
+        (void)bs;
+        REQUIRE_EQ(e->elements().size(), 1U);
+        const auto& [p0, v0] = e->elements()[0];
+        REQUIRE(p0);
+        REQUIRE(v0);
+        REQUIRE_EQ(CHECK_EXPR_TYPE(p0, literal).t(), token{1.0});
+        REQUIRE_EQ(CHECK_EXPR_TYPE(v0, literal).t(), token{2.0});
+    }
+
+    run_test(L"{1,2,3}", value{3.}); // Not an object literal!
+    test_parse_fails("({1:2,})"); // Trailing comma not allowed until ES5
+    test_parse_fails("({test})"); // No shorthand property name syntaax until ES2015
+
+    // More complicated examples + nesting
+    RUN_TEST_SPEC(R"(
+o1 = {1e3:'test'};
+o1['1000'];//$string 'test'
+
+o2 = {1:2,3:4,'test':'hest'};
+o2[1]; //$number 2
+o2[3]; //$number 4
+o2['test']; //$string 'hest'
+
+o3 = {x: {1:2}, y: {3:4}};
+o3['x']['1']; //$number 2
+o3['y']['3']; //$number 4
+)");
+}
+
 int main() {
     try {
         for (const auto ver: { version::es1, version::es3 }) {
@@ -195,6 +239,7 @@ int main() {
         for (const auto ver: { version::es3 }) {
             parser_version = ver;
             test_array_literal();
+            test_object_literal();
         }
 
     } catch (const std::runtime_error& e) {

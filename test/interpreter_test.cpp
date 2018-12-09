@@ -629,7 +629,7 @@ function a() { x(); }
                                        c();
 )"));
 
-    EX_EQUAL("call_expression{identifier_expression{bar}, {}} is not an object\ntest:2:24-2:50\ntest:2:24-2:39\ntest:2:24-2:39\ntest:3:1-3:5", expect_exception<>(LR"(
+    EX_EQUAL("call_expression{identifier_expression{bar}, {}} is not an object\ntest:2:41-2:50\ntest:2:32-2:39\ntest:2:32-2:39\ntest:3:1-3:5", expect_exception<>(LR"(
 function f(i) { return i > 2 ? f(i-1) : new bar(); }
 f(4);
 )"));

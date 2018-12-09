@@ -42,6 +42,18 @@ public:
         os_ << ']';
     }
 
+    void operator()(const object_literal_expression& e) {
+        os_ << '{';
+        const auto& es = e.elements();
+        for (size_t i = 0; i < es.size(); ++i) {
+            os_ << (i ? ", " : "");
+            accept(*es[i].first, *this);
+            os_ << ": ";
+            accept(*es[i].second, *this);
+        }
+        os_ << '}';
+    }
+
     void operator()(const call_expression& e) {
         accept(e.member(), *this);
         os_ << '(';

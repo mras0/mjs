@@ -266,6 +266,31 @@ private:
                 }
             }
             return make_expression<array_literal_expression>(std::move(elements));
+        } else if (version_ >= version::es3 && accept(token_type::lbrace)) {
+            // ObjectLiteral
+            property_name_and_value_list elements;
+            while (!accept(token_type::rbrace)) {
+                if (!elements.empty()) {
+                    EXPECT(token_type::comma);
+                }
+                expression_ptr p;
+                {
+                    RECORD_EXPRESSION_START;
+                    if (auto i = accept(token_type::identifier)) {
+                        p = make_expression<identifier_expression>(i.text());
+                    } else if (auto sl = accept(token_type::string_literal)) {
+                        p = make_expression<literal_expression>(sl);
+                    } else if (auto nl = accept(token_type::numeric_literal)) {
+                        p = make_expression<literal_expression>(nl);
+                    } else {
+                        UNHANDLED();
+                    }
+                }
+                EXPECT(token_type::colon);
+                auto v = parse_assignment_expression();
+                elements.push_back(property_name_and_value{std::move(p), std::move(v)});
+            }
+            return make_expression<object_literal_expression>(std::move(elements));
         } else if (accept(token_type::lparen)) {
             auto e = parse_expression();
             EXPECT(token_type::rparen);
@@ -335,6 +360,7 @@ private:
     }
 
     expression_ptr parse_assignment_expression() {
+        RECORD_EXPRESSION_START;
         return parse_expression1(parse_unary_expression(), assignment_precedence);
     }
 
