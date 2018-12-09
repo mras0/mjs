@@ -249,11 +249,18 @@ public:
     explicit lexer(const std::wstring_view& text, version ver = default_version);
 
     const token& current_token() const { return current_token_; }
+    std::wstring_view text() const { return text_; }
+    uint32_t text_position() const { return static_cast<uint32_t>(text_pos_); }
 
     void next_token();
 
-    std::wstring_view text() const { return text_; }
-    uint32_t text_position() const { return static_cast<uint32_t>(text_pos_); }
+    // Since the grammar for regular expression literals is context sensitive
+    // the parser has to explicitly request parsing of them.
+    // The current token must be either divide or divideequal when calling
+    // method. The complete regular expression literal text is returned and
+    // the scanner advanced to the next token (i.e. current_token() will 
+    // return the first token following the regular expression)
+    std::wstring_view get_regex_literal();
 
 private:
     std::wstring_view text_;

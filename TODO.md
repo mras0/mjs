@@ -45,7 +45,7 @@
         * Handling unicode format-control characters (§7.1)
         * Handling unicode space separator characters (§7.2)
         * Handling unicode characters (and escape sequences) in identifiers (§7.6)
-        * Regular expression literals (§7.8.5)
+        * Regular expression literals (§7.8.5) - only basic support for now
 * REPL
     - Add tests
     - Garbage collect "sometimes"

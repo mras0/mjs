@@ -111,12 +111,16 @@ constexpr bool is_line_terminator(int ch, version v) {
     return v != version::es1 && (ch == /*<LS>*/ 0x2028 || ch == /*<PS>*/ 0x2029);
 }
 
-constexpr bool is_identifier_letter(int ch) {
+constexpr bool is_identifier_start(int ch, version) {
     return ch == '_' || ch == '$' || (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z');
 }
 
 constexpr bool is_digit(int ch) {
     return ch >= '0' && ch <= '9';
+}
+
+constexpr bool is_identifier_part(int ch, version v) {
+    return is_identifier_start(ch, v) || is_digit(ch);
 }
 
 std::tuple<token_type, int> get_punctuation(std::wstring_view s, version v) {
@@ -285,8 +289,8 @@ void lexer::next_token() {
                 ++token_end;
             }
             current_token_  = token{token_type::line_terminator};
-        } else if (is_identifier_letter(ch)) {
-            while (token_end < text_.size() && (is_identifier_letter(text_[token_end]) || is_digit(text_[token_end]))) {
+        } else if (is_identifier_start(ch, version_)) {
+            while (token_end < text_.size() && is_identifier_part(text_[token_end], version_)) {
                 ++token_end;
             }
             auto id = std::wstring{text_.begin() + text_pos_, text_.begin() + token_end};
@@ -362,6 +366,44 @@ void lexer::next_token() {
     } else {
         current_token_ = eof_token;
     }
+}
+
+std::wstring_view lexer::get_regex_literal() {
+    assert(version_ >= version::es3 &&  "Regular expression literals are not support until ES3");
+    assert(current_token_.type() == token_type::divide || current_token_.type() == token_type::divideequal);
+    const size_t start = text_pos_ - (current_token_.type() == token_type::divide ? 1 : 2);
+    assert(start < text_pos_);
+
+    // Body
+    for (bool quote = false;; ++text_pos_) {
+        if (text_pos_ >= text_.size()) {
+            throw std::runtime_error("Unterminated regular expression literal");
+        }
+        const auto ch = text_[text_pos_];
+        if (is_line_terminator(ch, version_)) {
+            throw std::runtime_error("Line terminator in regular expression literal");
+        } else if (ch == '\\') {
+            quote = !quote;
+        } else if (ch == '/' && !quote) {
+            ++text_pos_; // The final '/' is part of the regular expression
+            break;
+        } else {
+            quote = false;
+        }
+    }
+
+    // Flags
+    for (; text_pos_ < text_.size(); ++text_pos_) {
+        if (!is_identifier_part(text_[text_pos_], version_)) {
+            break;
+        }
+    }
+
+    const std::wstring_view regex_lit{&text_[start], text_pos_ - start};
+
+    next_token();
+
+    return regex_lit;
 }
 
 } // namespace mjs

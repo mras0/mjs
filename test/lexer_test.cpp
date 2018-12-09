@@ -140,6 +140,37 @@ void basic_tests() {
     SIMPLE_TEST(LR"(if (1) foo['x']=bar();)", T(if_), WS, T(lparen), token{1.}, T(rparen), WS, ID("foo"), T(lbracket), STR("x"), T(rbracket), T(equal), ID("bar"), T(lparen), T(rparen), T(semicolon));
 }
 
+void test_get_regex_literal(std::wstring_view text) {
+    lexer l{text, lexer_version};
+    const auto regex_lit = l.get_regex_literal();
+    REQUIRE(!l.current_token()); // Must be at end
+    REQUIRE_EQ(text, regex_lit);
+}
+
+void test_get_regex_literal_fails(std::wstring_view text) {
+    try {
+        lexer l{text, lexer_version};
+        l.get_regex_literal();
+        std::wcerr << "Should have failed while processing regex literal '" << text << "'\n";
+        std::abort();
+    } catch (...) {
+        // OK
+    }
+}
+
+void test_regexp_literals() {
+    lexer_version = version::es3;
+    test_get_regex_literal(LR"(/(?:)/)");
+    test_get_regex_literal(LR"(/=X/)");
+    test_get_regex_literal(LR"(/[123]xx/g)");
+    test_get_regex_literal(LR"(/a/test)");
+    test_get_regex_literal(LR"(/\||1212/)");
+    test_get_regex_literal(LR"(/abc\//)");
+    test_get_regex_literal_fails(LR"(/abc)");
+    test_get_regex_literal_fails(LR"(/abc\/)");
+    test_get_regex_literal_fails(L"/a\nbc/");
+}
+
 template<size_t size>
 void check_keywords(const char* const (&list)[size]) {
     for (auto s: list) {
@@ -192,6 +223,7 @@ int main() {
         }
         check_es1_keywords();
         check_es3_keywords();
+        test_regexp_literals();
     } catch (const std::exception& e) {
         std::wcerr << e.what() << "\n";
         std::wcerr << "Lexer version: " << lexer_version << "\n";
