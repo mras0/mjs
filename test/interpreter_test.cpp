@@ -119,6 +119,9 @@ void eval_tests() {
     run_test(L"function f(){ i = 42; }; f(); i", value{42.0});
     run_test(L"i = 1; function f(){ var i = 42; }; f(); i", value{1.0});
     run_test(L"x=42; function f(x) { return x; } f()", value::undefined);
+    run_test(L"function f(){if(1){function a(){return 42;} return a(); }}; f()", value{42.});
+    run_test(L"{if(1) function a(){return 42;}} a(42);", value{42.});
+    run_test(L"function a(){return 1;}; a()", value{1.});
     run_test(L";", value::undefined);
     run_test(L"if (1) 2;", value{2.0});
     run_test(L"if (0) 2;", value::undefined);
@@ -670,12 +673,16 @@ f(4);
 void test_es3_statements() {
     gc_heap h{8192};
 
+    //
     // do..while
+    //
     run_test(L"s=''; i=1;do{s+=i;}while(++i<3); s", value{string{h,"12"}});
     run_test(L"s=''; i=1;do{s+=i;break;}while(++i<3); s", value{string{h,"1"}});
     run_test(L"s=''; i=1;do{if(i==1)continue;s+=i;}while(++i<3); s", value{string{h,"2"}});
 
+    //
     // switch
+    //
     run_test(L"switch(1){}", value::undefined);
     run_test(L"switch(1){case 0:x=42;break;case 1:x=12;break;} x", value{12.});
 
@@ -730,7 +737,9 @@ f(7); s //$ string 'c1c2c3c4c5c6defs4s5'
 )");
 
 
-    // laballed statements / break+continue to identifer
+    //
+    // Laballed statements / break+continue to identifer
+    //
     run_test(L"x:42", value{42.});
 
     expect_exception<eval_exception>(L"a:a:2;"); // duplicate label
@@ -769,13 +778,18 @@ a: for (i=0;i<3;++i){ b:for(j=0;j<4;++j){s+=i+'-'+j; continue b;} }
 s; //$string '0-00-10-20-31-01-11-21-32-02-12-22-3'
 )");
 
-    // TODO: Need function expression for the following abomination to work
-#if 0
+    //
+    // Function expressions
+    //
+
+    run_test(L"a=function(){return 42;}; a();", value{42.0});
+    run_test(L"a=function x(i){return i?i*x(i-1):1;}; a(4);", value{24.});
+
+
     RUN_TEST_SPEC(R"(
 i=0; a:while(1){ switch(4) { case function(){return i++;}(): break a; } }
 i //$ number 5
 )");
-#endif
 }
 
 int main() {

@@ -667,6 +667,11 @@ public:
         }
     }
 
+    value operator()(const function_expression& e) {
+        // string{heap_, s.id()}
+        return value{create_function(e, active_scope_)};
+    }
+
     value operator()(const expression& e) {
         std::wostringstream woss;
         print(woss, e);
@@ -904,9 +909,7 @@ public:
             for (const auto& cs: to_run->sl()) {
                 c = eval(*cs);
                 if (c) {
-                    if (c.type == completion_type::break_) {
-                        // TODO: Check target... (use ls)
-                        assert(c.has_target() && c.target.empty());
+                    if (c.type == completion_type::break_ && c.in_set(ls)) {
                         return completion{c.result};
                     }
                     return c;
@@ -1073,15 +1076,21 @@ private:
     object_ptr create_function(const string& id, const std::shared_ptr<block_statement>& block, const std::vector<std::wstring>& param_names, const std::wstring& body_text, const scope_ptr& prev_scope) {
         // §15.3.2.1
         auto callee = global_->make_raw_function();
-        auto func = [this, block, param_names, prev_scope, callee, ids = hoisting_visitor::scan(*block)](const value& this_, const std::vector<value>& args) {
+        auto func = [this, block, param_names, prev_scope, callee, id, ids = hoisting_visitor::scan(*block)](const value& this_, const std::vector<value>& args) {
             // Scope
             auto activation = heap_.make<activation_object>(*global_, param_names, args);
             activation->put(global_->common_string("this"), this_, property_attribute::dont_delete | property_attribute::dont_enum | property_attribute::read_only);
             activation->arguments()->put(global_->common_string("callee"), value{callee}, property_attribute::dont_enum);
             // Variables
-            for (const auto& id: ids) {
-                assert(!activation->has_property(id)); // TODO: Handle this..
-                activation->put(string{heap_, id}, value::undefined, property_attribute::dont_delete);
+            for (const auto& var_id: ids) {
+                assert(!activation->has_property(var_id)); // TODO: Handle this..
+                activation->put(string{heap_, var_id}, value::undefined, property_attribute::dont_delete);
+            }
+            if (!id.view().empty()) {
+                // Add name of function to activation record even if it's not necessary for function_definition
+                // It's needed for function expressions since `a=function x() { x(...); }` is legal, but x isn't added to the containing scope
+                assert(!activation->has_property(id.view())); // TODO: Handle this..
+                activation->put(id, value{callee}, property_attribute::dont_enum);
             }
             auto_scope auto_scope_{*this, activation, prev_scope};
             return top_level_eval(*block);
@@ -1100,8 +1109,8 @@ private:
         return callee;
     }
 
-    object_ptr create_function(const function_definition& s, const scope_ptr& prev_scope) {
-        return create_function(string{heap_, s.id()}, s.block_ptr(), s.params(), std::wstring{s.body_extend().source_view()}, prev_scope);
+    object_ptr create_function(const function_base& f, const scope_ptr& prev_scope) {
+        return create_function(string{heap_, f.id()}, f.block_ptr(), f.params(), std::wstring{f.body_extend().source_view()}, prev_scope);
     }
 };
 

@@ -98,6 +98,7 @@ enum class expression_type {
     postfix,
     binary,
     conditional,
+    function,
 };
 
 class expression : public syntax_node {
@@ -348,6 +349,42 @@ private:
     }
 };
 
+class block_statement;
+class function_base {
+public:
+    const source_extend& body_extend() const { return body_extend_; }
+    const std::wstring& id() const { return id_; }
+    const std::vector<std::wstring>& params() const { return params_; }
+    const block_statement& block() const { return *block_; }
+    const std::shared_ptr<block_statement>& block_ptr() const { return block_; }
+
+protected:
+    explicit function_base(const source_extend& body_extend, const std::wstring& id, std::vector<std::wstring>&& params, statement_ptr&& block);
+
+    void base_print(std::wostream& os) const;
+
+private:
+    source_extend body_extend_;
+    std::wstring id_;
+    std::vector<std::wstring> params_;
+    std::shared_ptr<block_statement> block_;
+};
+
+class function_expression : public expression, public function_base {
+public:
+    explicit function_expression(const source_extend& extend, const source_extend& body_extend, const std::wstring& id, std::vector<std::wstring>&& params, statement_ptr&& block) : expression(extend), function_base(body_extend, id, std::move(params), std::move(block)) {
+    }
+
+    expression_type type() const override { return expression_type::function; }
+private:
+
+    void print(std::wostream& os) const override {
+        os << "function_expression";
+        base_print(os);
+    }
+};
+
+
 template<typename Visitor>
 auto accept(const expression& e, Visitor& v) {
     switch (e.type()) {
@@ -360,6 +397,7 @@ auto accept(const expression& e, Visitor& v) {
     case expression_type::postfix:          return v(static_cast<const postfix_expression&>(e));
     case expression_type::binary:           return v(static_cast<const binary_expression&>(e));
     case expression_type::conditional:      return v(static_cast<const conditional_expression&>(e));
+    case expression_type::function:         return v(static_cast<const function_expression&>(e));
     }
     assert(!"Not implemented");
     return v(e);
@@ -761,34 +799,18 @@ public:
     statement_type type() const override { return statement_type::try_; }
 };
 
-class function_definition : public statement {
+class function_definition : public statement, public function_base {
 public:
-    explicit function_definition(const source_extend& extend, const source_extend& body_extend, const std::wstring& id, std::vector<std::wstring>&& params, statement_ptr&& block) : statement(extend), body_extend_(body_extend), id_(id), params_(std::move(params)) {
-        assert(block && block->type() == statement_type::block);
-        block_.reset(static_cast<block_statement*>(block.release()));
+    explicit function_definition(const source_extend& extend, const source_extend& body_extend, const std::wstring& id, std::vector<std::wstring>&& params, statement_ptr&& block) : statement(extend), function_base(body_extend, id, std::move(params), std::move(block)) {
+        assert(!this->id().empty());
     }
 
     statement_type type() const override { return statement_type::function_definition; }
-
-    const source_extend& body_extend() const { return body_extend_; }
-    const std::wstring& id() const { return id_; }
-    const std::vector<std::wstring>& params() const { return params_; }
-    const block_statement& block() const { return *block_; }
-    const std::shared_ptr<block_statement>& block_ptr() const { return block_; }
-
 private:
-    source_extend body_extend_;
-    std::wstring id_;
-    std::vector<std::wstring> params_;
-    std::shared_ptr<block_statement> block_;
 
     void print(std::wostream& os) const override {
-        os << "function_definition{" << id_ << ", [";
-        for (size_t i = 0; i < params_.size(); ++i) {
-            if (i) os << ", ";
-            os << params_[i];
-        }
-        os << "], " << *block_ << "}";
+        os << "function_definition";
+        base_print(os);
     }
 };
 

@@ -95,6 +95,22 @@ bool is_right_to_left(token_type tt) {
     return operator_precedence(tt) >= assignment_precedence; // HACK
 }
 
+function_base::function_base(const source_extend& body_extend, const std::wstring& id, std::vector<std::wstring>&& params, statement_ptr&& block) : body_extend_(body_extend), id_(id), params_(std::move(params)) {
+    assert(block && block->type() == statement_type::block);
+    block_.reset(static_cast<block_statement*>(block.release()));
+}
+
+void function_base::base_print(std::wostream& os) const {
+    os << "{";
+    if (!id_.empty()) os << id_ << ", ";
+    os << "[";
+    for (size_t i = 0; i < params_.size(); ++i) {
+        if (i) os << ", ";
+        os << params_[i];
+    }
+    os << "], " << *block_ << "}";
+}
+
 #define RECORD_EXPRESSION_START position_stack_node _expression_position##__LINE__{*this, expression_pos_}
 #define RECORD_STATEMENT_START position_stack_node _statement_position##__LINE__{*this, statement_pos_}
 
@@ -113,9 +129,11 @@ public:
 #endif
         
         statement_list l;
+
+        skip_whitespace();
         while (lexer_.current_token()) {
             try {
-                l.push_back(parse_statement_or_function_declaration());
+                l.push_back(parse_statement());
             } catch (const std::exception& e) {
                 std::ostringstream oss;
                 oss << source_extend{source_, token_start_, lexer_.text_position()} << ": " << e.what();
@@ -383,9 +401,25 @@ private:
         return l;
     }
 
+    auto parse_function() {
+        const auto body_start = lexer_.text_position() - 1;
+        EXPECT(token_type::lparen);
+        std::vector<std::wstring> params;
+        if (!accept(token_type::rparen)) {
+            do {
+                params.push_back(EXPECT(token_type::identifier).text());
+            } while (accept(token_type::comma));
+            EXPECT(token_type::rparen);
+        }
+        auto block = parse_block();
+        const auto body_end = block->extend().end;
+        return std::make_tuple(source_extend{source_, body_start, body_end}, std::move(params), std::move(block));
+    }
+
     expression_ptr parse_member_expression() {
         // MemberExpression :
         //  PrimaryExpression
+        //  FunctionExpression
         //  MemberExpression [ Expression ]
         //  MemberExpression . Identifier
         //  new MemberExpression Arguments
@@ -397,6 +431,13 @@ private:
                 e = make_expression<call_expression>(std::move(e), parse_argument_list());
             }
             me = make_expression<prefix_expression>(token_type::new_, std::move(e));
+        } else if (version_ >= version::es3 && accept(token_type::function_)) {
+            std::wstring id{};
+            if (auto id_token = accept(token_type::identifier)) {
+                id = id_token.text();
+            }
+            auto [extend, params, block] = parse_function();
+            return make_expression<function_expression>(extend, id, std::move(params), std::move(block));
         } else {
             me = parse_primary_expression();
         }
@@ -465,7 +506,7 @@ private:
         EXPECT(token_type::lbrace);
         statement_list l;
         while (!accept(token_type::rbrace)) {
-            l.push_back(parse_statement_or_function_declaration());
+            l.push_back(parse_statement());
         }
         return make_statement<block_statement>(std::move(l));
     }
@@ -514,6 +555,10 @@ private:
 
         if (current_token_type() == token_type::lbrace) {
             return parse_block();
+        } else if (accept(token_type::function_)) {
+            auto id = EXPECT(token_type::identifier).text();
+            auto [extend, params, block] = parse_function();
+            return make_statement<function_definition>(extend, id, std::move(params), std::move(block));
         } else if (accept(token_type::var_)) {
             auto dl = parse_variable_declaration_list();
             EXPECT_SEMICOLON_ALLOW_INSERTION();
@@ -646,35 +691,6 @@ private:
             EXPECT_SEMICOLON_ALLOW_INSERTION();
             return make_statement<expression_statement>(std::move(e));
         }
-    }
-
-    statement_ptr parse_function() {
-        RECORD_STATEMENT_START;
-        EXPECT(token_type::function_);
-        auto id = EXPECT(token_type::identifier).text();
-        const auto body_start = lexer_.text_position() - 1;
-        EXPECT(token_type::lparen);
-        std::vector<std::wstring> params;
-        if (!accept(token_type::rparen)) {
-            do {
-                params.push_back(EXPECT(token_type::identifier).text());
-            } while (accept(token_type::comma));
-            EXPECT(token_type::rparen);
-        }
-        auto block = parse_block();
-        const auto body_end = block->extend().end;
-        return make_statement<function_definition>(source_extend{source_, body_start, body_end}, id, std::move(params), std::move(block));
-    }
-
-    statement_ptr parse_statement_or_function_declaration() {
-        skip_whitespace();
-        statement_ptr s;
-        if (current_token_type() == token_type::function_) {
-            s = parse_function();
-        } else {
-            s = parse_statement();
-        }
-        return s;
     }
 
     [[noreturn]] void unhandled(const char* function, int line) {

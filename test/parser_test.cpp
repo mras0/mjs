@@ -154,6 +154,8 @@ void test_es1_fails_with_new_constructs() {
     test_parse_fails("lab: foo();");
     test_parse_fails("for(;;){ break test;}");
     test_parse_fails("try {} catch(e) {}");
+    test_parse_fails("a = function x() {}");
+    test_parse_fails("a = function() {}");
 }
 
 template<typename T>

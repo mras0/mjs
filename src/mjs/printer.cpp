@@ -111,6 +111,10 @@ public:
         accept(e.rhs(), *this);
     }
 
+    void operator()(const function_expression& e) {
+        handle_function(e);
+    }
+
     void operator()(const expression& e) {
         NOT_IMPLEMENTED(e);
     }
@@ -260,12 +264,7 @@ public:
     }
 
     void operator()(const function_definition& s) {
-        os_ << "function " << s.id() << "(";
-        for (size_t i = 0; i < s.params().size(); ++i) {
-            os_ << (i?", ":"") << s.params()[i];
-        }
-        os_ << ")";
-        (*this)(s.block());
+        handle_function(s);
     }
 
     void operator()(const statement& s) {
@@ -274,6 +273,15 @@ public:
 
 private:
     std::wostream& os_;
+
+    void handle_function(const function_base& s) {
+        os_ << "function" << (s.id().empty() ? L"" : L" " + s.id()) << "(";
+        for (size_t i = 0; i < s.params().size(); ++i) {
+            os_ << (i?", ":"") << s.params()[i];
+        }
+        os_ << ")";
+        (*this)(s.block());
+    }
 
     void print_with_parentheses(const expression& e, int outer_precedence) {
         const int inner_precedence = e.type() == expression_type::binary ? operator_precedence(static_cast<const binary_expression&>(e).op()) : 0;
