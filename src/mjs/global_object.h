@@ -14,6 +14,7 @@ public:
     virtual ~global_object() {}
 
     virtual object_ptr object_prototype() const = 0;
+    virtual object_ptr function_prototype() const = 0;
     virtual object_ptr array_prototype() const = 0;
     virtual object_ptr make_raw_function() = 0;
     virtual object_ptr to_object(const value& v) = 0;

@@ -1002,6 +1002,7 @@ public:
     friend gc_type_info_registration<global_object_impl>;
 
     object_ptr object_prototype() const override { return object_prototype_.track(heap()); }
+    object_ptr function_prototype() const override { return function_prototype_.track(heap()); }
     object_ptr array_prototype() const override { return array_prototype_.track(heap()); }
 
     object_ptr make_raw_function() override {

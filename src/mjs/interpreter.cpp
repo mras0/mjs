@@ -652,16 +652,34 @@ public:
         auto r = get_value(eval(e.rhs()));
         if (e.op() == token_type::andand || e.op() == token_type::oror) {
             return r;
-        }
-        if (e.op() == token_type::dot || e.op() == token_type::lbracket) {
+        } else if (e.op() == token_type::dot || e.op() == token_type::lbracket) {
             return value{reference{global_->to_object(l), to_string(heap_, r)}};
-        }
-        if (e.op() == token_type::in_) {
+        } else if (e.op() == token_type::in_) {
             if (r.type() != value_type::object) {
                 // TODO: Throw TypeError exception
                 NOT_IMPLEMENTED(to_string(heap_, r));
             }
             return value{r.object_value()->has_property(to_string(heap_, l).view())};
+        } else if (e.op() == token_type::instanceof_) {
+            if (r.type() != value_type::object || r.object_value()->prototype().get() != global_->function_prototype().get()) {
+                // TODO: Throw TypeError exception
+                NOT_IMPLEMENTED(to_string(heap_, r));
+            }
+            // ES3, 15.3.5.3 [[HasInstance]] (only implemented for Function objects)
+            if (l.type() != value_type::object) {
+                return value{false};
+            }
+            auto o = r.object_value()->get(L"prototype");
+            if (o.type() != value_type::object) {
+                // TODO: Throw TypeError exception
+                NOT_IMPLEMENTED(to_string(heap_, o));
+            }
+            auto v = l.object_value()->prototype();
+            if (!v) {
+                return value{false};
+            }
+            return value{v.get() == o.object_value().get()}; // TODO: handle joined objects (ES3, 13.1.2)
+
         }
         return do_binary_op(e.op(), l, r);
     }

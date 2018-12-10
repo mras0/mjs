@@ -109,6 +109,12 @@ void eval_tests() {
         run_test(L"a={1:1};1 in a", value{true});
         run_test(L"a={'x':1};'x' in a", value{true});
         run_test(L"a={1000:1};1e3 in a", value{true});
+        // These tests of `instanceof` don't really belong here as they rely on global object, but eh
+        run_test(L"o={};o instanceof Object", value{true});
+        run_test(L"o={};o instanceof Array", value{false});
+        run_test(L"4 instanceof Number", value{false});
+        run_test(L"'' instanceof String", value{false});
+        run_test(L"new String() instanceof String", value{true});
     }
 
     run_test(L"255 & 128", value{128.0});
