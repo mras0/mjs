@@ -8,11 +8,17 @@ using namespace mjs;
 version parser_version = default_version;
 
 void run_test(const std::wstring_view& text, const value& expected) {
-    gc_heap h{1<<20}; // Use local heap, even if expected lives in another heap
+    // Use local heap, even if expected lives in another heap
+    constexpr uint32_t num_slots = 1<<20;
+#ifndef MJS_GC_STRESS_TEST
+    // Re-use storage unless we're stress testing
+    static uint64_t storage[num_slots];
+    gc_heap h{storage, num_slots};
+#else
+    gc_heap h{num_slots};
+#endif
 
-    const auto used_before = h.calc_used();
     {
-
         decltype(parse(nullptr)) bs;
         try {
             bs = parse(std::make_shared<source_file>(L"test", text), parser_version);
@@ -44,8 +50,8 @@ void run_test(const std::wstring_view& text, const value& expected) {
 
     h.garbage_collect();
     const auto used_now = h.calc_used();
-    if (used_before < used_now) {
-        std::wcout << "Used before: " << used_before << " Used now: " << used_now << "\n";
+    if (used_now) {
+        std::wcout << "Leaks! Used now: " << used_now << "\n";
         h.debug_print(std::wcout);
         THROW_RUNTIME_ERROR("Leaks");
     }

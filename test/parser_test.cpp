@@ -158,6 +158,7 @@ void test_es1_fails_with_new_constructs() {
     test_parse_fails("lab: foo();");
     test_parse_fails("for(;;){ break test;}");
     test_parse_fails("try {} catch(e) {}");
+    test_parse_fails("throw 42;");
     test_parse_fails("a = function x() {}");
     test_parse_fails("a = function() {}");
 }
@@ -295,7 +296,7 @@ void test_labelled_statements() {
 
 int main() {
     try {
-        for (const auto ver: { version::es1, version::es3 }) {
+        for (const auto ver: supported_versions) {
             parser_version = ver;
             test_semicolon_insertion();
         }

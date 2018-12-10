@@ -182,6 +182,7 @@ public:
     static constexpr uint32_t bytes_to_slots(size_t bytes) { return static_cast<uint32_t>((bytes + slot_size - 1) / slot_size); }
 
     explicit gc_heap(uint32_t capacity);
+    explicit gc_heap(void* storage, uint32_t capacity);
     gc_heap(gc_heap&) = delete;
     gc_heap& operator=(gc_heap&) = delete;
     ~gc_heap();
@@ -260,6 +261,7 @@ private:
     pointer_set pointers_;
     slot*       storage_;
     uint32_t    capacity_;
+    bool        owns_storage_;
     uint32_t    next_free_ = 0;
 
     // Only valid during GC

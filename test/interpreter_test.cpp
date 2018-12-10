@@ -804,15 +804,19 @@ i //$ number 5
 
 int main() {
     try {
-        // TODO: Make sure we test all relevant versions...
-        eval_tests();
-        if (parser_version >= version::es3) {
-            test_es3_statements();
+        for (const auto ver: supported_versions) {
+            parser_version = ver;
+            eval_tests();
+            if (parser_version >= version::es3) {
+                test_es3_statements();
+            }
+            test_global_functions();
+            test_math_functions();
+            test_date_functions();
+            test_long_object_chain();
         }
-        test_global_functions();
-        test_math_functions();
-        test_date_functions();
-        test_long_object_chain();
+
+        parser_version = default_version;
         test_eval_exception();
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';

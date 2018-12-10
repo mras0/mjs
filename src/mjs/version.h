@@ -12,7 +12,9 @@ enum class version {
     future,
 };
 
-constexpr auto default_version = version::es3;
+constexpr version default_version = version::es3;
+constexpr version supported_versions[] = { version::es1, version::es3 };
+
 
 template<typename CharT>
 std::basic_ostream<CharT>& operator<<(std::basic_ostream<CharT>& os, version v);

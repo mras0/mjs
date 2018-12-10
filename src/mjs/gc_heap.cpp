@@ -62,16 +62,21 @@ const gc_type_info* gc_type_info::types_[gc_type_info::max_types];
 // gc_heap
 //
 
-gc_heap::gc_heap(uint32_t capacity) : storage_(static_cast<slot*>(std::malloc(capacity * sizeof(slot)))), capacity_(capacity) {
+gc_heap::gc_heap(uint32_t capacity) : storage_(static_cast<slot*>(std::malloc(capacity * sizeof(slot)))), capacity_(capacity), owns_storage_(true) {
     if (!storage_) {
         throw std::runtime_error("Could not allocate heap for " + std::to_string(capacity) + " slots");
     }
 }
 
+gc_heap::gc_heap(void* storage, uint32_t capacity) : storage_(static_cast<slot*>(storage)), capacity_(capacity), owns_storage_(false) {
+}
+
 gc_heap::~gc_heap() {
     assert(gc_state_.initial_state());
     run_destructors();
-    std::free(storage_);
+    if (owns_storage_) {
+        std::free(storage_);
+    }
 }
 
 void gc_heap::run_destructors() {
@@ -172,6 +177,7 @@ void gc_heap::garbage_collect() {
         gc_state_.weak_fixups.clear();
 
         std::swap(storage_, new_heap.storage_);
+        std::swap(owns_storage_, new_heap.owns_storage_);
         std::swap(next_free_, new_heap.next_free_);
         gc_state_.new_heap = nullptr;
         // new_heap's destructor checks that it doesn't contain pointers
