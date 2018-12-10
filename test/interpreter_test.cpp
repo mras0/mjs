@@ -26,7 +26,7 @@ std::string expect_exception(const std::wstring_view& text) {
     gc_heap h{1<<20}; // Use local heap, even if expected lives in another heap
     try {
         interpreter i{h, *bs};
-        i.eval(*bs);
+        (void) i.eval_program();
     } catch (const ExceptionType& e) {
         h.garbage_collect();
         if (h.calc_used()) {
@@ -130,6 +130,13 @@ void eval_tests() {
     run_test(L"var x = 0; for(var i = 10, dec = 1; i; i = i - dec) x = x + i; x", value{55.0});
     run_test(L"var x=0; for (i=2; i; i=i-1) x=x+i; x+i", value{3.0});
     run_test(L"for (var i=0;!i;) { i=1 }", value{1.});
+
+    // Check break in nested for loop
+    RUN_TEST_SPEC(R"(
+s='';
+for (var i=0;i<2;++i)for (var j=0;j<2;++j) { s+=i+'-'+j; break; }
+s; //$string '0-01-0'
+)");
 
     // for in statement
     // FIXME: The order of the objects are unspecified in earlier revisions of ECMAScript..
@@ -721,6 +728,54 @@ f(6); s //$ string 'c1c2c3c4c5c6s6'
 f(7); s //$ string 'c1c2c3c4c5c6defs4s5'
 
 )");
+
+
+    // laballed statements / break+continue to identifer
+    run_test(L"x:42", value{42.});
+
+    expect_exception<eval_exception>(L"a:a:2;"); // duplicate label
+    expect_exception<eval_exception>(L"a:2;while(1){break a;}"); // invalid label reference
+    expect_exception<eval_exception>(L"function f(){break a;} a:f();"); // invalid label reference
+
+    RUN_TEST_SPEC(R"(
+s='';
+a: x: for (i=0;i<3;++i){ s+=i; break a; }
+s; //$string '0'
+)");
+    RUN_TEST_SPEC(R"(
+s='';
+a: for (i=0;i<3;++i){ b:for(j=0;j<4;++j){s+=i+'-'+j; break a;} }
+s; //$string '0-0'
+)");
+    RUN_TEST_SPEC(R"(
+s='';
+a: for (i=0;i<3;++i){ b:for(j=0;j<4;++j){s+=i+'-'+j; break b;} }
+s; //$string '0-01-02-0'
+)");
+    RUN_TEST_SPEC(R"(
+s='';
+a: for (i=0;i<3;++i){ s+=i; continue a; }
+s; //$string '012'
+)");
+    RUN_TEST_SPEC(R"(
+s='';
+a: for (i=0;i<3;++i){ b:for(j=0;j<4;++j){s+=i+'-'+j; continue a;} }
+s; //$string '0-01-02-0'
+)");
+    RUN_TEST_SPEC(R"(
+
+s='';
+a: for (i=0;i<3;++i){ b:for(j=0;j<4;++j){s+=i+'-'+j; continue b;} }
+s; //$string '0-00-10-20-31-01-11-21-32-02-12-22-3'
+)");
+
+    // TODO: Need function expression for the following abomination to work
+#if 0
+    RUN_TEST_SPEC(R"(
+i=0; a:while(1){ switch(4) { case function(){return i++;}(): break a; } }
+i //$ number 5
+)");
+#endif
 }
 
 int main() {

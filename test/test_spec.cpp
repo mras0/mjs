@@ -114,7 +114,7 @@ public:
         std::wcout << "\n";
 #endif
         test_spec_runner tsr{h, specs, statements};
-        tsr.i_.eval(statements);
+        tsr.i_.eval_program();
         tsr.check_test_spec_done(statements.extend().end);
 #ifdef TEST_SPEC_DEBUG
         std::wcout << "\n";

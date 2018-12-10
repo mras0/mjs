@@ -29,10 +29,7 @@ void run_test(const std::wstring_view& text, const value& expected) {
         };
         try {
             interpreter i{h, *bs};
-            value res{};
-            for (const auto& s: bs->l()) {
-                res = i.eval(*s).result;
-            }
+            value res = i.eval_program();
             if (res != expected) {
                 std::wcout << "Test failed: " << text << " expecting " << debug_string(expected) << " got " << debug_string(res) << "\n";
                 pb();

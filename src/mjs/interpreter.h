@@ -19,13 +19,28 @@ enum class completion_type {
 };
 std::wostream& operator<<(std::wostream& os, const completion_type& t);
 
+using label_set = std::vector<std::wstring_view>;
 struct completion {
     completion_type type;
     value result;
+    std::wstring_view target;
 
-    explicit completion(completion_type t = completion_type::normal, const value& r = value::undefined) : type(t), result(r) {}
+   explicit completion(const value& r = value::undefined, completion_type t = completion_type::normal) : type(t), result(r), target() {
+        assert(!has_target());
+   }
 
-    explicit operator bool() const { return type != completion_type::normal; }
+   explicit completion(completion_type t, std::wstring_view target) : type(t), result(value::undefined), target(target) {
+       assert(has_target());
+   }
+
+   bool in_set(const label_set& ids) const {
+       assert(has_target());
+       return target.empty() || std::find(ids.begin(), ids.end(), target) != ids.end();
+   }
+
+   explicit operator bool() const { return type != completion_type::normal; }
+
+   bool has_target() const { return type == completion_type::break_ || type == completion_type::continue_; }
 };
 std::wostream& operator<<(std::wostream& os, const completion& c);
 
@@ -43,6 +58,7 @@ public:
 
     value eval(const expression& e);
     completion eval(const statement& s);
+    value eval_program();
 
 private:
     class impl;

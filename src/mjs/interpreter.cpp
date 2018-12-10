@@ -86,7 +86,7 @@ public:
     }
 
     void operator()(const labelled_statement& s) {
-        NOT_IMPLEMENTED(s);
+        accept(s.s(), *this);
     }
 
     void operator()(const switch_statement& s) {
@@ -225,7 +225,7 @@ eval_exception::eval_exception(const std::vector<source_extend>& stack_trace, co
 
 class interpreter::impl {
 public:
-    explicit impl(gc_heap& h, const block_statement& program, const on_statement_executed_type& on_statement_executed) : heap_(h), global_(global_object::make(h)), on_statement_executed_(on_statement_executed) {
+    explicit impl(gc_heap& h, const block_statement& program, const on_statement_executed_type& on_statement_executed) : heap_(h), program_(program), global_(global_object::make(h)), on_statement_executed_(on_statement_executed) {
         assert(!global_->has_property(L"eval"));
 
         global_->put_native_function(global_, "eval", [this](const value&, const std::vector<value>& args) {
@@ -235,15 +235,7 @@ public:
                 return args.front();
             }
             auto bs = parse(std::make_shared<source_file>(L"eval", args.front().string_value().view()));
-            completion ret;
-            for (const auto& s: bs->l()) {
-                ret = eval(*s);
-                if (ret) {
-                    return value::undefined;
-                }
-            }
-            assert(!ret);
-            return ret.result;
+            return top_level_eval(*bs);
         }, 1);
 
         auto func_obj = global_->get(L"Function").object_value();
@@ -313,6 +305,23 @@ public:
         } else {
             return accept(s, *this);
         }
+    }
+
+    value top_level_eval(const statement& s, bool allow_return = true) {
+        auto c = eval(s);
+        if (!c) {
+            return c.result;
+        }
+        if (allow_return && c.type == completion_type::return_) {
+            return c.result;
+        }
+        std::wostringstream woss;
+        woss << "Top level evaluation resulted in abrupt termination: " << c;
+        throw eval_exception(stack_trace(s.extend()), woss.str());
+    }
+
+    value eval_program() {
+        return top_level_eval(program_, false);
     }
 
     value operator()(const identifier_expression& e) {
@@ -668,6 +677,38 @@ public:
     // Statements
     //
 
+    label_set get_labels(const statement& current_statement) {
+        label_set ls;
+        if (&current_statement == labels_valid_for_) {
+            std::swap(ls, label_set_);
+        } else {
+            label_set_.clear();
+        }
+        labels_valid_for_ = nullptr;
+        return ls;
+    }
+
+    static bool handle_completion(completion& c, const label_set& labels) {
+        if (c.type == completion_type::break_) {
+            assert(c.has_target());
+            if (c.in_set(labels)) {
+                c = completion{};
+            }
+            return true;
+        } else if (c.type == completion_type::return_) {
+            return true;
+        } else if (c.type == completion_type::continue_) {
+            assert(c.has_target());
+            if (!c.in_set(labels)) {
+                return true;
+            }
+            c = completion{};
+        } else {
+            assert(c.type == completion_type::normal);
+        }
+        return false;
+    }
+
     completion operator()(const block_statement& s) {
         completion c{};
         for (const auto& bs: s.l()) {
@@ -694,7 +735,7 @@ public:
     }
 
     completion operator()(const expression_statement& s) {
-        return completion{completion_type::normal, get_value(eval(s.e()))};
+        return completion{get_value(eval(s.e()))};
     }
 
     completion operator()(const if_statement& s) {
@@ -707,28 +748,25 @@ public:
     }
 
     completion operator()(const do_statement& s) {
+        const auto ls = get_labels(s);
         completion c{};
         do {
             c = eval(s.s());
-            if (c.type == completion_type::break_) {
-                return completion{};
-            } else if (c.type == completion_type::return_) {
+            if (handle_completion(c, ls)) {
                 return c;
             }
-            assert(c.type == completion_type::normal || c.type == completion_type::continue_);
         } while (to_boolean(get_value(eval(s.cond()))));
-        return completion{completion_type::normal, c.result};
+        assert(!c);
+        return c;//completion{c.result};
     }
 
     completion operator()(const while_statement& s) {
+        const auto ls = get_labels(s);
         while (to_boolean(get_value(eval(s.cond())))) {
             auto c = eval(s.s());
-            if (c.type == completion_type::break_) {
-                return completion{};
-            } else if (c.type == completion_type::return_) {
+            if (handle_completion(c, ls)) {
                 return c;
             }
-            assert(c.type == completion_type::normal || c.type == completion_type::continue_);
         }
         return completion{};
     }
@@ -736,6 +774,7 @@ public:
     // TODO: Reduce code duplication in handling of for/for in statements
 
     completion operator()(const for_statement& s) {
+        const auto ls = get_labels(s);
         if (auto is = s.init()) {
             auto c = eval(*is);
             assert(!c); // Expect normal completion
@@ -744,12 +783,10 @@ public:
         completion c{};
         while (!s.cond() || to_boolean(get_value(eval(*s.cond())))) {
             c = eval(s.s());
-            if (c.type == completion_type::break_) {
-                break;
-            } else if (c.type == completion_type::return_) {
+
+            if (handle_completion(c, ls)) {
                 return c;
             }
-            assert(c.type == completion_type::normal || c.type == completion_type::continue_);
 
             if (s.iter()) {
                 (void)get_value(eval(*s.iter()));
@@ -759,6 +796,7 @@ public:
     }
 
     completion operator()(const for_in_statement& s) {
+        const auto ls = get_labels(s);
         completion c{};
         if (s.init().type() == statement_type::expression) {
             auto ev = get_value(eval(s.e()));
@@ -771,12 +809,9 @@ public:
                     throw eval_exception(stack_trace(lhs_expression.extend()), woss.str());
                 }
                 c = eval(s.s());
-                if (c.type == completion_type::break_) {
-                    break;
-                } else if (c.type == completion_type::return_) {
+                if (handle_completion(c, ls)) {
                     return c;
                 }
-                assert(c.type == completion_type::normal || c.type == completion_type::continue_);
             }
         } else {
             assert(s.init().type() == statement_type::variable);
@@ -800,23 +835,20 @@ public:
             for (const auto& n: o->property_names()) {
                 assign(value{n});
                 c = eval(s.s());
-                if (c.type == completion_type::break_) {
-                    break;
-                } else if (c.type == completion_type::return_) {
+                if (handle_completion(c, ls)) {
                     return c;
                 }
-                assert(c.type == completion_type::normal || c.type == completion_type::continue_);
             }
         }
         return c;
     }
 
-    completion operator()(const continue_statement&) {
-        return completion{completion_type::continue_};
+    completion operator()(const continue_statement& s) {
+        return completion{completion_type::continue_, s.id()};
     }
 
-    completion operator()(const break_statement&) {
-        return completion{completion_type::break_};
+    completion operator()(const break_statement& s) {
+        return completion{completion_type::break_, s.id()};
     }
 
     completion operator()(const return_statement& s) {
@@ -824,7 +856,7 @@ public:
         if (s.e()) {
             res = get_value(eval(*s.e()));
         }
-        return completion{completion_type::return_, res};
+        return completion{res, completion_type::return_};
     }
 
     completion operator()(const with_statement& s) {
@@ -834,10 +866,21 @@ public:
     }
 
     completion operator()(const labelled_statement& s) {
-        NOT_IMPLEMENTED(s);
+        if (labels_valid_for_ != &s) {
+            label_set_.clear();
+        }
+        if (std::find(label_set_.begin(), label_set_.end(), s.id()) != label_set_.end()) {
+            std::wostringstream woss;
+            woss << "Duplicate label " << s.id();
+            throw eval_exception(stack_trace(s.extend()), woss.str());
+        }
+        label_set_.push_back(s.id());
+        labels_valid_for_ = &s.s();
+        return eval(s.s());
     }
 
     completion operator()(const switch_statement& s) {
+        const auto ls = get_labels(s);
         auto to_run = s.default_clause(); // Unless we find a match, we'll run the default caluse (if it exists)
         const auto switch_val = get_value(eval(s.e())); // Evaluate the switch value
         for (auto it = s.cl().begin(), e = s.cl().end(); it != e; ++it) {
@@ -862,8 +905,9 @@ public:
                 c = eval(*cs);
                 if (c) {
                     if (c.type == completion_type::break_) {
-                        // TOD: Check target...
-                        return completion{completion_type::normal, c.result};
+                        // TODO: Check target... (use ls)
+                        assert(c.has_target() && c.target.empty());
+                        return completion{c.result};
                     }
                     return c;
                 }
@@ -971,11 +1015,14 @@ private:
     };
 
     gc_heap&                       heap_;
+    const block_statement&         program_;
     scope_ptr                      active_scope_;
     gc_heap_ptr<global_object>     global_;
     on_statement_executed_type     on_statement_executed_;
     std::vector<source_extend>     stack_trace_;
     int                            gc_cooldown_ = 0;
+    label_set                      label_set_;
+    const statement*               labels_valid_for_ = nullptr;
 
     static scope_ptr make_scope(const object_ptr& act, const scope_ptr& prev) {
         return act.heap().make<scope>(act, prev);
@@ -1037,7 +1084,7 @@ private:
                 activation->put(string{heap_, id}, value::undefined, property_attribute::dont_delete);
             }
             auto_scope auto_scope_{*this, activation, prev_scope};
-            return eval(*block).result;
+            return top_level_eval(*block);
         };
         global_->put_function(callee, gc_function::make(heap_, func), string{heap_, L"function " + std::wstring{id.view()} + body_text}, static_cast<int>(param_names.size()));
 
@@ -1070,6 +1117,10 @@ value interpreter::eval(const expression& e) {
 
 completion interpreter::eval(const statement& s) {
     return impl_->eval(s);
+}
+
+value interpreter::eval_program() {
+    return impl_->eval_program();
 }
 
 } // namespace mjs

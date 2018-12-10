@@ -30,11 +30,7 @@ int interpret_file(const std::shared_ptr<mjs::source_file>& source) {
     mjs::gc_heap heap{1<<24}; // TODO: Do something sane
     auto bs = mjs::parse(source);
     mjs::interpreter i{heap, *bs};
-    mjs::value res{};
-    for (const auto& s: bs->l()) {
-        res = i.eval(*s).result;
-    }
-    return to_int32(res);
+    return to_int32(i.eval_program());
 }
 
 int main(int argc, char* argv[]) {
@@ -54,7 +50,12 @@ int main(int argc, char* argv[]) {
             mjs::value res{};
             auto bs = mjs::parse(make_source(line));
             for (const auto& s: bs->l()) {
-                res = i.eval(*s).result;
+                auto c = i.eval(*s);
+                if (c) {
+                    std::wcout << "abrupt completion: " << c << "\n";
+                    continue;
+                }
+                res = c.result;
             }
             mjs::debug_print(std::wcout, res, 2);
             std::wcout << "\n";
