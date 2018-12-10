@@ -72,6 +72,8 @@ const char* op_text(token_type tt) {
 #define CASE_PUNCTUATOR(name, str, ...) case token_type::name: return str;
         MJS_PUNCTUATORS(CASE_PUNCTUATOR)
 #undef CASE_PUNCTUATOR
+    case token_type::in_: return " in ";
+    case token_type::instanceof_: return " instanceof ";
     default:
         throw std::runtime_error("Invalid token type in op_text: " + std::to_string((int)tt));
     }

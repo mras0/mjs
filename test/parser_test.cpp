@@ -144,11 +144,15 @@ x++; x //$ number 2
 void test_es1_fails_with_new_constructs() {
     parser_version = version::es1;
 
+    test_parse_fails("1===2");
+    test_parse_fails("1!==2");
     test_parse_fails("[1]");
     test_parse_fails("[1,2]");
     test_parse_fails("({a:42})");
     test_parse_fails("({1:2})");
     run_test(L"{1,2,3}", value{3.}); // Not an object literal!
+    test_parse_fails("a in x");
+    test_parse_fails("a instanceof x");
     test_parse_fails("switch (x){}");
     test_parse_fails("do {} while(1);");
     test_parse_fails("lab: foo();");

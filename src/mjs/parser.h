@@ -14,6 +14,7 @@ namespace mjs {
 int operator_precedence(token_type tt);
 constexpr int assignment_precedence = 15;
 constexpr int comma_precedence      = 16;
+constexpr int max_precedence        = 17;
 
 struct source_position {
     int line;

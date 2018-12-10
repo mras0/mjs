@@ -105,6 +105,10 @@ void eval_tests() {
         run_test(L"Object !== Object", value{false});
         run_test(L"Object === Function", value{false});
         run_test(L"Object !== Function", value{true});
+        run_test(L"a={};1 in a", value{false});
+        run_test(L"a={1:1};1 in a", value{true});
+        run_test(L"a={'x':1};'x' in a", value{true});
+        run_test(L"a={1000:1};1e3 in a", value{true});
     }
 
     run_test(L"255 & 128", value{128.0});
@@ -795,10 +799,10 @@ i //$ number 5
 int main() {
     try {
         // TODO: Make sure we test all relevant versions...
+        eval_tests();
         if (parser_version >= version::es3) {
             test_es3_statements();
         }
-        eval_tests(); // TODO: Move back first
         test_global_functions();
         test_math_functions();
         test_date_functions();

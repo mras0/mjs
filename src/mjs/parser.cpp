@@ -54,6 +54,8 @@ int operator_precedence(token_type tt) {
     case token_type::ltequal:
     case token_type::gt:
     case token_type::gtequal:
+    case token_type::in_:
+    case token_type::instanceof_:
         return 8;
     case token_type::equalequal:
     case token_type::equalequalequal:
@@ -174,6 +176,7 @@ private:
     position_stack_node* expression_pos_ = nullptr;
     position_stack_node* statement_pos_ = nullptr;
     bool line_break_skipped_ = false;
+    bool supress_in_ = false;
 
     template<typename T, typename... Args>
     expression_ptr make_expression(Args&&... args) {
@@ -352,9 +355,11 @@ private:
     }
 
     expression_ptr parse_expression1(expression_ptr&& lhs, int outer_precedence) {
+        auto prec = [no_in=supress_in_ || version_ < version::es3](token_type t) { return !no_in || t != token_type::in_ ? operator_precedence(t) : 100; };
+
         for (;;) {
             const auto op = current_token_type();
-            const auto precedence = operator_precedence(op);
+            const auto precedence = prec(op);
             if (precedence > outer_precedence) {
                 break;
             }
@@ -368,7 +373,7 @@ private:
             auto rhs = parse_unary_expression();
             for (;;) {
                 const auto look_ahead = current_token_type();
-                const auto look_ahead_precedence = operator_precedence(look_ahead);
+                const auto look_ahead_precedence = prec(look_ahead);
                 if (look_ahead_precedence > precedence || (look_ahead_precedence == precedence && !is_right_to_left(look_ahead))) {
                     break;
                 }
@@ -591,11 +596,14 @@ private:
             expression_ptr cond{}, iter{};
             EXPECT(token_type::lparen);
             if (!accept(token_type::semicolon)) {
+                // HACK: to support "NoIn" grammar :(
+                supress_in_ = true;
                 if (accept(token_type::var_)) {
                     init = make_statement<variable_statement>(parse_variable_declaration_list());
                 } else {
                     init = make_statement<expression_statement>(parse_expression());
                 }
+                supress_in_ = false;
                 if (accept(token_type::in_)) {
                     if (init->type() == statement_type::variable && static_cast<variable_statement&>(*init).l().size() != 1) {
                         // Only a single variable assigment is legal

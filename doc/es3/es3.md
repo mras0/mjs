@@ -23,7 +23,6 @@ Wikipedia: "Added regular expressions, better string handling, new control state
     - New `MemberExpression`: `FunctionExpression`
     - New `RelationalExpression`: `instanceof` and `in`
     - New `EqualityExpression`: `===` and `!==`
-    - `...NoIn` expressions (?)
     - `do...while`-loop
     - `break`/`continue` with `identifier`
     - New statements: `LabelledStatement`, `SwitchStatement`, `ThrowStatement` and `TryStatement`
@@ -43,9 +42,15 @@ Weird stuff/notes:
     - Object literals don't support trailing comma (until ES5)
     - Regular expression literals makes the lexer context sensitive (TOOD: mention [oil shell](https://www.oilshell.org/blog/2017/12/15.html))
     - Labelled statements / break/continue with identifier (how often have you seen that used in JS?)
+        * A bit tricky to implement, required extending the `completion` type
     - `do...while` and `switch` were not in ES1
     - `switch`
         * case clauses are full expression that can have side effects!
         * `switch(0){default:}` is legal ECMAScript but not C(++)! (Need an empty statement `;` after before the closing brace)
         * Maybe some (all?) of this is also legal Java - need to check
+    - Exceptions
+        * Need to extend completion type
+        * Need to go through basically everything to check what (if any) exceptions needs to be throw
+    - `in` complication with `for..in` statement (another ugly hack in place...)
+    - `instanceof` requires support for `[[HasInstance]]`
 
