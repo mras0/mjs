@@ -187,10 +187,7 @@ public:
     gc_heap& operator=(gc_heap&) = delete;
     ~gc_heap();
 
-    void debug_print(std::wostream& os) const;
-    uint32_t calc_used() const;
-
-    int use_percentage() const { return static_cast<int>(next_free_ * 100ULL / capacity_); }
+    int use_percentage() const { return alloc_context_.use_percentage(); }
 
     void garbage_collect();
 
@@ -258,36 +255,89 @@ private:
         }
     };
 
-    pointer_set pointers_;
-    slot*       storage_;
-    uint32_t    capacity_;
-    bool        owns_storage_;
-    uint32_t    next_free_ = 0;
+    struct allocation_result {
+        uint32_t pos;
+        slot* obj;
+
+        slot_allocation_header& hdr() { return obj[-1].allocation; }
+    };
+
+    class allocation_context {
+    public:    
+        explicit allocation_context(void* s, uint32_t capacity) : allocation_context(static_cast<slot*>(s), capacity/2, 0) {
+        }
+
+        slot* storage() { return storage_; }
+        uint32_t next_free() const { return next_free_; }
+
+        // Allocate at least 'num_bytes' of storage, returns the offset (in slots) of the allocation (header) inside 'storage_'
+        // The object must be constructed one slot beyond the allocation header and the type field of the allocation header updated
+        allocation_result allocate(size_t num_bytes);
+
+        void run_destructors();
+
+        allocation_context other_half();
+
+#ifndef NDEBUG
+        bool pos_inside(uint32_t pos) const {
+            return pos >= start_ && pos < next_free_;
+        }
+#endif
+
+        int use_percentage() const {
+            return static_cast<int>((next_free_ - start_) * 100ULL / (capacity_ - start_));
+        }
+
+        slot* get_at(uint32_t pos) const {
+            assert(pos_inside(pos));
+            return const_cast<slot*>(&storage_[pos]);
+        }
+
+        bool is_internal(const void* p) const {
+            return reinterpret_cast<uintptr_t>(p) >= reinterpret_cast<uintptr_t>(storage_) && reinterpret_cast<uintptr_t>(p) < reinterpret_cast<uintptr_t>(storage_ + capacity_);
+        }
+
+    private:
+        slot*    storage_;
+        uint32_t capacity_;
+        uint32_t start_;
+        uint32_t next_free_;
+
+        explicit allocation_context(slot* storage, uint32_t capacity, uint32_t start) : storage_(storage), capacity_(capacity), start_(start), next_free_(start) {
+            assert(start < capacity);
+        }
+    };
+
+    pointer_set         pointers_;
+    allocation_context  alloc_context_;
+    bool                owns_storage_;
+
+    slot* get_at(uint32_t pos) const {
+        return alloc_context_.get_at(pos);
+    }
+
+#ifndef NDEBUG
+    template<typename T>
+    bool type_check(uint32_t pos) const {
+        return gc_type_info_registration<T>::get().is_convertible(get_at(pos-1)->allocation.type_info());
+    }
+#endif
 
     // Only valid during GC
     struct gc_state {
 #ifndef NDEBUG
-        bool initial_state() const { return level == 0 && new_heap == nullptr && pending_fixups.empty() && weak_fixups.empty(); }
+        bool initial_state() const { return level == 0 && new_context == nullptr && pending_fixups.empty() && weak_fixups.empty(); }
 #endif
 
-        uint32_t level = 0;                     // recursion depth
-        gc_heap* new_heap = nullptr;            // the "new_heap" is only kept for allocation purposes, no references to it should be kept
-        std::vector<uint32_t*> pending_fixups;  // pending fixup addresses
-        std::vector<uint32_t*> weak_fixups;     // pending weak fixup addresses
+        uint32_t level = 0;                         // recursion depth
+        allocation_context* new_context = nullptr;  // new allocation context (references to it should not be kept)
+        std::vector<uint32_t*> pending_fixups;      // pending fixup addresses
+        std::vector<uint32_t*> weak_fixups;         // pending weak fixup addresses
     } gc_state_;
-
-    void run_destructors();
+    
 
     void attach(gc_heap_ptr_untyped& p);
     void detach(gc_heap_ptr_untyped& p);
-
-    bool is_internal(const void* p) const {
-        return reinterpret_cast<uintptr_t>(p) >= reinterpret_cast<uintptr_t>(storage_) && reinterpret_cast<uintptr_t>(p) < reinterpret_cast<uintptr_t>(storage_ + capacity_);
-    }
-
-    // Allocate at least 'num_bytes' of storage, returns the offset (in slots) of the allocation (header) inside 'storage_'
-    // The object must be constructed one slot beyond the allocation header and the type field of the allocation header updated
-    uint32_t allocate(size_t num_bytes);
 
     uint32_t gc_move(uint32_t pos);
 
@@ -338,12 +388,12 @@ public:
 
     void* get() const {
         assert(heap_);
-        return const_cast<void*>(static_cast<const void*>(&heap_->storage_[pos_]));
+        return heap().get_at(pos_);
     }
 
     template<typename T>
     bool has_type() const {
-        return pos_ && heap_->storage_[pos_-1].allocation.type == gc_type_info_registration<T>::index();
+        return pos_ && heap_->get_at(pos_-1)->allocation.type == gc_type_info_registration<T>::index();
     }
 
 protected:
@@ -391,12 +441,11 @@ public:
     explicit operator bool() const { return pos_; }
 
     T& dereference(gc_heap& h) const {
-        assert(pos_ > 0 && pos_ < h.next_free_ && gc_type_info_registration<T>::get().is_convertible(h.storage_[pos_-1].allocation.type_info()));
-        return *reinterpret_cast<T*>(&h.storage_[pos_]);
+        assert(h.type_check<T>(pos_));
+        return *reinterpret_cast<T*>(h.get_at(pos_));
     }
 
     gc_heap_ptr<T> track(gc_heap& h) const {
-        assert(pos_);
         return h.unsafe_create_from_position<T>(pos_);
     }
 
@@ -421,17 +470,16 @@ using gc_heap_weak_ptr_untracked = gc_heap_ptr_untracked<T, false>;
 
 template<typename T, typename... Args>
 gc_heap_ptr<T> gc_heap::allocate_and_construct(size_t num_bytes, Args&&... args) {
-    const auto pos = allocate(num_bytes);
-    auto& a = storage_[pos].allocation;
-    assert(a.type == uninitialized_type_index);
-    gc_type_info_registration<T>::construct(&storage_[pos+1], std::forward<Args>(args)...);
-    a.type = gc_type_info_registration<T>::index();
-    return gc_heap_ptr<T>{*this, pos+1};
+    auto a = alloc_context_.allocate(num_bytes);
+    assert(a.hdr().type == uninitialized_type_index);
+    gc_type_info_registration<T>::construct(a.obj, std::forward<Args>(args)...);
+    a.hdr().type = gc_type_info_registration<T>::index();
+    return gc_heap_ptr<T>{*this, a.pos};
 }
 
 template<typename T>
 gc_heap_ptr<T> gc_heap::unsafe_create_from_position(uint32_t pos) {
-    assert(pos > 0 && pos < next_free_ && gc_type_info_registration<T>::get().is_convertible(storage_[pos-1].allocation.type_info()));
+    assert(type_check<T>(pos));
     return gc_heap_ptr<T>{*this, pos};
 }
 

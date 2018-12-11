@@ -217,11 +217,9 @@ void run_test_spec(const std::string_view& source_text, const std::string_view& 
     }
 
     heap.garbage_collect();
-    if (heap.calc_used()) {
+    if (heap.use_percentage()) {
         std::wostringstream oss;
-        oss << "Leaks in test spec: " << heap.calc_used() << "\n" << std::wstring(source_text.begin(), source_text.end());
-        oss << "\n";
-        heap.debug_print(oss);
+        oss << "Leaks in test spec: " << heap.use_percentage() << "%\n" << std::wstring(source_text.begin(), source_text.end());
         THROW_RUNTIME_ERROR(oss.str());
     }
 

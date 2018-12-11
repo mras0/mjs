@@ -40,12 +40,12 @@ void test_value() {
     REQUIRE_EQ((string{h,"test "} + string{h,"42"}), (string{h,"test 42"}));
 
     h.garbage_collect();
-    assert(h.calc_used() == 0);
+    assert(h.use_percentage() == 0);
 }
 }
 
 void test_object() {
-    gc_heap h{128};
+    gc_heap h{1<<8};
     {
         auto o = h.make<object>(string{h, "Object"}, nullptr);
         REQUIRE_EQ(o->property_names(), (std::vector<string>{}));
@@ -77,11 +77,11 @@ void test_object() {
     }
 
     h.garbage_collect();
-    assert(h.calc_used() == 0);
+    assert(h.use_percentage() == 0);
 }
 
 void test_type_conversion() {
-    gc_heap h{1<<8};
+    gc_heap h{1<<9};
     // TODO: to_primitive hint
     REQUIRE_EQ(to_primitive(value::undefined), value::undefined);
     REQUIRE_EQ(to_primitive(value::null), value::null);
@@ -133,11 +133,11 @@ void test_type_conversion() {
     // TODO: Object
 
     h.garbage_collect();
-    assert(h.calc_used() == 0);
+    assert(h.use_percentage() == 0);
 }
 
 void test_number_to_string() {
-    gc_heap h{128};
+    gc_heap h{1<<9};
     REQUIRE_EQ(to_string(h, 0.005                    ), (string{h, "0.005"}));
     REQUIRE_EQ(to_string(h, 0.000005                 ), (string{h, "0.000005"}));
     REQUIRE_EQ(to_string(h, (0.000005+1e-10)         ), (string{h, "0.000005000100000000001"}));
@@ -150,7 +150,7 @@ void test_number_to_string() {
     REQUIRE_EQ(to_string(h, 5e-324                   ), (string{h, "5e-324"}));
 
     h.garbage_collect();
-    assert(h.calc_used() == 0);
+    assert(h.use_percentage() == 0);
 }
 
 int main() {

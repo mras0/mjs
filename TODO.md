@@ -34,8 +34,7 @@
 * Better GC
     - Ensure exception safety
     - Support growing the heap (and support growing it as needed)
-    - Do real semi-space collector - I.e. double the size of `storage_` but only fill it half way through, switching between halfs when one gets full
-        - Could probably support this and generational GC by parititioning one big `storage_` into multiple little "sub heaps"
+    - Could probably support generational GC by parititioning one big `storage_` into multiple little "sub heaps"
     - Ensure thread safety (probably don't allow sharing heaps between threads at first)
     - Improve speed
     - Support compacting the current heap? Should be possibly by making changes in `gc_heap` exclusively (other parts of the system shouldn't need to be changed)

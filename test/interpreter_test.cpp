@@ -29,7 +29,7 @@ std::string expect_exception(const std::wstring_view& text) {
         (void) i.eval_program();
     } catch (const ExceptionType& e) {
         h.garbage_collect();
-        if (h.calc_used()) {
+        if (h.use_percentage()) {
             std::wcout << "Leaks during processing of\n" << text << "\n";
             THROW_RUNTIME_ERROR("Leaks");
         }
