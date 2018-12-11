@@ -789,15 +789,58 @@ private:
 
 class throw_statement : public statement {
 public:
-    // TODO
+    explicit throw_statement(const source_extend& extend, expression_ptr&& e) : statement(extend), e_(std::move(e)) {
+        assert(e_);
+    }
+
     statement_type type() const override { return statement_type::throw_; }
+
+    const expression& e() const { return *e_; }
+private:
+    expression_ptr e_;
+
+    void print(std::wostream& os) const override {
+        os << "throw_statement{";
+        if (e_) os << *e_;
+        os << "}";
+    }
 };
 
 
 class try_statement : public statement {
 public:
-    // TODO
+    explicit try_statement(const source_extend& extend, statement_ptr&& block, statement_ptr&& catch_, const std::wstring& catch_id, statement_ptr&& finally_)
+        : statement(extend)
+        , block_(std::move(block))
+        , catch_(std::move(catch_))
+        , catch_id_(catch_id)
+        , finally_(std::move(finally_)) {
+        assert(block_ && block_->type() == statement_type::block);
+        assert(!this->catch_ == catch_id_.empty());
+        assert(!this->catch_ || this->catch_->type() == statement_type::block);
+        assert(!this->finally_ || this->finally_->type() == statement_type::block);
+    }
+
     statement_type type() const override { return statement_type::try_; }
+
+    const block_statement& block() const { return static_cast<const block_statement&>(*block_); }
+    const std::wstring& catch_id() const { return catch_id_; }
+    const block_statement* catch_block() const { return static_cast<const block_statement*>(catch_.get()); }
+    const block_statement* finally_block() const { return static_cast<const block_statement*>(finally_.get()); }
+
+private:
+    statement_ptr block_;
+    statement_ptr catch_;
+    std::wstring catch_id_;
+    statement_ptr finally_;
+
+    void print(std::wostream& os) const override {
+        os << "try_statement{";
+        os << *block_ << ", ";
+        if (catch_) os << "catch=" << *catch_;
+        if (finally_) os << "catch=" << *finally_;
+        os << "}";
+    }
 };
 
 class function_definition : public statement, public function_base {

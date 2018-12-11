@@ -15,7 +15,7 @@ class expression;
 struct source_extend;
 
 enum class completion_type {
-    normal, break_, continue_, return_
+    normal, break_, continue_, return_, throw_
 };
 std::wostream& operator<<(std::wostream& os, const completion_type& t);
 

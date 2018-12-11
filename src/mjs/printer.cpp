@@ -256,11 +256,22 @@ public:
     }
 
     void operator()(const throw_statement& s) {
-        NOT_IMPLEMENTED(s);
+        os_ << "throw ";
+        accept(s.e(), *this);
+        os_ << ";";
     }
 
     void operator()(const try_statement& s) {
-        NOT_IMPLEMENTED(s);
+        os_ << "try ";
+        accept(s.block(), *this);
+        if (auto c = s.catch_block()) {
+            os_ << " catch(" << s.catch_id() << ") ";
+            accept(*c, *this);
+        }
+        if (auto f = s.finally_block()) {
+            os_ << " finally ";
+            accept(*f, *this);
+        }
     }
 
     void operator()(const function_definition& s) {

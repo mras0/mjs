@@ -21,7 +21,8 @@
     - Escape analysis
     - ES3 support:
         * Handle "joined object" (§13.1.2) in comparison
-* Global object
+        * Throw correct errors (search for EvalError/TypeError/etc. - also see ES3 §15.11.6)
+ * Global object
     - Date
         - mutators
         - time zone adjustments
@@ -30,6 +31,8 @@
     - Optimize `array_object` - may need to make more `object` functions virtual and do the same for string objects
     - Add test cases for directly relatable to clauses in the spec (e.g. `Boolean.prototype.constructor` exists and is correct)
     - ES3 support
+        * Error object
+        * RegExp
     - Probably other missing stuff and non-compliant implementations...
 * Better GC
     - Ensure exception safety

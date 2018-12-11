@@ -585,6 +585,7 @@ private:
             EXPECT(token_type::lparen);
             auto cond = parse_expression();
             EXPECT(token_type::rparen);
+            EXPECT_SEMICOLON_ALLOW_INSERTION();
             return make_statement<do_statement>(std::move(cond), std::move(s));
         } else if (accept(token_type::while_)) {
             EXPECT(token_type::lparen);
@@ -636,10 +637,8 @@ private:
         } else if (accept(token_type::return_)) {
             // no line break before
             expression_ptr e{};
-            if (!line_break_skipped_) {
-                if (current_token_type() != token_type::semicolon) {
-                    e = parse_expression();
-                }
+            if (!line_break_skipped_ && current_token_type() != token_type::semicolon) {
+                e = parse_expression();
             }
             EXPECT_SEMICOLON_ALLOW_INSERTION();
             return make_statement<return_statement>(std::move(e));
@@ -684,9 +683,28 @@ private:
             }
             return make_statement<switch_statement>(std::move(switch_e), std::move(cl));
         } else if (/*version_ >= version::es3 && */accept(token_type::throw_)) {
-            UNHANDLED();
+            // no line break before
+            if (line_break_skipped_) {
+                // TODO: Give better error message
+                UNHANDLED();
+            }
+            auto e = parse_expression();
+            EXPECT_SEMICOLON_ALLOW_INSERTION();
+            return make_statement<throw_statement>(std::move(e));
         } else if (/*version_ >= version::es3 && */accept(token_type::try_)) {
-            UNHANDLED();
+            auto block = parse_block();
+            statement_ptr catch_{}, finally_{};
+            std::wstring catch_id;
+            if (accept(token_type::catch_)) {
+                EXPECT(token_type::lparen);
+                catch_id = EXPECT(token_type::identifier).text();
+                EXPECT(token_type::rparen);
+                catch_ = parse_block();
+            }
+            if (accept(token_type::finally_)) {
+                finally_ = parse_block();
+            }
+            return make_statement<try_statement>(std::move(block), std::move(catch_), catch_id, std::move(finally_));
         } else {
             auto e = parse_expression();
             if (version_ >= version::es3 && accept(token_type::colon)) {

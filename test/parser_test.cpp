@@ -40,7 +40,7 @@ auto parse_one_statement(const char* text) {
 void test_parse_fails(const char* text) {
     try {
         parse_text(text);
-    } catch (const std::exception&) {
+    } catch ([[maybe_unused]] const std::exception& e) {
         //std::wcerr << "\n'" << text << "' ---->\n" << e.what() << "\n\n";
         return;
     }

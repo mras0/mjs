@@ -21,6 +21,7 @@ std::wostream& operator<<(std::wostream& os, const completion_type& t) {
     case completion_type::break_: return os << "Break";
     case completion_type::continue_: return os << "Continue";
     case completion_type::return_: return os << "Return";
+    case completion_type::throw_: return os << "Throw";
     }
     NOT_IMPLEMENTED((int)t);
 }
@@ -98,7 +99,13 @@ public:
     }
 
     void operator()(const try_statement& s) {
-        NOT_IMPLEMENTED(s);
+        accept(s.block(), *this);
+        if (auto c = s.catch_block()) {
+            accept(*c, *this);
+        }
+        if (auto f = s.finally_block()) {
+            accept(*f, *this);
+        }
     }
 
     void operator()(const throw_statement&) {}
@@ -944,14 +951,28 @@ public:
         return c;
     }
 
-    completion operator()(const try_statement& s) {
-        NOT_IMPLEMENTED(s);
-    }
-
     completion operator()(const throw_statement& s) {
-        NOT_IMPLEMENTED(s);
+        return completion{get_value(eval(s.e())), completion_type::throw_};
     }
 
+    completion operator()(const try_statement& s) {
+        auto c = eval(s.block());
+        if (c.type != completion_type::throw_) {
+            // Nothing to do
+        } else if (auto catch_ = s.catch_block()) {
+            auto op = global_->object_prototype();
+            auto o = heap_.make<object>(op->class_name(), op);
+            o->put(string{heap_, s.catch_id()}, c.result, property_attribute::dont_delete);
+            auto_scope with_scope{*this, o, active_scope_};
+            c = eval(*catch_);
+        }
+        if (auto finally_ = s.finally_block()) {
+            auto fc = eval(*finally_);
+            return fc ? fc : c;
+        }
+        return c;
+    }
+    
     completion operator()(const function_definition& s) {
         active_scope_->put(string{heap_, s.id()}, value{create_function(s, active_scope_)});
         return completion{};

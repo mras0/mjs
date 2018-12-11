@@ -800,6 +800,82 @@ s; //$string '0-00-10-20-31-01-11-21-32-02-12-22-3'
 i=0; a:while(1){ switch(4) { case function(){return i++;}(): break a; } }
 i //$ number 5
 )");
+
+    //
+    // throw/try/catch/finally
+    //
+    RUN_TEST_SPEC(R"(
+function f() {
+    try {
+        return 42;
+    } catch (e) {
+        return 60;
+    }
+}
+f(); //$number 42
+
+try {
+    throw 42;
+} catch (e) {
+    e; //$number 42
+}
+
+o = {};
+try {
+    throw o;
+} catch (e) {
+    e === o; //$boolean true
+}
+
+s = '';
+try {
+    throw 1;
+    s += 'a';
+} catch (e) {
+    s += 'e:' + e;
+} finally {
+    s += 'f';
+}
+s; //$string 'e:1f'
+
+s = '';
+try {
+    try {
+        throw 1;
+        s += 'a';
+    } catch (e) {
+        s += 'e:' + e;
+        throw 42;
+    } finally {
+        s += 'f';
+    }
+} catch (e2) {
+    s += 'e2:' + e2;
+} finally {
+    s += 'f2';
+}
+s; //$string 'e:1fe2:42f2'
+
+s = '';
+try {
+    try {
+        throw 1;
+        s += 'a';
+    } catch (e) {
+        s += 'e:' + e;
+        throw 42;
+    } finally {
+        s += 'f';
+        throw 43;
+        s += 'xx';
+    }
+} catch (e2) {
+    s += 'e2:' + e2;
+} finally {
+    s += 'f2';
+}
+s; //$string 'e:1fe2:43f2'
+)");
 }
 
 int main() {
