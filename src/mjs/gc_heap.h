@@ -224,34 +224,57 @@ private:
     };
     static_assert(sizeof(slot) == slot_size);
 
-    struct gc_state;
     class pointer_set {
-        std::vector<gc_heap_ptr_untyped*> set_;
+        static constexpr uint32_t initial_capacity = 10;
     public:
-        bool empty() const { return set_.empty(); }
-        uint32_t size() const { return static_cast<uint32_t>(set_.size()); }
-        auto begin() { return set_.begin(); }
-        auto end() { return set_.end(); }
-        auto begin() const { return set_.cbegin(); }
-        auto end() const { return set_.cend(); }
+        explicit pointer_set() : set_(alloc(initial_capacity)), capacity_(initial_capacity), size_(0) {
+        }
+        ~pointer_set() { std::free(set_); }
+        pointer_set(pointer_set&) = delete;
+        pointer_set& operator=(pointer_set&) = delete;
 
-        gc_heap_ptr_untyped** data() { return set_.data(); }
+        bool empty() const { return !size_; }
+        uint32_t size() const { return size_; }
+        auto begin() { return set_; }
+        auto end() { return set_ + size_; }
+        auto begin() const { return set_; }
+        auto end() const { return set_ + size_; }
+
+        gc_heap_ptr_untyped** data() { return set_; }
 
         void insert(gc_heap_ptr_untyped& p) {
             // Note: garbage_collect() assumes nodes are added to the back
             // assert(std::find(begin(), end(), &p) == end()); // Other asserts should catch this
-            set_.push_back(&p);
+            if (size_ == capacity_) {
+                const auto new_cap = capacity_ * 2;
+                auto n = alloc(new_cap);
+                std::memcpy(n, set_, size_*sizeof(gc_heap_ptr_untyped*));
+                std::free(set_);
+                set_ = n;
+                capacity_ = new_cap;
+            }
+            set_[size_++] = &p;
         }
 
         void erase(const gc_heap_ptr_untyped& p) {
             // Search from the back since objects tend to be short lived
-            for (size_t i = set_.size(); i--;) {
+            for (uint32_t i = size_; i--;) {
                 if (set_[i] == &p) {
-                    set_.erase(set_.begin() + i);
+                    std::swap(set_[i], set_[--size_]);
                     return;
                 }
             }
             assert(!"Pointer not found in set!");
+        }
+    private:
+        gc_heap_ptr_untyped** set_;
+        uint32_t capacity_;
+        uint32_t size_;
+
+        static gc_heap_ptr_untyped** alloc(uint32_t cap) {
+            auto p = std::malloc(sizeof(gc_heap_ptr_untyped*) * cap);
+            if (!p) throw std::bad_alloc{};
+            return static_cast<gc_heap_ptr_untyped**>(p);
         }
     };
 
