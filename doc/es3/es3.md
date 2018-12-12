@@ -30,6 +30,7 @@ Wikipedia: "Added regular expressions, better string handling, new control state
     - `RegExp` Object
     - Error objects: `Error`, `EvalError`, `RangeError`, `RefererenceError`, `SyntaxError`, `TypeError` and `URIError`
         * `NativeError`
+        * Converting normal (C++) exceptions to ECMAScript `Error` objects
     - `TypeError` when accessing missing interal properties (e.g. `[[Call]]`)
     - New interal properties: `[[HasInstance]]`, `[Scope]]` and `[[Match]]`
     - Completion type extended with a "target" (an identifier specifying where control should go)

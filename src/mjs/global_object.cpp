@@ -914,27 +914,29 @@ public:
         ++lookups_;
 #endif
         auto& es = entries_.dereference(h);
+        auto es_data = es.data(); // Size we never go beyond the initial capacity the data pointer can't change in below
 
         // In cache already?
-        for (uint32_t i = 0; i < es.length(); ++i) {
-            // Check if we encounterd an "lost" weak pointer (only happens first time after a garbage collection)
+        for (uint32_t i = 0, l = es.length(); i < l; ++i) {
+            // Check if we encounterd a "lost" weak pointer (only happens first time after a garbage collection)
             if (!es[i].s) {
                 // Debugging note: Decrease the size of the cache to force this branch to occur (and increase rate of garbage collection)
                 es.erase(i);
                 --i; // Redo this one
+                --l; // Length changed but we don't want to call es.length() again
                 continue;
             }
 
-            if (es[i].hash == hash && string_equal(name, es[i].s.dereference(h).view())) {
+            if (es_data[i].hash == hash && string_equal(name, es_data[i].s.dereference(h).view())) {
 #ifdef STRING_CACHE_STATS
                 ++hits_;
                 dist_ += i;
 #endif
                 // Move first
                 for (; i; --i) {
-                    std::swap(es[i], es[i-1]);
+                    std::swap(es_data[i], es_data[i-1]);
                 }
-                return es[0].s.track(h);
+                return es_data[0].s.track(h);
             }
         }
 
@@ -943,13 +945,14 @@ public:
 
         if (es.length() < es.capacity()) {
             es.push_back(entry{0, nullptr});
+            assert(es_data == es.data());
         }
 
         for (uint32_t i = es.length(); --i; ) {
-            es[i] = es[i-1];
+            es_data[i] = es_data[i-1];
         }
 
-        es[0] = { hash, s.unsafe_raw_get() };
+        es_data[0] = { hash, s.unsafe_raw_get() };
 
         return s;
     }

@@ -864,7 +864,7 @@ public:
             };
 
             assign(init.init() ? get_value(eval(*init.init())) : value::undefined);
-            
+
             // Happens after the initial assignment
             auto ev = get_value(eval(s.e()));
             auto o = global_->to_object(ev);
@@ -963,7 +963,7 @@ public:
             auto op = global_->object_prototype();
             auto o = heap_.make<object>(op->class_name(), op);
             o->put(string{heap_, s.catch_id()}, c.result, property_attribute::dont_delete);
-            auto_scope with_scope{*this, o, active_scope_};
+            auto_scope catch_scope{*this, o, active_scope_};
             c = eval(*catch_);
         }
         if (auto finally_ = s.finally_block()) {
@@ -972,7 +972,7 @@ public:
         }
         return c;
     }
-    
+
     completion operator()(const function_definition& s) {
         active_scope_->put(string{heap_, s.id()}, value{create_function(s, active_scope_)});
         return completion{};
@@ -1135,6 +1135,7 @@ private:
             if (!id.view().empty()) {
                 // Add name of function to activation record even if it's not necessary for function_definition
                 // It's needed for function expressions since `a=function x() { x(...); }` is legal, but x isn't added to the containing scope
+                // TODO: Should actually be done a separate scope object (See ES3, 13)
                 assert(!activation->has_property(id.view())); // TODO: Handle this..
                 activation->put(id, value{callee}, property_attribute::dont_enum);
             }
