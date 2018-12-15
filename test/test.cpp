@@ -5,7 +5,16 @@
 
 using namespace mjs;
 
-version parser_version = default_version;
+version tested_version_ = default_version;
+
+mjs::version tested_version() {
+    return tested_version_;
+}
+
+void tested_version(mjs::version ver) {
+    tested_version_ = ver;
+}
+
 
 void run_test(const std::wstring_view& text, const value& expected) {
     // Use local heap, even if expected lives in another heap
@@ -21,7 +30,7 @@ void run_test(const std::wstring_view& text, const value& expected) {
     {
         decltype(parse(nullptr)) bs;
         try {
-            bs = parse(std::make_shared<source_file>(L"test", text), parser_version);
+            bs = parse(std::make_shared<source_file>(L"test", text), tested_version());
         } catch (const std::exception& e) {
             std::wcout << "Parse failed for \"" << text << "\": " << e.what() <<  "\n";
             throw;

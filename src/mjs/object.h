@@ -48,24 +48,7 @@ public:
     }
 
     // [[Put]] (PropertyName, Value)
-    virtual void put(const string& name, const value& val, property_attribute attr = property_attribute::none) {
-        // See if there is already a property with this name
-        auto& props = properties_.dereference(heap_);
-        if (auto [it, pp] = deep_find(name.view()); it) {
-            // CanPut?
-            if (it->has_attribute(property_attribute::read_only)) {
-                return;
-            }
-            // Did the property come from this object's property list?
-            if (pp == &props) {
-                // Yes, update
-                it->value = value_representation{val};
-                return;
-            }
-            // Handle as insertion
-        }
-        props.emplace_back(name, val, attr);
-    }
+    virtual void put(const string& name, const value& val, property_attribute attr = property_attribute::none);
 
     // [[CanPut]] (PropertyName)
     virtual bool can_put(const std::wstring_view& name) const {
@@ -79,18 +62,7 @@ public:
     }
 
     // [[Delete]] (PropertyName)
-    virtual bool delete_property(const std::wstring_view& name) {
-        auto it = find(name);
-        if (!it) {
-            return true;
-
-        }
-        if (it->has_attribute(property_attribute::dont_delete)) {
-            return false;
-        }
-        properties_.dereference(heap_).erase(it);
-        return true;
-    }
+    virtual bool delete_property(const std::wstring_view& name);
 
     virtual value_type default_value_type() const {
         // When hint is undefined, assume Number unless it's a Date object in which case assume String
@@ -141,18 +113,19 @@ private:
     gc_heap_ptr_untracked<gc_vector<property>> properties_;
     value_representation                       value_;
 
-    property* find(const std::wstring_view& key) const {
-        for (auto& p: properties_.dereference(heap_)) {
+    std::pair<property*, gc_vector<property>*> find(const std::wstring_view& key) const {
+        auto& props = properties_.dereference(heap_);
+        for (auto& p: props) {
             if (p.key.dereference(heap_).view() == key) {
-                return &p;
+                return { &p, &props };
             }
         }
-        return nullptr;
+        return {nullptr, &props};
     }
 
     std::pair<property*, gc_vector<property>*> deep_find(const std::wstring_view& key) const {
-        auto it = find(key);
-        return it || !prototype_ ? std::make_pair(it, &properties_.dereference(heap_)) : prototype_.dereference(heap_).deep_find(key);
+        auto fr = find(key);
+        return fr.first || !prototype_ ? fr : prototype_.dereference(heap_).deep_find(key);
     }
 };
 

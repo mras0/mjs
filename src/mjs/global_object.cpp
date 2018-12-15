@@ -55,6 +55,7 @@ create_result make_object_object(global_object& global) {
 
     // §15.2.4
     auto prototype = global.object_prototype();
+    prototype->put(global.common_string("constructor"), value{o}, global_object::default_attributes);
     global.put_native_function(prototype, "toString", [&h](const value& this_, const std::vector<value>&){
         return value{string{h, "[object "} + this_.object_value()->class_name() + string{h, "]"}};
     }, 0);
@@ -1100,6 +1101,8 @@ private:
         add("Math", make_math_object);
         add("Date", make_date_object);
         add("console", make_console_object);
+
+        assert(get(L"Object").object_value()->can_put(L"prototype") == false);
 
         put(string{heap(), "NaN"}, value{NAN}, default_attributes);
         put(string{heap(), "Infinity"}, value{INFINITY}, default_attributes);

@@ -7,6 +7,7 @@
 #include <mjs/parser.h>
 #include <mjs/printer.h>
 #include <mjs/object.h>
+#include <mjs/object.h>
 
 #include "test_spec.h"
 #include "test.h"
@@ -86,7 +87,7 @@ void eval_tests() {
     run_test(L"1 != 2", value{true});
     run_test(L"1 == '1'", value{true});
     run_test(L"NaN == NaN", value{false});
-    if (parser_version >= version::es3) {
+    if (tested_version() >= version::es3) {
         run_test(L"1 === '1'", value{false});
         run_test(L"1 !== '1'", value{true});
         run_test(L"undefined === undefined", value{true});
@@ -878,22 +879,42 @@ s; //$string 'e:1fe2:43f2'
 )");
 }
 
+void test_object_object() {
+    RUN_TEST_SPEC(R"(
+delete Object.prototype; //$boolean false
+c = Object.prototype.constructor;
+c.length; //$number 1
+o = c(); 
+o.toString(); //$string '[object Object]'
+o.valueOf() == o; //$boolean true
+)");
+
+    if (tested_version() >= version::es3) {
+        // TODO: toLocaleString
+        //       hasOwnProperty
+        //       isPrototypeOf
+        //       propertyIsEnumerable 
+        //        RUN_TEST_SPEC(R"(
+        //Object.prototype.toLocaleString === Object.prototype.toString; //$boolean true
+        //)");
+    }
+}
+
 int main() {
     try {
         for (const auto ver: supported_versions) {
-            parser_version = ver;
+            tested_version(ver);
             eval_tests();
-            if (parser_version >= version::es3) {
+            if (tested_version() >= version::es3) {
                 test_es3_statements();
             }
+            test_object_object();
             test_global_functions();
             test_math_functions();
             test_date_functions();
             test_long_object_chain();
+            test_eval_exception();
         }
-
-        parser_version = default_version;
-        test_eval_exception();
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';
         return 1;

@@ -65,4 +65,44 @@ void object::debug_print(std::wostream& os, int indent_incr, int max_nest, int i
     os << std::wstring(indent, ' ') << "}";
 }
 
+void object::put(const string& name, const value& val, property_attribute attr) {
+    // See if there is already a property with this name
+    auto& props = properties_.dereference(heap_);
+    if (auto [it, pp] = deep_find(name.view()); it) {
+        // CanPut?
+        if (it->has_attribute(property_attribute::read_only)) {
+            return;
+        }
+        // Did the property come from this object's property list?
+        if (pp == &props) {
+            if (attr != property_attribute::none) {
+                // HACK: Object.prototype (and String.prototype etc..) all start out as normal functions
+                // where the "prototype" property is just dont_enum, but we need to strengthen that to
+                // dont_enum|dont_delete|read_only.
+                assert(class_name().view() == L"Function" && name.view() == L"prototype" && (int)it->attributes == 2 && (int)attr == 7);
+                it->attributes = attr;
+            }
+
+            // Yes, update
+            it->value = value_representation{val};
+            return;
+        }
+        // Handle as insertion
+    }
+    props.emplace_back(name, val, attr);
+}
+
+bool object::delete_property(const std::wstring_view& name) {
+    auto [it, props] = find(name);
+    if (!it) {
+        return true;
+
+    }
+    if (it->has_attribute(property_attribute::dont_delete)) {
+        return false;
+    }
+    props->erase(it);
+    return true;
+}
+
 } // namespace mjs

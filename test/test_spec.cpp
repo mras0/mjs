@@ -115,7 +115,7 @@ public:
 #endif
         test_spec_runner tsr{h, specs, statements};
         tsr.i_.eval_program();
-        tsr.check_test_spec_done(statements.extend().end);
+        tsr.check_test_spec_done(statements.extend(), statements.extend().end);
 #ifdef TEST_SPEC_DEBUG
         std::wcout << "\n";
 #endif
@@ -143,7 +143,7 @@ private:
             std::wcout << " ==> " << debug_string(res.result) << "\n";
 #endif
             if (s.extend().file == source_ && s.extend().start > last_line_) {
-                check_test_spec_done(s.extend().start);
+                check_test_spec_done(s.extend(), s.extend().start);
                 last_result_ = res;
                 last_line_ = s.extend().start;
             }
@@ -157,7 +157,7 @@ private:
     {
     }
 
-    void check_test_spec_done(uint32_t check_pos) {
+    void check_test_spec_done(const source_extend& e, uint32_t check_pos) {
         if (index_ == specs_.size()) {
             return;
         }
@@ -173,7 +173,7 @@ private:
             }
             if (last_result_.result != specs_[index_].expected) {
                 std::wostringstream oss;
-                oss << "Expecting " << debug_string(specs_[index_].expected) << " got " <<  debug_string(last_result_.result) << " while evaluating " << source_->filename;
+                oss << "Expecting " << debug_string(specs_[index_].expected) << " got " <<  debug_string(last_result_.result) << " at " << e;
                 THROW_RUNTIME_ERROR(oss.str());
             }
             ++index_;
@@ -209,7 +209,7 @@ void run_test_spec(const std::string_view& source_text, const std::string_view& 
             throw std::runtime_error("Invalid test spec." + std::string(name) + ": No specs found");
         }
 
-        auto bs = parse(std::make_shared<source_file>(std::wstring(name.begin(), name.end()), std::wstring(source_text.begin(), source_text.end())), parser_version);
+        auto bs = parse(std::make_shared<source_file>(std::wstring(name.begin(), name.end()), std::wstring(source_text.begin(), source_text.end())), tested_version());
         const auto index = test_spec_runner::run(heap, specs, *bs);
         if (index != specs.size()) {
             throw std::runtime_error("Invalid test spec." + std::string(name) + ": Only " + std::to_string(index) + " of " + std::to_string(specs.size()) + " specs ran");

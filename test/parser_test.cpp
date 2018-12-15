@@ -26,7 +26,7 @@ auto make_source(const char* text) {
 }
 
 auto parse_text(const char* text) {
-    return parse(make_source(text), parser_version);
+    return parse(make_source(text), tested_version());
 }
 
 
@@ -45,7 +45,7 @@ void test_parse_fails(const char* text) {
         return;
     }
     std::ostringstream oss;
-    oss << "Unexpected parse success for '" << text << "' parser_version " << parser_version;
+    oss << "Unexpected parse success for '" << text << "' parser_version " << tested_version();
     throw std::runtime_error(oss.str());
 }
 
@@ -55,7 +55,7 @@ std::unique_ptr<expression_statement> parse_expression(const char* text) {
         REQUIRE_EQ(s->type(), statement_type::expression);
         return std::unique_ptr<expression_statement>{static_cast<expression_statement*>(s.release())};
     } catch (...) {
-        std::wcerr << "Parse failed for '" << text << "' parser version " << parser_version << "\n";
+        std::wcerr << "Parse failed for '" << text << "' parser version " << tested_version() << "\n";
         throw;
     }
 }
@@ -123,7 +123,7 @@ x++; x //$ number 2
         REQUIRE_EQ(es->l()[1]->type(), statement_type::expression);
     }
 
-    if (parser_version < version::es3) {
+    if (tested_version() < version::es3) {
         test_parse_fails("continue id");
         test_parse_fails("break id");
     } else {
@@ -142,7 +142,7 @@ x++; x //$ number 2
 }
 
 void test_es1_fails_with_new_constructs() {
-    parser_version = version::es1;
+    tested_version(version::es1);
 
     test_parse_fails("1===2");
     test_parse_fails("1!==2");
@@ -297,14 +297,14 @@ void test_labelled_statements() {
 int main() {
     try {
         for (const auto ver: supported_versions) {
-            parser_version = ver;
+            tested_version(ver);
             test_semicolon_insertion();
         }
 
         test_es1_fails_with_new_constructs();
 
         for (const auto ver: { version::es3 }) {
-            parser_version = ver;
+            tested_version(ver);
             test_array_literal();
             test_object_literal();
             test_labelled_statements();

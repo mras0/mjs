@@ -27,7 +27,8 @@ std::basic_ostream<CharT>& operator<<(std::basic_ostream<CharT>& os, const mjs::
     return os;
 }
 
-extern mjs::version parser_version;
+extern mjs::version tested_version();
+extern void tested_version(mjs::version ver);
 
 extern void run_test(const std::wstring_view& text, const mjs::value& expected);
 

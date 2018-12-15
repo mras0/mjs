@@ -6,11 +6,9 @@
 
 using namespace mjs;
 
-version lexer_version = default_version;
-
 std::vector<token> lex(const std::wstring_view& s) {
     try {
-        lexer l{s, lexer_version};
+        lexer l{s, tested_version()};
         std::vector<token> ts;
         for (; l.current_token(); l.next_token()) {
             ts.push_back(l.current_token());
@@ -18,19 +16,19 @@ std::vector<token> lex(const std::wstring_view& s) {
         return ts;
     } catch (...) {
         std::wcerr << "Error while processing " << s << "\n";
-        std::wcerr << "Lexer version: " << lexer_version << "\n";
+        std::wcerr << "Lexer version: " << tested_version() << "\n";
         throw;
     }
 }
 
 std::string check_lex_fails(const std::wstring_view& s) {
     try {
-        lexer l{s, lexer_version};
+        lexer l{s, tested_version()};
         std::vector<token> ts;
         for (; l.current_token(); l.next_token()) {
             ts.push_back(l.current_token());
         }
-        std::wcerr << "Lexer (version=" << lexer_version << ") should have failed for '" << s << "'\n";
+        std::wcerr << "Lexer (version=" << tested_version() << ") should have failed for '" << s << "'\n";
         std::wcerr << "Returned:\n" << ts << "\n";
         std::abort();
     } catch (const std::exception& e) {
@@ -50,14 +48,14 @@ std::string check_lex_fails(const std::wstring_view& s) {
 void basic_tests() {
     // Whitespace
     SIMPLE_TEST(L"\x09\x0b\x0c\x20 ab", WS, ID("ab"));
-    if (lexer_version > version::es1) {
+    if (tested_version() > version::es1) {
         // <NBSP> + <USP> are considered whitespace in ES3+
         SIMPLE_TEST(L"\xA0", WS);
         // TODO: Check other unicode space characters (e.g. \u2000)
     }
     // Line terminators
     SIMPLE_TEST(L"\012x\015", NL, ID("x"), NL);
-    if (lexer_version > version::es1) {
+    if (tested_version() > version::es1) {
         // In ES3+ \u2028 and \u2029 are considered line terminators
         SIMPLE_TEST(L"\x2028\x2029", NL);
         SIMPLE_TEST(L"x//\x2029", ID("x"), WS, NL);
@@ -77,7 +75,7 @@ void basic_tests() {
     // TODO: Support more unicode characters (and escape sequences!) in indentifiers
     // Punctuator
     SIMPLE_TEST(LR"(<<>>>=)", T(lshift), T(rshiftshiftequal));
-    if (lexer_version == version::es1) {
+    if (tested_version() == version::es1) {
         SIMPLE_TEST(LR"(= = ===)", T(equal), WS, T(equal), WS, T(equalequal), T(equal));
         SIMPLE_TEST(LR"(!==)", T(notequal), T(equal));
     } else {
@@ -107,7 +105,7 @@ void basic_tests() {
 
     // Vertical tab (<VT>) supported from es3 on
     const auto vert_tab_str = LR"('\v')";
-    if (lexer_version == version::es1) {
+    if (tested_version() == version::es1) {
         check_lex_fails(vert_tab_str);
     } else {
         SIMPLE_TEST(vert_tab_str, STR("\x0B"));
@@ -124,7 +122,7 @@ void basic_tests() {
 }
 
 void test_get_regex_literal(std::wstring_view text) {
-    lexer l{text, lexer_version};
+    lexer l{text, tested_version()};
     const auto regex_lit = l.get_regex_literal();
     REQUIRE(!l.current_token()); // Must be at end
     REQUIRE_EQ(text, regex_lit);
@@ -132,7 +130,7 @@ void test_get_regex_literal(std::wstring_view text) {
 
 void test_get_regex_literal_fails(std::wstring_view text) {
     try {
-        lexer l{text, lexer_version};
+        lexer l{text, tested_version()};
         l.get_regex_literal();
         std::wcerr << "Should have failed while processing regex literal '" << text << "'\n";
         std::abort();
@@ -142,7 +140,6 @@ void test_get_regex_literal_fails(std::wstring_view text) {
 }
 
 void test_regexp_literals() {
-    lexer_version = version::es3;
     test_get_regex_literal(LR"(/(?:)/)");
     test_get_regex_literal(LR"(/=X/)");
     test_get_regex_literal(LR"(/[123]xx/g)");
@@ -186,13 +183,13 @@ const char* const es3_keywords[] = { "case", "catch", "default", "do", "finally"
 const char* const es3_reserved_words[] = { "abstract", "boolean", "byte", "char", "class", "const", "debugger", "double", "enum", "export", "extends", "final", "float", "goto", "implements", "import", "int", "interface", "long", "native", "package", "private", "protected", "public", "short", "static", "super", "synchronized", "throws", "transient", "volatile" };
 
 void check_es1_keywords() {
-    lexer_version = version::es1;
+    tested_version(version::es1);
     check_keywords(es1_keywords);
     check_reserved_words(es1_reserved_words);
 }
 
 void check_es3_keywords() {
-    lexer_version = version::es3;
+    tested_version(version::es3);
     check_keywords(es1_keywords);
     check_keywords(es3_keywords);
     check_reserved_words(es3_reserved_words);
@@ -201,15 +198,17 @@ void check_es3_keywords() {
 int main() {
     try {
         for (const auto v: { version::es1, version::es3 }) {
-            lexer_version = v;
+            tested_version(v);
             basic_tests();
+            if (v > version::es1) {
+                test_regexp_literals();
+            }
         }
         check_es1_keywords();
         check_es3_keywords();
-        test_regexp_literals();
     } catch (const std::exception& e) {
         std::wcerr << e.what() << "\n";
-        std::wcerr << "Lexer version: " << lexer_version << "\n";
+        std::wcerr << "Lexer version: " << tested_version() << "\n";
         return 1;
     }
 }
