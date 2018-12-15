@@ -2,6 +2,7 @@
 #include <mjs/parser.h>
 #include <mjs/interpreter.h>
 #include <mjs/printer.h>
+#include <sstream>
 
 using namespace mjs;
 
@@ -15,8 +16,18 @@ void tested_version(mjs::version ver) {
     tested_version_ = ver;
 }
 
+static const char* run_test_func;
+static const char* run_test_file;
+static int run_test_line;
+void run_test_debug_pos(const char* func, const char* file, int line) {
+    run_test_func = func;
+    run_test_file = file;
+    run_test_line = line;
+}
 
 void run_test(const std::wstring_view& text, const value& expected) {
+    assert(run_test_func && run_test_file && run_test_line);
+
     // Use local heap, even if expected lives in another heap
     constexpr uint32_t num_slots = 1<<21;
 #ifndef MJS_GC_STRESS_TEST
@@ -35,25 +46,46 @@ void run_test(const std::wstring_view& text, const value& expected) {
             std::wcout << "Parse failed for \"" << text << "\": " << e.what() <<  "\n";
             throw;
         }
-        auto pb = [&bs]() {
-            print(std::wcout, *bs);
-            std::wcout << '\n';
+        std::wostringstream error_stream;
+        auto pb = [&]() {
+            const char * start = "----------------\n";
+            const char * end = "----------------\n\n";
+
+            error_stream << "\n";
+            error_stream << run_test_file << ":" << run_test_line << " in " << run_test_func << ":\n";
+
+            error_stream << "Test failure in:\n";
+            error_stream << start;
+            error_stream << text << "\n";
+            error_stream << end;
+
+            error_stream << "Parsed as:\n";
+            error_stream << start;
             for (const auto& s: bs->l()) {
-                std::wcout << *s << "\n";
+                error_stream << *s << "\n\n";
             }
+            error_stream << end;
+
+            error_stream << "Pretty printed:\n";
+            error_stream << start;
+            print(error_stream, *bs);
+            error_stream << end;
+
+            error_stream << "\n";
         };
+        value res;
         try {
             interpreter i{h, tested_version(), *bs};
-            value res = i.eval_program();
-            if (res != expected) {
-                std::wcout << "Test failed: " << text << " expecting " << debug_string(expected) << " got " << debug_string(res) << "\n";
-                pb();
-                THROW_RUNTIME_ERROR("Test failed");
-            }
+            res = i.eval_program();
         } catch (const std::exception& e) {
-            std::wcout << "Test failed: " << text << " uexpected exception thrown: " << e.what() << "\n";
             pb();
-            throw;
+            error_stream << "Unexpected exception thrown: " << e.what() << "\n";
+            THROW_RUNTIME_ERROR(error_stream.str());
+        }
+        if (res != expected) {
+            pb();
+            error_stream << "Expecting " << debug_string(expected) << " got " << debug_string(res) << "\n";
+            THROW_RUNTIME_ERROR(error_stream.str());
         }
     }
 

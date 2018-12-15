@@ -18,8 +18,8 @@ bool native_object::delete_property(const std::wstring_view& name) {
         if (it->has_attribute(property_attribute::dont_delete)) {
             return false;
         }
-        assert(false);
-        throw std::runtime_error("TODO: Handle delete of native property");
+        native_properties_.dereference(heap()).erase(it);
+        return true;
     }
     return object::delete_property(name);
 }

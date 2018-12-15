@@ -61,6 +61,8 @@ public:
 
     version language_version() const { return version_; }
 
+    object_ptr make_object();
+
 protected:
     version version_;
     using object::object;

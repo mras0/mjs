@@ -47,103 +47,103 @@ std::string expect_exception(const std::wstring_view& text) {
 void eval_tests() {
     gc_heap h{1<<20};
 
-    run_test(L"undefined", value::undefined);
-    run_test(L"null", value::null);
-    run_test(L"false", value{false});
-    run_test(L"true", value{true});
-    run_test(L"123", value{123.});
-    run_test(L"0123", value{83.});
-    run_test(L"0x123", value{291.});
-    run_test(L"'te\"st'", value{string{h, "te\"st"}});
-    run_test(L"\"te'st\"", value{string{h, "te'st"}});
-    run_test(L"/*42*/60", value{60.0});
-    run_test(L"x=12//\n+34;x", value{46.0});
-    run_test(L"-7.5 % 2", value{-1.5});
-    run_test(L"1+2*3", value{7.});
-    run_test(L"''+(0.1+0.2)", value{string{h, "0.30000000000000004"}});
-    run_test(L"x = 42; 'test ' + 2 * (6 - 4 + 1) + ' ' + x", value{string{h, "test 6 42"}});
-    run_test(L"y=1/2; z='string'; y+z", value{string{h, "0.5string"}});
-    run_test(L"var x=2; x++;", value{2.0});
-    run_test(L"var x=2; x++; x", value{3.0});
-    run_test(L"var x=2; x--;", value{2.0});
-    run_test(L"var x=2; x--; x", value{1.0});
-    run_test(L"var x = 42; delete x; x", value::undefined);
-    run_test(L"void(2+2)", value::undefined);
-    run_test(L"typeof(2)", value{string{h, "number"}});
-    run_test(L"x=4.5; ++x", value{5.5});
-    run_test(L"x=4.5; --x", value{3.5});
-    run_test(L"x=42; +x;", value{42.0});
-    run_test(L"x=42; -x;", value{-42.0});
-    run_test(L"x=42; !x;", value{false});
-    run_test(L"x=42; ~x;", value{(double)~42});
-    run_test(L"1<<2", value{4.0});
-    run_test(L"-5>>2", value{-2.0});
-    run_test(L"-5>>>2", value{1073741822.0});
-    run_test(L"1 < 2", value{true});
-    run_test(L"1 > 2", value{false});
-    run_test(L"1 <= 2", value{true});
-    run_test(L"1 >= 2", value{false});
-    run_test(L"1 == 2", value{false});
-    run_test(L"1 != 2", value{true});
-    run_test(L"1 == '1'", value{true});
-    run_test(L"NaN == NaN", value{false});
+    RUN_TEST(L"undefined", value::undefined);
+    RUN_TEST(L"null", value::null);
+    RUN_TEST(L"false", value{false});
+    RUN_TEST(L"true", value{true});
+    RUN_TEST(L"123", value{123.});
+    RUN_TEST(L"0123", value{83.});
+    RUN_TEST(L"0x123", value{291.});
+    RUN_TEST(L"'te\"st'", value{string{h, "te\"st"}});
+    RUN_TEST(L"\"te'st\"", value{string{h, "te'st"}});
+    RUN_TEST(L"/*42*/60", value{60.0});
+    RUN_TEST(L"x=12//\n+34;x", value{46.0});
+    RUN_TEST(L"-7.5 % 2", value{-1.5});
+    RUN_TEST(L"1+2*3", value{7.});
+    RUN_TEST(L"''+(0.1+0.2)", value{string{h, "0.30000000000000004"}});
+    RUN_TEST(L"x = 42; 'test ' + 2 * (6 - 4 + 1) + ' ' + x", value{string{h, "test 6 42"}});
+    RUN_TEST(L"y=1/2; z='string'; y+z", value{string{h, "0.5string"}});
+    RUN_TEST(L"var x=2; x++;", value{2.0});
+    RUN_TEST(L"var x=2; x++; x", value{3.0});
+    RUN_TEST(L"var x=2; x--;", value{2.0});
+    RUN_TEST(L"var x=2; x--; x", value{1.0});
+    RUN_TEST(L"var x = 42; delete x; x", value::undefined);
+    RUN_TEST(L"void(2+2)", value::undefined);
+    RUN_TEST(L"typeof(2)", value{string{h, "number"}});
+    RUN_TEST(L"x=4.5; ++x", value{5.5});
+    RUN_TEST(L"x=4.5; --x", value{3.5});
+    RUN_TEST(L"x=42; +x;", value{42.0});
+    RUN_TEST(L"x=42; -x;", value{-42.0});
+    RUN_TEST(L"x=42; !x;", value{false});
+    RUN_TEST(L"x=42; ~x;", value{(double)~42});
+    RUN_TEST(L"1<<2", value{4.0});
+    RUN_TEST(L"-5>>2", value{-2.0});
+    RUN_TEST(L"-5>>>2", value{1073741822.0});
+    RUN_TEST(L"1 < 2", value{true});
+    RUN_TEST(L"1 > 2", value{false});
+    RUN_TEST(L"1 <= 2", value{true});
+    RUN_TEST(L"1 >= 2", value{false});
+    RUN_TEST(L"1 == 2", value{false});
+    RUN_TEST(L"1 != 2", value{true});
+    RUN_TEST(L"1 == '1'", value{true});
+    RUN_TEST(L"NaN == NaN", value{false});
     if (tested_version() >= version::es3) {
-        run_test(L"1 === '1'", value{false});
-        run_test(L"1 !== '1'", value{true});
-        run_test(L"undefined === undefined", value{true});
-        run_test(L"undefined === null", value{false});
-        run_test(L"undefined !== null", value{true});
-        run_test(L"null === null", value{true});
-        run_test(L"NaN !== NaN", value{true});
-        run_test(L"NaN === NaN", value{false});
-        run_test(L"+0 === -0", value{true});
-        run_test(L"-0 === +0", value{true});
-        run_test(L"true === false", value{false});
-        run_test(L"true === true", value{true});
-        run_test(L"'1234' === '1234'", value{true});
-        run_test(L"'1234' === '1234 '", value{false});
-        run_test(L"Object === Object", value{true});
-        run_test(L"Object !== Object", value{false});
-        run_test(L"Object === Function", value{false});
-        run_test(L"Object !== Function", value{true});
-        run_test(L"a={};1 in a", value{false});
-        run_test(L"a={1:1};1 in a", value{true});
-        run_test(L"a={'x':1};'x' in a", value{true});
-        run_test(L"a={1000:1};1e3 in a", value{true});
+        RUN_TEST(L"1 === '1'", value{false});
+        RUN_TEST(L"1 !== '1'", value{true});
+        RUN_TEST(L"undefined === undefined", value{true});
+        RUN_TEST(L"undefined === null", value{false});
+        RUN_TEST(L"undefined !== null", value{true});
+        RUN_TEST(L"null === null", value{true});
+        RUN_TEST(L"NaN !== NaN", value{true});
+        RUN_TEST(L"NaN === NaN", value{false});
+        RUN_TEST(L"+0 === -0", value{true});
+        RUN_TEST(L"-0 === +0", value{true});
+        RUN_TEST(L"true === false", value{false});
+        RUN_TEST(L"true === true", value{true});
+        RUN_TEST(L"'1234' === '1234'", value{true});
+        RUN_TEST(L"'1234' === '1234 '", value{false});
+        RUN_TEST(L"Object === Object", value{true});
+        RUN_TEST(L"Object !== Object", value{false});
+        RUN_TEST(L"Object === Function", value{false});
+        RUN_TEST(L"Object !== Function", value{true});
+        RUN_TEST(L"a={};1 in a", value{false});
+        RUN_TEST(L"a={1:1};1 in a", value{true});
+        RUN_TEST(L"a={'x':1};'x' in a", value{true});
+        RUN_TEST(L"a={1000:1};1e3 in a", value{true});
         // These tests of `instanceof` don't really belong here as they rely on global object, but eh
-        run_test(L"o={};o instanceof Object", value{true});
-        run_test(L"o={};o instanceof Array", value{false});
-        run_test(L"4 instanceof Number", value{false});
-        run_test(L"'' instanceof String", value{false});
-        run_test(L"new String() instanceof String", value{true});
+        RUN_TEST(L"o={};o instanceof Object", value{true});
+        RUN_TEST(L"o={};o instanceof Array", value{false});
+        RUN_TEST(L"4 instanceof Number", value{false});
+        RUN_TEST(L"'' instanceof String", value{false});
+        RUN_TEST(L"new String() instanceof String", value{true});
     }
 
-    run_test(L"255 & 128", value{128.0});
-    run_test(L"255 ^ 128", value{127.0});
-    run_test(L"64 | 128", value{192.0});
-    run_test(L"42 || 13", value{42.0});
-    run_test(L"42 && 13", value{13.0});
-    run_test(L"1 ? 2 : 3", value{2.0});
-    run_test(L"0 ? 2 : 1+2", value{3.0});
-    run_test(L"x=2.5; x+=4; x", value{6.5});
-    run_test(L"function f(x,y) { return x*x+y; } f(2, 3)", value{7.0});
-    run_test(L"function f(){ i = 42; }; f(); i", value{42.0});
-    run_test(L"i = 1; function f(){ var i = 42; }; f(); i", value{1.0});
-    run_test(L"x=42; function f(x) { return x; } f()", value::undefined);
-    run_test(L"function f(){if(1){function a(){return 42;} return a(); }}; f()", value{42.});
-    run_test(L"{if(1) function a(){return 42;}} a(42);", value{42.});
-    run_test(L"function a(){return 1;}; a()", value{1.});
-    run_test(L";", value::undefined);
-    run_test(L"if (1) 2;", value{2.0});
-    run_test(L"if (0) 2;", value::undefined);
-    run_test(L"if (0) 2; else ;", value::undefined);
-    run_test(L"if (0) 2; else 3;", value{3.0});
-    run_test(L"1,2", value{2.0});
-    run_test(L"x=5; while(x-3) { x = x - 1; } x", value{3.0});
-    run_test(L"x=2; y=0; while(1) { if(x) {x = x - 1; y = y + 2; continue; y = y + 1000; } else break; y = y + 1;} y", value{4.0});
-    run_test(L"var x = 0; for(var i = 10, dec = 1; i; i = i - dec) x = x + i; x", value{55.0});
-    run_test(L"var x=0; for (i=2; i; i=i-1) x=x+i; x+i", value{3.0});
-    run_test(L"for (var i=0;!i;) { i=1 }", value{1.});
+    RUN_TEST(L"255 & 128", value{128.0});
+    RUN_TEST(L"255 ^ 128", value{127.0});
+    RUN_TEST(L"64 | 128", value{192.0});
+    RUN_TEST(L"42 || 13", value{42.0});
+    RUN_TEST(L"42 && 13", value{13.0});
+    RUN_TEST(L"1 ? 2 : 3", value{2.0});
+    RUN_TEST(L"0 ? 2 : 1+2", value{3.0});
+    RUN_TEST(L"x=2.5; x+=4; x", value{6.5});
+    RUN_TEST(L"function f(x,y) { return x*x+y; } f(2, 3)", value{7.0});
+    RUN_TEST(L"function f(){ i = 42; }; f(); i", value{42.0});
+    RUN_TEST(L"i = 1; function f(){ var i = 42; }; f(); i", value{1.0});
+    RUN_TEST(L"x=42; function f(x) { return x; } f()", value::undefined);
+    RUN_TEST(L"function f(){if(1){function a(){return 42;} return a(); }}; f()", value{42.});
+    RUN_TEST(L"{if(1) function a(){return 42;}} a(42);", value{42.});
+    RUN_TEST(L"function a(){return 1;}; a()", value{1.});
+    RUN_TEST(L";", value::undefined);
+    RUN_TEST(L"if (1) 2;", value{2.0});
+    RUN_TEST(L"if (0) 2;", value::undefined);
+    RUN_TEST(L"if (0) 2; else ;", value::undefined);
+    RUN_TEST(L"if (0) 2; else 3;", value{3.0});
+    RUN_TEST(L"1,2", value{2.0});
+    RUN_TEST(L"x=5; while(x-3) { x = x - 1; } x", value{3.0});
+    RUN_TEST(L"x=2; y=0; while(1) { if(x) {x = x - 1; y = y + 2; continue; y = y + 1000; } else break; y = y + 1;} y", value{4.0});
+    RUN_TEST(L"var x = 0; for(var i = 10, dec = 1; i; i = i - dec) x = x + i; x", value{55.0});
+    RUN_TEST(L"var x=0; for (i=2; i; i=i-1) x=x+i; x+i", value{3.0});
+    RUN_TEST(L"for (var i=0;!i;) { i=1 }", value{1.});
 
     // Check break in nested for loop
     RUN_TEST_SPEC(R"(
@@ -223,20 +223,20 @@ with(42) {
 )");
 
 
-    run_test(L"function sum() {  var s = 0; for (var i = 0; i < arguments.length; ++i) s += arguments[i]; return s; } sum(1,2,3)", value{6.0});
+    RUN_TEST(L"function sum() {  var s = 0; for (var i = 0; i < arguments.length; ++i) s += arguments[i]; return s; } sum(1,2,3)", value{6.0});
 
     // ES3, 15.1: The [[Prototype]] and [[Class]] properties of the global object are implementation-dependent
-    run_test(L"global.toString()", value{string{h, "[object Global]"}});
+    RUN_TEST(L"global.toString()", value{string{h, "[object Global]"}});
 
     // Object
-    run_test(L"''+Object(null)", value{string{h, "[object Object]"}});
-    run_test(L"o=Object(null); o.x=42; o.y=60; o.x+o['y']", value{102.0});
-    run_test(L"a=Object(null);b=Object(null);a.x=b;a.x.y=42;a['x']['y']", value{42.0});
-    run_test(L"'' + new Object", value{string{h, "[object Object]"}});
-    run_test(L"'' + new Object()", value{string{h, "[object Object]"}});
-    run_test(L"'' + new Object(null)", value{string{h, "[object Object]"}});
-    run_test(L"'' + new Object(undefined)", value{string{h, "[object Object]"}});
-    run_test(L"o = new Object;o.x=42; new Object(o).x", value{42.0});
+    RUN_TEST(L"''+Object(null)", value{string{h, "[object Object]"}});
+    RUN_TEST(L"o=Object(null); o.x=42; o.y=60; o.x+o['y']", value{102.0});
+    RUN_TEST(L"a=Object(null);b=Object(null);a.x=b;a.x.y=42;a['x']['y']", value{42.0});
+    RUN_TEST(L"'' + new Object", value{string{h, "[object Object]"}});
+    RUN_TEST(L"'' + new Object()", value{string{h, "[object Object]"}});
+    RUN_TEST(L"'' + new Object(null)", value{string{h, "[object Object]"}});
+    RUN_TEST(L"'' + new Object(undefined)", value{string{h, "[object Object]"}});
+    RUN_TEST(L"o = new Object;o.x=42; new Object(o).x", value{42.0});
 
     // Function. Note: toString() rendering isn't specified (exactly)
     RUN_TEST_SPEC(R"(
@@ -317,36 +317,36 @@ function f(x) {
 ''+f(43); //$ string '43,1,2'
 )");
 
-    run_test(L"function  f ( x   ,\ny )  { return x + y;  }; f.toString()", value{string{h, "function f( x   ,\ny )  { return x + y;  }"}});
-    run_test(L"a=parseInt;a.toString()", value{string{h, "function parseInt() { [native code] }"}});
+    RUN_TEST(L"function  f ( x   ,\ny )  { return x + y;  }; f.toString()", value{string{h, "function f( x   ,\ny )  { return x + y;  }"}});
+    RUN_TEST(L"a=parseInt;a.toString()", value{string{h, "function parseInt() { [native code] }"}});
     // Array
-    run_test(L"Array.length", value{1.0});
-    run_test(L"Array.prototype.length", value{0.0});
-    run_test(L"new Array().length", value{0.0});
-    run_test(L"new Array(60).length", value{60.0});
-    run_test(L"new Array(1,2,3,4).length", value{4.0});
-    run_test(L"new Array(1,2,3,4)[3]", value{4.0});
-    run_test(L"new Array(1,2,3,4)[4]", value::undefined);
-    run_test(L"a=new Array(); a[5]=42; a.length", value{6.0});
-    run_test(L"a=new Array(); a[5]=42; a[3]=2; a.length", value{6.0});
-    run_test(L"a=new Array(1,2,3,4); a.length=2; a.length", value{2.0});
-    run_test(L"a=new Array(1,2,3,4); a.length=2; a[3]", value::undefined);
-    run_test(L"''+Array()", value{string{h, ""}});
-    run_test(L"a=Array();a[0]=1;''+a", value{string{h, "1"}});
-    run_test(L"''+Array(1,2,3,4)", value{string{h, "1,2,3,4"}});
-    run_test(L"Array(1,2,3,4).join()", value{string{h, "1,2,3,4"}});
-    run_test(L"Array(1,2,3,4).join('')", value{string{h, "1234"}});
-    run_test(L"Array(4).join()", value{string{h, ",,,"}});
-    run_test(L"Array(1,2,3,4).reverse()+''", value{string{h, "4,3,2,1"}});
-    run_test(L"''+Array('March', 'Jan', 'Feb', 'Dec').sort()", value{string{h, "Dec,Feb,Jan,March"}});
-    run_test(L"''+Array(1,30,4,21).sort()", value{string{h, "1,21,30,4"}});
-    run_test(L"function c(x,y) { return x-y; }; ''+Array(1,30,4,21).sort(c)", value{string{h, "1,4,21,30"}});
-    run_test(L"new Array(1).toString()", value{string{h, ""}});
-    run_test(L"new Array(1,2).toString()", value{string{h, "1,2"}});
-    run_test(L"+new Array(1)", value{0.});
-    run_test(L"+new Array(1,2)", value{NAN});
+    RUN_TEST(L"Array.length", value{1.0});
+    RUN_TEST(L"Array.prototype.length", value{0.0});
+    RUN_TEST(L"new Array().length", value{0.0});
+    RUN_TEST(L"new Array(60).length", value{60.0});
+    RUN_TEST(L"new Array(1,2,3,4).length", value{4.0});
+    RUN_TEST(L"new Array(1,2,3,4)[3]", value{4.0});
+    RUN_TEST(L"new Array(1,2,3,4)[4]", value::undefined);
+    RUN_TEST(L"a=new Array(); a[5]=42; a.length", value{6.0});
+    RUN_TEST(L"a=new Array(); a[5]=42; a[3]=2; a.length", value{6.0});
+    RUN_TEST(L"a=new Array(1,2,3,4); a.length=2; a.length", value{2.0});
+    RUN_TEST(L"a=new Array(1,2,3,4); a.length=2; a[3]", value::undefined);
+    RUN_TEST(L"''+Array()", value{string{h, ""}});
+    RUN_TEST(L"a=Array();a[0]=1;''+a", value{string{h, "1"}});
+    RUN_TEST(L"''+Array(1,2,3,4)", value{string{h, "1,2,3,4"}});
+    RUN_TEST(L"Array(1,2,3,4).join()", value{string{h, "1,2,3,4"}});
+    RUN_TEST(L"Array(1,2,3,4).join('')", value{string{h, "1234"}});
+    RUN_TEST(L"Array(4).join()", value{string{h, ",,,"}});
+    RUN_TEST(L"Array(1,2,3,4).reverse()+''", value{string{h, "4,3,2,1"}});
+    RUN_TEST(L"''+Array('March', 'Jan', 'Feb', 'Dec').sort()", value{string{h, "Dec,Feb,Jan,March"}});
+    RUN_TEST(L"''+Array(1,30,4,21).sort()", value{string{h, "1,21,30,4"}});
+    RUN_TEST(L"function c(x,y) { return x-y; }; ''+Array(1,30,4,21).sort(c)", value{string{h, "1,4,21,30"}});
+    RUN_TEST(L"new Array(1).toString()", value{string{h, ""}});
+    RUN_TEST(L"new Array(1,2).toString()", value{string{h, "1,2"}});
+    RUN_TEST(L"+new Array(1)", value{0.});
+    RUN_TEST(L"+new Array(1,2)", value{NAN});
     // Make sure we handle "large" arrays
-    run_test(L"a=new Array(500);for (var i=0; i<a.length; ++i) a[i] = i; sum=0; for (var i=0; i<a.length; ++i) sum += a[i]; sum", value{499*500/2.});
+    RUN_TEST(L"a=new Array(500);for (var i=0; i<a.length; ++i) a[i] = i; sum=0; for (var i=0; i<a.length; ++i) sum += a[i]; sum", value{499*500/2.});
 
     RUN_TEST_SPEC(R"(
 var a = new Array();
@@ -377,95 +377,95 @@ a = new Array(); a[4294967296]=1; a.length //$number 0
 )");
 
     // String
-    run_test(L"String()", value{string{h, ""}});
-    run_test(L"String('test')", value{string{h, "test"}});
-    run_test(L"String('test').length", value{4.0});
-    run_test(L"s = new String('test'); s.length = 42; s.length", value{4.0});
-    run_test(L"''+new String()", value{string{h, ""}});
-    run_test(L"''+new String('test')", value{string{h, "test"}});
-    run_test(L"Object('testXX').valueOf()", value{string{h, "testXX"}});
-    run_test(L"String.fromCharCode()", value{string{h, ""}});
-    run_test(L"String.fromCharCode(65,66,67+32)", value{string{h, "ABc"}});
-    run_test(L"'test'.charAt(0)", value{string{h, "t"}});
-    run_test(L"'test'.charAt(2)", value{string{h, "s"}});
-    run_test(L"'test'.charAt(5)", value{string{h, ""}});
-    run_test(L"'test'.charCodeAt(0)", value{(double)'t'});
-    run_test(L"'test'.charCodeAt(2)", value{(double)'s'});
-    run_test(L"'test'.charCodeAt(5)", value{NAN});
-    run_test(L"''.indexOf()", value{-1.});
-    run_test(L"'11 undefined'.indexOf()", value{3.});
-    run_test(L"'testfesthest'.indexOf('XX')", value{-1.});
-    run_test(L"'testfesthest'.indexOf('est')", value{1.});
-    run_test(L"'testfesthest'.indexOf('est',3)", value{5.});
-    run_test(L"'testfesthest'.indexOf('est',7)", value{9.});
-    run_test(L"'testfesthest'.indexOf('est',11)", value{-1.});
-    run_test(L"'testfesthest'.lastIndexOf('estX')", value{-1.});
-    run_test(L"'testfesthest'.lastIndexOf('est')", value{9.});
-    run_test(L"'testfesthest'.lastIndexOf('est',1)", value{1.});
-    run_test(L"'testfesthest'.lastIndexOf('est',3)", value{1.});
-    run_test(L"'testfesthest'.lastIndexOf('est',7)", value{5.});
-    run_test(L"'testfesthest'.lastIndexOf('est', 22)", value{9.});
-    run_test(L"''.split()+''", value{string{h, ""}});
-    run_test(L"'1 2 3'.split()+''", value{string{h, "1 2 3"}});
-    run_test(L"'abcd'.split('')+''", value{string{h, "a,b,c,d"}});
-    run_test(L"'1 2 3'.split('not found')+''", value{string{h, "1 2 3"}});
-    run_test(L"'1 2 3'.split(' ')+''", value{string{h, "1,2,3"}});
-    run_test(L"'foo bar'.substring()", value{string{h, "foo bar"}});
-    run_test(L"'foo bar'.substring(-1)", value{string{h, "foo bar"}});
-    run_test(L"'foo bar'.substring(42)", value{string{h, ""}});
-    run_test(L"'foo bar'.substring(3)", value{string{h, " bar"}});
-    run_test(L"'foo bar'.substring(0, 1)", value{string{h, "f"}});
-    run_test(L"'foo bar'.substring(1, 0)", value{string{h, "f"}});
-    run_test(L"'foo bar'.substring(1000, -1)", value{string{h, "foo bar"}});
-    run_test(L"'foo bar'.substring(1, 4)", value{string{h, "oo "}});
-    run_test(L"'ABc'.toLowerCase()", value{string{h, "abc"}});
-    run_test(L"'ABc'.toUpperCase()", value{string{h, "ABC"}});
+    RUN_TEST(L"String()", value{string{h, ""}});
+    RUN_TEST(L"String('test')", value{string{h, "test"}});
+    RUN_TEST(L"String('test').length", value{4.0});
+    RUN_TEST(L"s = new String('test'); s.length = 42; s.length", value{4.0});
+    RUN_TEST(L"''+new String()", value{string{h, ""}});
+    RUN_TEST(L"''+new String('test')", value{string{h, "test"}});
+    RUN_TEST(L"Object('testXX').valueOf()", value{string{h, "testXX"}});
+    RUN_TEST(L"String.fromCharCode()", value{string{h, ""}});
+    RUN_TEST(L"String.fromCharCode(65,66,67+32)", value{string{h, "ABc"}});
+    RUN_TEST(L"'test'.charAt(0)", value{string{h, "t"}});
+    RUN_TEST(L"'test'.charAt(2)", value{string{h, "s"}});
+    RUN_TEST(L"'test'.charAt(5)", value{string{h, ""}});
+    RUN_TEST(L"'test'.charCodeAt(0)", value{(double)'t'});
+    RUN_TEST(L"'test'.charCodeAt(2)", value{(double)'s'});
+    RUN_TEST(L"'test'.charCodeAt(5)", value{NAN});
+    RUN_TEST(L"''.indexOf()", value{-1.});
+    RUN_TEST(L"'11 undefined'.indexOf()", value{3.});
+    RUN_TEST(L"'testfesthest'.indexOf('XX')", value{-1.});
+    RUN_TEST(L"'testfesthest'.indexOf('est')", value{1.});
+    RUN_TEST(L"'testfesthest'.indexOf('est',3)", value{5.});
+    RUN_TEST(L"'testfesthest'.indexOf('est',7)", value{9.});
+    RUN_TEST(L"'testfesthest'.indexOf('est',11)", value{-1.});
+    RUN_TEST(L"'testfesthest'.lastIndexOf('estX')", value{-1.});
+    RUN_TEST(L"'testfesthest'.lastIndexOf('est')", value{9.});
+    RUN_TEST(L"'testfesthest'.lastIndexOf('est',1)", value{1.});
+    RUN_TEST(L"'testfesthest'.lastIndexOf('est',3)", value{1.});
+    RUN_TEST(L"'testfesthest'.lastIndexOf('est',7)", value{5.});
+    RUN_TEST(L"'testfesthest'.lastIndexOf('est', 22)", value{9.});
+    RUN_TEST(L"''.split()+''", value{string{h, ""}});
+    RUN_TEST(L"'1 2 3'.split()+''", value{string{h, "1 2 3"}});
+    RUN_TEST(L"'abcd'.split('')+''", value{string{h, "a,b,c,d"}});
+    RUN_TEST(L"'1 2 3'.split('not found')+''", value{string{h, "1 2 3"}});
+    RUN_TEST(L"'1 2 3'.split(' ')+''", value{string{h, "1,2,3"}});
+    RUN_TEST(L"'foo bar'.substring()", value{string{h, "foo bar"}});
+    RUN_TEST(L"'foo bar'.substring(-1)", value{string{h, "foo bar"}});
+    RUN_TEST(L"'foo bar'.substring(42)", value{string{h, ""}});
+    RUN_TEST(L"'foo bar'.substring(3)", value{string{h, " bar"}});
+    RUN_TEST(L"'foo bar'.substring(0, 1)", value{string{h, "f"}});
+    RUN_TEST(L"'foo bar'.substring(1, 0)", value{string{h, "f"}});
+    RUN_TEST(L"'foo bar'.substring(1000, -1)", value{string{h, "foo bar"}});
+    RUN_TEST(L"'foo bar'.substring(1, 4)", value{string{h, "oo "}});
+    RUN_TEST(L"'ABc'.toLowerCase()", value{string{h, "abc"}});
+    RUN_TEST(L"'ABc'.toUpperCase()", value{string{h, "ABC"}});
     // Boolean
-    run_test(L"Boolean()", value{false});
-    run_test(L"Boolean(true)", value{true});
-    run_test(L"Boolean(42)", value{true});
-    run_test(L"Boolean(0)", value{false});
-    run_test(L"Boolean('')", value{false});
-    run_test(L"Boolean('x')", value{true});
-    run_test(L"new Boolean('x').valueOf()", value{true});
-    run_test(L"0 + new Boolean()", value{0.});
-    run_test(L"0 + new Boolean(1)", value{1.});
-    run_test(L"'' + new Boolean(0)", value{string{h, "false"}});
-    run_test(L"'' + new Boolean(1)", value{string{h, "true"}});
-    run_test(L"Object(true).toString()", value{string{h, "true"}});
+    RUN_TEST(L"Boolean()", value{false});
+    RUN_TEST(L"Boolean(true)", value{true});
+    RUN_TEST(L"Boolean(42)", value{true});
+    RUN_TEST(L"Boolean(0)", value{false});
+    RUN_TEST(L"Boolean('')", value{false});
+    RUN_TEST(L"Boolean('x')", value{true});
+    RUN_TEST(L"new Boolean('x').valueOf()", value{true});
+    RUN_TEST(L"0 + new Boolean()", value{0.});
+    RUN_TEST(L"0 + new Boolean(1)", value{1.});
+    RUN_TEST(L"'' + new Boolean(0)", value{string{h, "false"}});
+    RUN_TEST(L"'' + new Boolean(1)", value{string{h, "true"}});
+    RUN_TEST(L"Object(true).toString()", value{string{h, "true"}});
     // Number
-    run_test(L"Number()", value{0.});
-    run_test(L"Number(42.42)", value{42.42});
-    run_test(L"Number.MIN_VALUE", value{5e-324});
-    run_test(L"Number('1.2')", value{1.2});
-    run_test(L"Number('1,2')", value{NAN});
-    run_test(L"new Number(42.42).toString()", value{string{h, "42.42"}});
-    run_test(L"''+new Number(60)", value{string{h, "60"}});
-    run_test(L"new Number(123).valueOf()", value{123.0});
-    run_test(L"Object(42).toString(10)", value{string{h, "42"}});
+    RUN_TEST(L"Number()", value{0.});
+    RUN_TEST(L"Number(42.42)", value{42.42});
+    RUN_TEST(L"Number.MIN_VALUE", value{5e-324});
+    RUN_TEST(L"Number('1.2')", value{1.2});
+    RUN_TEST(L"Number('1,2')", value{NAN});
+    RUN_TEST(L"new Number(42.42).toString()", value{string{h, "42.42"}});
+    RUN_TEST(L"''+new Number(60)", value{string{h, "60"}});
+    RUN_TEST(L"new Number(123).valueOf()", value{123.0});
+    RUN_TEST(L"Object(42).toString(10)", value{string{h, "42"}});
     // TODO: Math
     // TODO: Date
 
     // wat
-    run_test(L"!!('')", value{false});
-    run_test(L"\"\" == false", value{true});
-    run_test(L"null == false", value{false});
-    run_test(L"+true", value{1.0});
-    run_test(L"true + true", value{2.0});
-    run_test(L"!!('0' && Object(null))", value{true});
+    RUN_TEST(L"!!('')", value{false});
+    RUN_TEST(L"\"\" == false", value{true});
+    RUN_TEST(L"null == false", value{false});
+    RUN_TEST(L"+true", value{1.0});
+    RUN_TEST(L"true + true", value{2.0});
+    RUN_TEST(L"!!('0' && Object(null))", value{true});
 
-    run_test(L"function X() { this.val = 42; }; new X().val", value{42.0});
-    run_test(L"function A() { this.n=1; }; function B() { this.n=2;} function g() { return this.n; } A.prototype.foo = g; new A().foo()", value{1.});
-    run_test(L"function A() { this.n=1; }; function B() { this.n=2;} function g() { return this.n; } A.prototype.foo = g; new B().foo", value::undefined);
-    run_test(L"function f() { this.a = 1; this.b = 2; } var o = new f(); f.prototype.b = 3; f.prototype.c = 4; '' + new Array(o.a,o.b,o.c,o.d)", value{string{h, "1,2,4,"}});
-    run_test(L"var o = new Object(); o.a = 2; function m(){return this.a+1; }; o.m = m; o.m()", value{3.});
+    RUN_TEST(L"function X() { this.val = 42; }; new X().val", value{42.0});
+    RUN_TEST(L"function A() { this.n=1; }; function B() { this.n=2;} function g() { return this.n; } A.prototype.foo = g; new A().foo()", value{1.});
+    RUN_TEST(L"function A() { this.n=1; }; function B() { this.n=2;} function g() { return this.n; } A.prototype.foo = g; new B().foo", value::undefined);
+    RUN_TEST(L"function f() { this.a = 1; this.b = 2; } var o = new f(); f.prototype.b = 3; f.prototype.c = 4; '' + new Array(o.a,o.b,o.c,o.d)", value{string{h, "1,2,4,"}});
+    RUN_TEST(L"var o = new Object(); o.a = 2; function m(){return this.a+1; }; o.m = m; o.m()", value{3.});
 
-    run_test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; si.prop", value{string{h, "some value"}});
-    run_test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; si.foo", value{string{h, "bar"}});
-    run_test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; s.prop", value::undefined);
-    run_test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; s.foo", value::undefined);
-    run_test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; s.prototype.prop", value::undefined);
-    run_test(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; s.prototype.foo", value{string{h, "bar"}});
+    RUN_TEST(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; si.prop", value{string{h, "some value"}});
+    RUN_TEST(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; si.foo", value{string{h, "bar"}});
+    RUN_TEST(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; s.prop", value::undefined);
+    RUN_TEST(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; s.foo", value::undefined);
+    RUN_TEST(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; s.prototype.prop", value::undefined);
+    RUN_TEST(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; s.prototype.foo", value{string{h, "bar"}});
 
     // Test arguments
     RUN_TEST_SPEC(R"(
@@ -649,7 +649,7 @@ d3.setTime(5678); d3.getTime() //$ number 5678
 }
 
 void test_long_object_chain() {
-    run_test(LR"(
+    RUN_TEST(LR"(
 var l = null;
 for (var i = 0; i < )"
 #ifdef MJS_GC_STRESS_TEST
@@ -691,15 +691,15 @@ void test_es3_statements() {
     //
     // do..while
     //
-    run_test(L"s=''; i=1;do{s+=i;}while(++i<3); s", value{string{h,"12"}});
-    run_test(L"s=''; i=1;do{s+=i;break;}while(++i<3); s", value{string{h,"1"}});
-    run_test(L"s=''; i=1;do{if(i==1)continue;s+=i;}while(++i<3); s", value{string{h,"2"}});
+    RUN_TEST(L"s=''; i=1;do{s+=i;}while(++i<3); s", value{string{h,"12"}});
+    RUN_TEST(L"s=''; i=1;do{s+=i;break;}while(++i<3); s", value{string{h,"1"}});
+    RUN_TEST(L"s=''; i=1;do{if(i==1)continue;s+=i;}while(++i<3); s", value{string{h,"2"}});
 
     //
     // switch
     //
-    run_test(L"switch(1){}", value::undefined);
-    run_test(L"switch(1){case 0:x=42;break;case 1:x=12;break;} x", value{12.});
+    RUN_TEST(L"switch(1){}", value::undefined);
+    RUN_TEST(L"switch(1){case 0:x=42;break;case 1:x=12;break;} x", value{12.});
 
     RUN_TEST_SPEC(R"(
 s='';
@@ -755,7 +755,7 @@ f(7); s //$ string 'c1c2c3c4c5c6defs4s5'
     //
     // Laballed statements / break+continue to identifer
     //
-    run_test(L"x:42", value{42.});
+    RUN_TEST(L"x:42", value{42.});
 
     expect_exception<eval_exception>(L"a:a:2;"); // duplicate label
     expect_exception<eval_exception>(L"a:2;while(1){break a;}"); // invalid label reference
@@ -797,8 +797,8 @@ s; //$string '0-00-10-20-31-01-11-21-32-02-12-22-3'
     // Function expressions
     //
 
-    run_test(L"a=function(){return 42;}; a();", value{42.0});
-    run_test(L"a=function x(i){return i?i*x(i-1):1;}; a(4);", value{24.});
+    RUN_TEST(L"a=function(){return 42;}; a();", value{42.0});
+    RUN_TEST(L"a=function x(i){return i?i*x(i-1):1;}; a(4);", value{24.});
 
 
     RUN_TEST_SPEC(R"(
@@ -934,6 +934,30 @@ global.propertyIsEnumerable('parseInt'); //$boolean false
         )");
 }
 
+void test_function_object() {
+    gc_heap h{256};
+    // In ES3 prototype only has attributes DontDelete, in ES1 it's DontEnum
+    const string expected_keys{h, tested_version() < version::es3 ? "" : "prototype,"};
+    RUN_TEST(L"s=''; function a(){}; for(k in a) { s+=k+','; }; s", value{expected_keys});
+    // length and are arguments should be DontDelete|DontEnum|ReadOnly
+    RUN_TEST_SPEC(R"(
+    function a(){};
+    delete a.length; //$boolean false
+    delete a.arguments; //$boolean false
+    delete a.prototype.constructor; //$boolean true
+    Function.prototype(1,2,3); //$undefined
+)");
+    if (tested_version() < version::es3) {
+        // In ES1 prototype should be DontEnum only
+        RUN_TEST(L"function a(){}; (delete a.prototype)", value{true});
+    } else {
+        // In ES3 prototype is DontDelete
+        RUN_TEST(L"function a(){}; (delete a.prototype)", value{false});
+    }
+
+    // TODO: Check all the properties do what they're supposed to
+}
+
 int main() {
     try {
         for (const auto ver: supported_versions) {
@@ -943,6 +967,7 @@ int main() {
                 test_es3_statements();
             }
             test_object_object();
+            test_function_object();
             test_global_functions();
             test_math_functions();
             test_date_functions();

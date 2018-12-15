@@ -62,14 +62,14 @@ std::unique_ptr<expression_statement> parse_expression(const char* text) {
 
 void test_semicolon_insertion() {
     test_parse_fails(R"({ 1 2 } 3)");
-    run_test(LR"({ 1
+    RUN_TEST(LR"({ 1
 2 } 3)", value{3.});
-    run_test(LR"({ 1
+    RUN_TEST(LR"({ 1
 ;2 ;} 3;)", value{3.}); // Valid
     test_parse_fails(R"(for (a; b
 ))");
 
-    run_test(LR"(function f(a, b) { return
+    RUN_TEST(LR"(function f(a, b) { return
         a+b;}
         f(1,2))", value::undefined);
 
@@ -150,7 +150,7 @@ void test_es1_fails_with_new_constructs() {
     test_parse_fails("[1,2]");
     test_parse_fails("({a:42})");
     test_parse_fails("({1:2})");
-    run_test(L"{1,2,3}", value{3.}); // Not an object literal!
+    RUN_TEST(L"{1,2,3}", value{3.}); // Not an object literal!
     test_parse_fails("a in x");
     test_parse_fails("a instanceof x");
     test_parse_fails("switch (x){}");
@@ -262,7 +262,7 @@ void test_object_literal() {
         REQUIRE_EQ(CHECK_EXPR_TYPE(v0, literal).t(), token{2.0});
     }
 
-    run_test(L"{1,2,3}", value{3.}); // Not an object literal!
+    RUN_TEST(L"{1,2,3}", value{3.}); // Not an object literal!
     test_parse_fails("({1:2,})"); // Trailing comma not allowed until ES5
     test_parse_fails("({test})"); // No shorthand property name syntaax until ES2015
 

@@ -71,9 +71,7 @@ create_result make_object_object(global_object& global) {
     auto& h = global.heap();
     auto o = global.make_function([global = global.self_ptr()](const value&, const std::vector<value>& args) {
         if (args.empty() || args.front().type() == value_type::undefined || args.front().type() == value_type::null) {
-            auto prototype = global->object_prototype();
-            auto o = prototype.heap().make<object>(prototype->class_name(), prototype);
-            return value{o};
+            return value{global->make_object()};
         }
         return value{global->to_object(args.front())};
     }, global.native_function_body(h, L"Object"), 1);
@@ -92,10 +90,68 @@ create_result make_object_object(global_object& global) {
 // Function
 //
 
-create_result make_function_object(global_object& global, const object_ptr& prototype) {
+class function_object : public native_object {
+public:
+    void put_function(const native_function_type& f, const string& body_text, int named_args) {
+        assert(!call_function() && !body_text_ && !named_args_);
+        call_function(f);
+        body_text_ = body_text.unsafe_raw_get();
+        named_args_ = named_args;
+    }
+
+    value to_string() const {
+        assert(body_text_);
+        return value{body_text_.track(heap())};
+    }
+
+    void put_prototype_with_attributes(const object_ptr& p, property_attribute attributes) {
+        assert(!object::check_own_property_attribute(L"prototype", property_attribute::none, property_attribute::none));
+        prototype_prop_ = value_representation{value{p}};
+        update_property_attributes("prototype", attributes);
+    }
+
+private:
+    friend gc_type_info_registration<function_object>;
+    gc_heap_ptr_untracked<gc_string> body_text_;
+    value_representation prototype_prop_;
+    int named_args_ = 0;
+
+    value get_length() const {
+        return value{static_cast<double>(named_args_)};
+    }
+
+    value get_arguments() const {
+        return value::null;
+    }
+
+    value get_prototype() const {
+        return prototype_prop_.get_value(heap());
+    }
+
+    void put_prototype(const value& val) {
+        prototype_prop_ = value_representation{val};
+    }
+
+    explicit function_object(const string& class_name, const object_ptr& prototype) : native_object(class_name, prototype) {
+        DEFINE_NATIVE_PROPERTY_READONLY(function_object, length);
+        DEFINE_NATIVE_PROPERTY_READONLY(function_object, arguments);
+        DEFINE_NATIVE_PROPERTY(function_object, prototype);
+    }
+
+    void fixup() {
+        auto& h = heap();
+        body_text_.fixup(h);
+        prototype_prop_.fixup(h);
+        native_object::fixup();
+    }
+};
+
+
+create_result make_function_object(global_object& global) {
+    auto prototype = global.function_prototype();
     auto& h = global.heap();
 
-    auto c = h.make<object>(prototype->class_name(), prototype); // Note: function constructor is added by interpreter
+    auto c = global.make_raw_function(); // Note: function constructor is added by interpreter
 
     // §15.3.4
     prototype->call_function(gc_function::make(h, [](const value&, const std::vector<value>&) {
@@ -103,8 +159,8 @@ create_result make_function_object(global_object& global, const object_ptr& prot
     }));
     global.put_native_function(prototype, "toString", [prototype](const value& this_, const std::vector<value>&) {
         validate_type(this_, prototype, "Function");
-        assert(this_.object_value()->internal_value().type() == value_type::string);
-        return this_.object_value()->internal_value();
+        assert(this_.object_value().has_type<function_object>());
+        return static_cast<function_object&>(*this_.object_value()).to_string();
     }, 0);
     return { c, prototype };
 }
@@ -124,8 +180,8 @@ private:
     }
 
     explicit string_object(const object_ptr& prototype, const string& val) : native_object(prototype->class_name(), prototype) {
+        DEFINE_NATIVE_PROPERTY_READONLY(string_object, length);
         internal_value(value{val});
-        add_native_property<string_object, &string_object::get_length>("length", global_object::prototype_attributes);
     }
 };
 
@@ -797,7 +853,7 @@ create_result make_date_object(global_object& global) {
 
 create_result make_math_object(global_object& global) {
     auto& h = global.heap();
-    auto math = h.make<object>(global.common_string("Object"), global.object_prototype());
+    auto math = global.make_object();
 
     math->put(string{h, "E"},       value{2.7182818284590452354}, global_object::default_attributes);
     math->put(string{h, "LN10"},    value{2.302585092994046}, global_object::default_attributes);
@@ -866,7 +922,7 @@ create_result make_math_object(global_object& global) {
 
 create_result make_console_object(global_object& global) {
     auto& h = global.heap();
-    auto console = h.make<object>(global.common_string("Object"), global.object_prototype());
+    auto console = global.make_object();
 
     using timer_clock = std::chrono::steady_clock;
 
@@ -1033,10 +1089,9 @@ public:
     object_ptr array_prototype() const override { return array_prototype_.track(heap()); }
 
     object_ptr make_raw_function() override {
-        auto fp = function_prototype_.track(heap());
-        auto op = object_prototype_.track(heap());
-        auto o = heap().make<object>(fp->class_name(), fp);
-        o->put(common_string("prototype"), value{heap().make<object>(op->class_name(), op)}, property_attribute::dont_enum);
+        auto fp = function_prototype();
+        auto o = heap().make<function_object>(fp->class_name(), fp);
+        o->put_prototype_with_attributes(make_object(), version_ >= version::es3 ? property_attribute::dont_delete : property_attribute::dont_enum);
         return o;
     }
 
@@ -1099,14 +1154,16 @@ private:
         // The object and function prototypes are special
         auto obj_proto = heap().make<object>(common_string("Object"), nullptr);
         object_prototype_   = obj_proto;
-        function_prototype_ = heap().make<object>(common_string("Function"), obj_proto);
+        function_prototype_ = static_cast<object_ptr>(heap().make<function_object>(common_string("Function"), obj_proto));
 
          
         auto add = [&](const char* name, auto create_func, gc_heap_ptr_untracked<object>* prototype = nullptr) {
             auto res = create_func(*this);
             put(common_string(name), value{res.obj}, default_attributes);
             if (res.prototype) {
-                res.obj->put(common_string("prototype"), value{res.prototype}, prototype_attributes);
+                assert(res.obj.template has_type<function_object>());
+                auto& f = static_cast<function_object&>(*res.obj);
+                f.put_prototype_with_attributes(res.prototype, prototype_attributes);
             }
             if (prototype) {
                 assert(res.prototype);
@@ -1116,7 +1173,7 @@ private:
 
         // §15.1
         add("Object", make_object_object, &object_prototype_);          // Resetting it..
-        add("Function", [&](auto& g) { return make_function_object(g, function_prototype_.track(heap())); }, &function_prototype_);    // same
+        add("Function", make_function_object, &function_prototype_);    // same
         add("Array", make_array_object, &array_prototype_);
         add("String", make_string_object, &string_prototype_);
         add("Boolean", make_boolean_object, &boolean_prototype_);
@@ -1198,21 +1255,23 @@ string global_object::native_function_body(gc_heap& h, const std::wstring_view& 
 }
 
 void global_object_impl::put_function(const object_ptr& o, const native_function_type& f, const string& body_text, int named_args) {
-    assert(o->class_name().view() == L"Function");
-    assert(!o->call_function());
-    o->put(common_string("length"), value{static_cast<double>(named_args)}, property_attribute::read_only | property_attribute::dont_delete | property_attribute::dont_enum);
-    o->put(common_string("arguments"), value::null, property_attribute::read_only | property_attribute::dont_delete | property_attribute::dont_enum);
-    o->call_function(f);
-    assert(o->internal_value().type() == value_type::undefined);
-    o->internal_value(value{body_text});
+    assert(o.has_type<function_object>());
+    static_cast<function_object&>(*o).put_function(f, body_text, named_args);
 }
 
 void global_object::make_constructable(const object_ptr& o, const native_function_type& f) {
-    assert(o->internal_value().type() == value_type::string);
+    assert(o.has_type<function_object>());
     o->construct_function(f ? f : o->call_function());
     auto p = o->get(L"prototype");
     assert(p.type() == value_type::object);
-    p.object_value()->put(common_string("constructor"), value{o}, global_object::default_attributes);
+    if (version_ < version::es3) {
+        p.object_value()->put(common_string("constructor"), value{o}, property_attribute::dont_enum);
+    }
+}
+
+object_ptr global_object::make_object() {
+    auto op = object_prototype();
+    return heap().make<object>(op->class_name(), op);
 }
 
 std::wstring index_string(uint32_t index) {

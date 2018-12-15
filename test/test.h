@@ -29,8 +29,9 @@ std::basic_ostream<CharT>& operator<<(std::basic_ostream<CharT>& os, const mjs::
 
 extern mjs::version tested_version();
 extern void tested_version(mjs::version ver);
-
+extern void run_test_debug_pos(const char* func, const char* file, int line);
 extern void run_test(const std::wstring_view& text, const mjs::value& expected);
+#define RUN_TEST run_test_debug_pos(__func__, __FILE__, __LINE__); run_test// yuck...
 
 
 namespace mjs {

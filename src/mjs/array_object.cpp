@@ -152,7 +152,7 @@ private:
     }
 
     explicit array_object(const string& class_name, const object_ptr& prototype, uint32_t length) : native_object{class_name, prototype}, length_(0) {
-        add_native_property<array_object, &array_object::get_length, &array_object::put_length>("length", property_attribute::dont_enum | property_attribute::dont_delete);
+        DEFINE_NATIVE_PROPERTY(array_object, length);
         resize(length);
     }
 };

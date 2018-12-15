@@ -184,7 +184,7 @@ private:
         }
 
         // Arguments array
-        auto as = heap().make<object>(global.common_string("Object"), global.object_prototype());
+        auto as = global.make_object();
         arguments_ = as;
         as->put(global.common_string("length"), value{static_cast<double>(args.size())}, property_attribute::dont_enum);
         for (uint32_t i = 0; i < args.size(); ++i) {
@@ -363,7 +363,7 @@ public:
     }
 
     value operator()(const object_literal_expression& e) {
-        auto o = heap_.make<object>(global_->common_string("Object"), global_->object_prototype());
+        auto o = global_->make_object();
         for (const auto& i : e.elements()) {
             auto v = get_value(eval(*i.second));
             switch (i.first->type()) {

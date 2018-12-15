@@ -5,6 +5,9 @@
 
 namespace mjs {
 
+#define DEFINE_NATIVE_PROPERTY(Class, Property) add_native_property<Class, &Class::get_##Property, &Class::put_##Property>(#Property, property_attribute::dont_enum | property_attribute::dont_delete)
+#define DEFINE_NATIVE_PROPERTY_READONLY(Class, Property) add_native_property<Class, &Class::get_##Property>(#Property, property_attribute::dont_enum | property_attribute::dont_delete | property_attribute::read_only)
+
 class native_object : public object {
 public:
     value get(const std::wstring_view& name) const override {
@@ -58,8 +61,8 @@ private:
     struct native_object_property {
         char               name[32];
         property_attribute attributes;
-        get_func get;
-        put_func put;
+        get_func           get;
+        put_func           put;
 
         bool has_attribute(property_attribute a) const { return (attributes & a) == a; }
 
@@ -92,6 +95,13 @@ protected:
     }
 
     void add_property_names(std::vector<string>& names) const override;
+
+    void update_property_attributes(const char* name, property_attribute attributes) {
+        auto it = find(name);
+        assert(it);
+        assert(((attributes & property_attribute::read_only) != property_attribute::none) || it->put);
+        it->attributes = attributes;
+    }
 
     void fixup();
 };

@@ -75,14 +75,6 @@ void object::put(const string& name, const value& val, property_attribute attr) 
         }
         // Did the property come from this object's property list?
         if (pp == &props) {
-            if (attr != property_attribute::none) {
-                // HACK: Object.prototype (and String.prototype etc..) all start out as normal functions
-                // where the "prototype" property is just dont_enum, but we need to strengthen that to
-                // dont_enum|dont_delete|read_only.
-                assert(class_name().view() == L"Function" && name.view() == L"prototype" && (int)it->attributes == 2 && (int)attr == 7);
-                it->attributes = attr;
-            }
-
             // Yes, update
             it->value = value_representation{val};
             return;
