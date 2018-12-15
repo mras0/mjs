@@ -948,6 +948,8 @@ void test_function_object() {
     a.arguments; //$null
     delete a.prototype.constructor; //$boolean true
     Function.prototype(1,2,3); //$undefined
+    Function.toString(); //$string 'function Function() { [native code] }'
+    Function.prototype.toString(); //$string 'function () { [native code] }'
 )");
     if (tested_version() < version::es3) {
         // In ES1 prototype should be DontEnum only

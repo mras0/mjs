@@ -1,5 +1,6 @@
 #include "array_object.h"
 #include "native_object.h"
+#include "function_object.h"
 #include <sstream>
 
 namespace mjs {
@@ -176,16 +177,16 @@ create_result make_array_object(global_object& global) {
     auto Array_str_ = global.common_string("Array");
     auto prototype = array_object::make(Array_str_, global.object_prototype(), 0);
 
-    auto c = global.make_function([prototype](const value&, const std::vector<value>& args) {
+    auto c = make_function(global, [prototype](const value&, const std::vector<value>& args) {
         return value{make_array(prototype, args)};
-    }, global.native_function_body(Array_str_), 1);
-    global.make_constructable(c);
+    }, Array_str_.unsafe_raw_get(), nullptr, 1);
+    c->default_construct_function();
 
-    global.put_native_function(prototype, "toString", [](const value& this_, const std::vector<value>&) {
+    put_native_function(global, prototype, "toString", [](const value& this_, const std::vector<value>&) {
         assert(this_.type() == value_type::object);
         return value{join(this_.object_value(), L",")};
     }, 0);
-    global.put_native_function(prototype, "join", [&h](const value& this_, const std::vector<value>& args) {
+    put_native_function(global, prototype, "join", [&h](const value& this_, const std::vector<value>& args) {
         assert(this_.type() == value_type::object);
         string sep{h, L","};
         if (!args.empty()) {
@@ -193,7 +194,7 @@ create_result make_array_object(global_object& global) {
         }
         return value{join(this_.object_value(), sep.view())};
     }, 1);
-    global.put_native_function(prototype, "reverse", [&h](const value& this_, const std::vector<value>&) {
+    put_native_function(global, prototype, "reverse", [&h](const value& this_, const std::vector<value>&) {
         assert(this_.type() == value_type::object);
         const auto& o = this_.object_value();
         const uint32_t length = to_uint32(o->get(L"length"));
@@ -207,7 +208,7 @@ create_result make_array_object(global_object& global) {
         }
         return this_;
     }, 0);
-    global.put_native_function(prototype, "sort", [](const value& this_, const std::vector<value>& args) {
+    put_native_function(global, prototype, "sort", [](const value& this_, const std::vector<value>& args) {
         assert(this_.type() == value_type::object);
         const auto& o = *this_.object_value();
         auto& h = o.heap(); // Capture heap reference (which continues to be valid even after GC) since `this` can move when calling a user-defined compare function (since this can cause GC)

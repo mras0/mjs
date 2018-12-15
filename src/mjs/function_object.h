@@ -8,17 +8,25 @@ namespace mjs {
 
 class function_object : public native_object {
 public:
-    void put_function(const native_function_type& f, const string& body_text, int named_args) {
-        assert(!call_ && !body_text_ && !named_args_);
+    void put_function(const native_function_type& f, const gc_heap_ptr<gc_string>& name, const gc_heap_ptr<gc_string>& body_text, int named_args) {
+        assert(!call_ && !text_ && !named_args_ && !is_native_);
         call_ = f;
-        body_text_ = body_text.unsafe_raw_get();
+        if (!body_text) {
+            text_ = name;
+            is_native_ = true;
+        } else {
+            assert(!name);
+            text_ = body_text;
+        }
         named_args_ = named_args;
     }
 
-    value to_string() const {
-        assert(body_text_);
-        return value{body_text_.track(heap())};
+    template<typename F>
+    void put_function(const F& f, const gc_heap_ptr<gc_string>& name, const gc_heap_ptr<gc_string>& body_text, int named_args) {
+        put_function(gc_function::make(heap(), f), name, body_text, named_args);
     }
+
+    string to_string() const;
 
     void put_prototype_with_attributes(const object_ptr& p, property_attribute attributes) {
         assert(!object::check_own_property_attribute(L"prototype", property_attribute::none, property_attribute::none));
@@ -44,15 +52,14 @@ public:
         return call_ ? call_.track(heap()) : nullptr;
     }
 
-    friend create_result make_function_object(global_object& global);
-
 private:
     friend gc_type_info_registration<function_object>;
     gc_heap_ptr_untracked<gc_function> construct_;
     gc_heap_ptr_untracked<gc_function> call_;
-    gc_heap_ptr_untracked<gc_string>   body_text_;
+    gc_heap_ptr_untracked<gc_string>   text_;
     value_representation               prototype_prop_;
     int named_args_ = 0;
+    bool is_native_ = false;
 
     value get_length() const {
         return value{static_cast<double>(named_args_)};
@@ -83,18 +90,39 @@ private:
         auto& h = heap();
         construct_.fixup(h);
         call_.fixup(h);
-        body_text_.fixup(h);
+        text_.fixup(h);
         prototype_prop_.fixup(h);
         native_object::fixup();
     }
-
-    void call_function(const native_function_type& f) {
-        assert(!call_);
-        call_ = f;
-    }
 };
 
+gc_heap_ptr<function_object> make_raw_function(global_object& global);
 create_result make_function_object(global_object& global);
+
+gc_heap_ptr<function_object> make_function(global_object& global, const native_function_type& f, const gc_heap_ptr<gc_string>& name, const gc_heap_ptr<gc_string>& body_text, int named_args);
+
+template<typename F>
+gc_heap_ptr<function_object> make_function(global_object& global, const F& f, const gc_heap_ptr<gc_string>& name, const gc_heap_ptr<gc_string>& body_text, int named_args) {
+    return make_function(global, gc_function::make(global.heap(), f), name, body_text, named_args);
+}
+
+// Add constructor to function object (and prototype.constructor) uses the call_function if f is null
+void make_constructable(global_object& global, const object_ptr& o, const native_function_type& f);
+
+template<typename F>
+void make_constructable(global_object& global, const object_ptr& o, const F& f) {
+    return make_constructable(global, o, gc_function::make(global.heap(), f));
+}
+
+template<typename F>
+void put_native_function(global_object& global, const object_ptr& obj, const string& name, const F& f, int named_args) {
+    obj->put(name, value{make_function(global, f, name.unsafe_raw_get(), nullptr, named_args)}, global_object::default_attributes);
+}
+
+template<typename F, typename S>
+void put_native_function(global_object& global, const object_ptr& obj, const S& name, const F& f, int named_args) {
+    put_native_function(global, obj, string{global.heap(), name}, f, named_args);
+}
 
 } // namespace mjs
 

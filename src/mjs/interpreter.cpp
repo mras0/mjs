@@ -236,7 +236,7 @@ public:
     explicit impl(gc_heap& h, version ver, const block_statement& program, const on_statement_executed_type& on_statement_executed) : heap_(h), program_(program), global_(global_object::make(h, ver)), on_statement_executed_(on_statement_executed) {
         assert(!global_->has_property(L"eval"));
 
-        global_->put_native_function(global_, "eval", [this](const value&, const std::vector<value>& args) {
+        put_native_function(*global_, global_, "eval", [this](const value&, const std::vector<value>& args) {
             if (args.empty()) {
                 return value::undefined;
             } else if (args.front().type() != value_type::string) {
@@ -247,7 +247,8 @@ public:
         }, 1);
 
         auto func_obj = global_->get(L"Function").object_value();
-        global_->put_function(func_obj, gc_function::make(h, [this](const value&, const std::vector<value>& args) {
+        assert(func_obj.has_type<function_object>());
+        static_cast<function_object&>(*func_obj).put_function([this](const value&, const std::vector<value>& args) {
             std::wstring body{}, p{};
             if (args.empty()) {
             } else if (args.size() == 1) {
@@ -267,7 +268,7 @@ public:
             }
 
             return value{create_function(static_cast<const function_definition&>(*bs->l().front()), make_scope(global_, nullptr))};
-        }), global_object::native_function_body(string{heap_, L"Function"}), 1);
+        }, func_obj->class_name().unsafe_raw_get(), nullptr, 1);
         static_cast<function_object&>(*func_obj).default_construct_function();
 
 
@@ -1122,7 +1123,7 @@ private:
 
     object_ptr create_function(const string& id, const std::shared_ptr<block_statement>& block, const std::vector<std::wstring>& param_names, const std::wstring& body_text, const scope_ptr& prev_scope) {
         // §15.3.2.1
-        auto callee = global_->make_raw_function();
+        auto callee = make_raw_function(*global_);
         auto func = [this, block, param_names, prev_scope, callee, id, ids = hoisting_visitor::scan(*block)](const value& this_, const std::vector<value>& args) {
             // Scope
             auto activation = heap_.make<activation_object>(*global_, param_names, args);
@@ -1143,7 +1144,7 @@ private:
             auto_scope auto_scope_{*this, activation, prev_scope};
             return top_level_eval(*block);
         };
-        global_->put_function(callee, gc_function::make(heap_, func), string{heap_, L"function " + std::wstring{id.view()} + body_text}, static_cast<int>(param_names.size()));
+        callee->put_function(func, nullptr, string{heap_, L"function " + std::wstring{id.view()} + body_text}.unsafe_raw_get(), static_cast<int>(param_names.size()));
 
         callee->construct_function(gc_function::make(heap_, [global = global_, callee, id](const value& this_, const std::vector<value>& args) {
             assert(this_.type() == value_type::undefined); (void)this_; // [[maybe_unused]] not working with MSVC here?
