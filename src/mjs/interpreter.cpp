@@ -3,6 +3,7 @@
 #include "global_object.h"
 #include "native_object.h"
 #include "array_object.h"
+#include "function_object.h"
 #include "printer.h"
 
 #include <sstream>
@@ -267,7 +268,7 @@ public:
 
             return value{create_function(static_cast<const function_definition&>(*bs->l().front()), make_scope(global_, nullptr))};
         }), global_object::native_function_body(string{heap_, L"Function"}), 1);
-        func_obj->construct_function(func_obj->call_function());
+        static_cast<function_object&>(*func_obj).default_construct_function();
 
 
         for (const auto& id: hoisting_visitor::scan(program)) {

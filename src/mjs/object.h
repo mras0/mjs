@@ -78,12 +78,10 @@ public:
     }
 
     // [[Construct]] (Arguments...)
-    void construct_function(const native_function_type& f) { construct_ = f; }
-    native_function_type construct_function() const { return construct_ ? construct_.track(heap_) : nullptr; }
+    virtual native_function_type construct_function() const { return nullptr; }
 
     // [[Call]] (Arguments...)
-    void call_function(const native_function_type& f) { call_ = f; }
-    native_function_type call_function() const { return call_ ? call_.track(heap_) : nullptr; }
+    virtual native_function_type call_function() const { return nullptr; }
 
     std::vector<string> property_names() const;
 
@@ -116,8 +114,6 @@ private:
     gc_heap&                                   heap_;
     gc_heap_ptr_untracked<gc_string>           class_;
     gc_heap_ptr_untracked<object>              prototype_;
-    gc_heap_ptr_untracked<gc_function>         construct_;
-    gc_heap_ptr_untracked<gc_function>         call_;
     gc_heap_ptr_untracked<gc_vector<property>> properties_;
     value_representation                       value_;
 

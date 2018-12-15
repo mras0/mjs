@@ -1,6 +1,8 @@
 add_library(mjs_lib STATIC
     mjs/array_object.cpp
     mjs/array_object.h
+    mjs/function_object.cpp
+    mjs/function_object.h
     mjs/gc_function.h
     mjs/gc_heap.cpp
     mjs/gc_heap.h

@@ -941,9 +941,11 @@ void test_function_object() {
     RUN_TEST(L"s=''; function a(){}; for(k in a) { s+=k+','; }; s", value{expected_keys});
     // length and are arguments should be DontDelete|DontEnum|ReadOnly
     RUN_TEST_SPEC(R"(
-    function a(){};
+    function a(x,y,z){};
     delete a.length; //$boolean false
+    a.length;//$number 3
     delete a.arguments; //$boolean false
+    a.arguments; //$null
     delete a.prototype.constructor; //$boolean true
     Function.prototype(1,2,3); //$undefined
 )");

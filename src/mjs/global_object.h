@@ -9,6 +9,8 @@ namespace mjs {
 
 // TODO: Clean up this mess
 
+class function_object;
+
 class global_object : public object {
 public:
     static gc_heap_ptr<global_object> make(gc_heap& h, version ver);
@@ -17,7 +19,7 @@ public:
     virtual object_ptr object_prototype() const = 0;
     virtual object_ptr function_prototype() const = 0;
     virtual object_ptr array_prototype() const = 0;
-    virtual object_ptr make_raw_function() = 0;
+    virtual gc_heap_ptr<function_object> make_raw_function() = 0;
     virtual object_ptr to_object(const value& v) = 0;
 
     static string native_function_body(gc_heap& h, const std::wstring_view& s);
@@ -72,6 +74,7 @@ protected:
 };
 
 extern std::wstring index_string(uint32_t index);
+extern void validate_type(const value& v, const object_ptr& expected_prototype, const char* expected_type);
 
 // TODO: Need better name
 struct create_result {

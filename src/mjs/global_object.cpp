@@ -3,6 +3,7 @@
 #include "gc_vector.h"
 #include "array_object.h"
 #include "native_object.h"
+#include "function_object.h"
 #include <sstream>
 #include <chrono>
 #include <algorithm>
@@ -21,17 +22,6 @@
 namespace mjs {
 
 namespace {
-
-// FIXME: Is this sufficient to guard against clever users?
-void validate_type(const value& v, const object_ptr& expected_prototype, const char* expected_type) {
-    if (v.type() == value_type::object && v.object_value()->prototype().get() == expected_prototype.get()) {
-        return;
-    }
-    std::wostringstream woss;
-    mjs::debug_print(woss, v, 2, 1);
-    woss << " is not a " << expected_type;
-    THROW_RUNTIME_ERROR(woss.str());
-}
 
 value get_arg(const std::vector<value>& args, int index) {
     return index < static_cast<int>(args.size()) ? args[index] : value::undefined;
@@ -84,85 +74,6 @@ create_result make_object_object(global_object& global) {
     add_object_prototype_functions(global, prototype);
 
     return { o, prototype };
-}
-
-//
-// Function
-//
-
-class function_object : public native_object {
-public:
-    void put_function(const native_function_type& f, const string& body_text, int named_args) {
-        assert(!call_function() && !body_text_ && !named_args_);
-        call_function(f);
-        body_text_ = body_text.unsafe_raw_get();
-        named_args_ = named_args;
-    }
-
-    value to_string() const {
-        assert(body_text_);
-        return value{body_text_.track(heap())};
-    }
-
-    void put_prototype_with_attributes(const object_ptr& p, property_attribute attributes) {
-        assert(!object::check_own_property_attribute(L"prototype", property_attribute::none, property_attribute::none));
-        prototype_prop_ = value_representation{value{p}};
-        update_property_attributes("prototype", attributes);
-    }
-
-private:
-    friend gc_type_info_registration<function_object>;
-    gc_heap_ptr_untracked<gc_string> body_text_;
-    value_representation prototype_prop_;
-    int named_args_ = 0;
-
-    value get_length() const {
-        return value{static_cast<double>(named_args_)};
-    }
-
-    value get_arguments() const {
-        return value::null;
-    }
-
-    value get_prototype() const {
-        return prototype_prop_.get_value(heap());
-    }
-
-    void put_prototype(const value& val) {
-        prototype_prop_ = value_representation{val};
-    }
-
-    explicit function_object(const string& class_name, const object_ptr& prototype) : native_object(class_name, prototype) {
-        DEFINE_NATIVE_PROPERTY_READONLY(function_object, length);
-        DEFINE_NATIVE_PROPERTY_READONLY(function_object, arguments);
-        DEFINE_NATIVE_PROPERTY(function_object, prototype);
-    }
-
-    void fixup() {
-        auto& h = heap();
-        body_text_.fixup(h);
-        prototype_prop_.fixup(h);
-        native_object::fixup();
-    }
-};
-
-
-create_result make_function_object(global_object& global) {
-    auto prototype = global.function_prototype();
-    auto& h = global.heap();
-
-    auto c = global.make_raw_function(); // Note: function constructor is added by interpreter
-
-    // §15.3.4
-    prototype->call_function(gc_function::make(h, [](const value&, const std::vector<value>&) {
-        return value::undefined;
-    }));
-    global.put_native_function(prototype, "toString", [prototype](const value& this_, const std::vector<value>&) {
-        validate_type(this_, prototype, "Function");
-        assert(this_.object_value().has_type<function_object>());
-        return static_cast<function_object&>(*this_.object_value()).to_string();
-    }, 0);
-    return { c, prototype };
 }
 
 //
@@ -1088,7 +999,7 @@ public:
     object_ptr function_prototype() const override { return function_prototype_.track(heap()); }
     object_ptr array_prototype() const override { return array_prototype_.track(heap()); }
 
-    object_ptr make_raw_function() override {
+    gc_heap_ptr<function_object> make_raw_function() override {
         auto fp = function_prototype();
         auto o = heap().make<function_object>(fp->class_name(), fp);
         o->put_prototype_with_attributes(make_object(), version_ >= version::es3 ? property_attribute::dont_delete : property_attribute::dont_enum);
@@ -1261,7 +1172,12 @@ void global_object_impl::put_function(const object_ptr& o, const native_function
 
 void global_object::make_constructable(const object_ptr& o, const native_function_type& f) {
     assert(o.has_type<function_object>());
-    o->construct_function(f ? f : o->call_function());
+    auto& fo = static_cast<function_object&>(*o);
+    if (f) {
+        fo.construct_function(f);
+    } else {
+        fo.default_construct_function();
+    }
     auto p = o->get(L"prototype");
     assert(p.type() == value_type::object);
     if (version_ < version::es3) {
@@ -1282,6 +1198,17 @@ std::wstring index_string(uint32_t index) {
         index /= 10;
     } while (index);
     return std::wstring{p};
+}
+
+// FIXME: Is this sufficient to guard against clever users?
+void validate_type(const value& v, const object_ptr& expected_prototype, const char* expected_type) {
+    if (v.type() == value_type::object && v.object_value()->prototype().get() == expected_prototype.get()) {
+        return;
+    }
+    std::wostringstream woss;
+    mjs::debug_print(woss, v, 2, 1);
+    woss << " is not a " << expected_type;
+    THROW_RUNTIME_ERROR(woss.str());
 }
 
 } // namespace mjs

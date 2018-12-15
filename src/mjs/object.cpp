@@ -17,8 +17,6 @@ object::object(const string& class_name, const object_ptr& prototype)
 void object::fixup() {
     class_.fixup(heap_);
     prototype_.fixup(heap_);
-    construct_.fixup(heap_);
-    call_.fixup(heap_);
     properties_.fixup(heap_);
     value_.fixup(heap_);
 }
