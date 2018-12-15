@@ -28,7 +28,7 @@ void run_test(const std::wstring_view& text, const value& expected) {
 #endif
 
     {
-        decltype(parse(nullptr)) bs;
+        decltype(parse(nullptr, tested_version())) bs;
         try {
             bs = parse(std::make_shared<source_file>(L"test", text), tested_version());
         } catch (const std::exception& e) {
@@ -43,7 +43,7 @@ void run_test(const std::wstring_view& text, const value& expected) {
             }
         };
         try {
-            interpreter i{h, *bs};
+            interpreter i{h, tested_version(), *bs};
             value res = i.eval_program();
             if (res != expected) {
                 std::wcout << "Test failed: " << text << " expecting " << debug_string(expected) << " got " << debug_string(res) << "\n";

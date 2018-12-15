@@ -888,7 +888,7 @@ auto accept(const statement& s, Visitor& v) {
 // Parser
 //
 
-std::unique_ptr<block_statement> parse(const std::shared_ptr<source_file>& source, version ver = default_version);
+std::unique_ptr<block_statement> parse(const std::shared_ptr<source_file>& source, version ver);
 
 } // namespace mjs
 

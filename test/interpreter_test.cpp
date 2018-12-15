@@ -16,9 +16,9 @@ using namespace mjs;
 
 template<typename ExceptionType = eval_exception>
 std::string expect_exception(const std::wstring_view& text) {
-    decltype(parse(nullptr)) bs;
+    decltype(parse(nullptr, tested_version())) bs;
     try {
-        bs = parse(std::make_shared<source_file>(L"test", text));
+        bs = parse(std::make_shared<source_file>(L"test", text), tested_version());
     } catch (const std::exception& e) {
         std::wcout << "Parse failed for \"" << text << "\": " << e.what() <<  "\n";
         throw;
@@ -26,7 +26,7 @@ std::string expect_exception(const std::wstring_view& text) {
 
     gc_heap h{1<<20}; // Use local heap, even if expected lives in another heap
     try {
-        interpreter i{h, *bs};
+        interpreter i{h, tested_version(), *bs};
         (void) i.eval_program();
     } catch (const ExceptionType& e) {
         h.garbage_collect();
@@ -889,15 +889,20 @@ o.toString(); //$string '[object Object]'
 o.valueOf() == o; //$boolean true
 )");
 
-    if (tested_version() >= version::es3) {
-        // TODO: toLocaleString
-        //       hasOwnProperty
-        //       isPrototypeOf
-        //       propertyIsEnumerable 
-        //        RUN_TEST_SPEC(R"(
-        //Object.prototype.toLocaleString === Object.prototype.toString; //$boolean true
-        //)");
+    //
+    // ES3
+    //
+
+    if (tested_version() < version::es3) {
+        return;
     }
+
+    // TODO: hasOwnProperty
+    //       isPrototypeOf
+    //       propertyIsEnumerable 
+    RUN_TEST_SPEC(R"(
+Object.prototype.toLocaleString === Object.prototype.toString; //$boolean true
+        )");
 }
 
 int main() {
@@ -917,6 +922,7 @@ int main() {
         }
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';
+        std::cerr << "Version tested: " << tested_version() << "\n";
         return 1;
     }
 

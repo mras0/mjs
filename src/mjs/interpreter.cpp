@@ -232,7 +232,7 @@ eval_exception::eval_exception(const std::vector<source_extend>& stack_trace, co
 
 class interpreter::impl {
 public:
-    explicit impl(gc_heap& h, const block_statement& program, const on_statement_executed_type& on_statement_executed) : heap_(h), program_(program), global_(global_object::make(h)), on_statement_executed_(on_statement_executed) {
+    explicit impl(gc_heap& h, version ver, const block_statement& program, const on_statement_executed_type& on_statement_executed) : heap_(h), program_(program), global_(global_object::make(h, ver)), on_statement_executed_(on_statement_executed) {
         assert(!global_->has_property(L"eval"));
 
         global_->put_native_function(global_, "eval", [this](const value&, const std::vector<value>& args) {
@@ -241,7 +241,7 @@ public:
             } else if (args.front().type() != value_type::string) {
                 return args.front();
             }
-            auto bs = parse(std::make_shared<source_file>(L"eval", args.front().string_value().view()));
+            auto bs = parse(std::make_shared<source_file>(L"eval", args.front().string_value().view()), global_->language_version());
             return top_level_eval(*bs);
         }, 1);
 
@@ -260,7 +260,7 @@ public:
                 body = to_string(heap_, args.back()).view();
             }
 
-            auto bs = parse(std::make_shared<source_file>(L"Function definition", L"function anonymous(" + p + L") {\n" + body + L"\n}"));
+            auto bs = parse(std::make_shared<source_file>(L"Function definition", L"function anonymous(" + p + L") {\n" + body + L"\n}"), global_->language_version());
             if (bs->l().size() != 1 || bs->l().front()->type() != statement_type::function_definition) {
                 NOT_IMPLEMENTED("Invalid function definition: " << bs->extend().source_view());
             }
@@ -1161,7 +1161,7 @@ private:
     }
 };
 
-interpreter::interpreter(gc_heap& h, const block_statement& program, const on_statement_executed_type& on_statement_executed) : impl_(new impl{h, program, on_statement_executed}) {
+interpreter::interpreter(gc_heap& h, version ver, const block_statement& program, const on_statement_executed_type& on_statement_executed) : impl_(new impl{h, ver, program, on_statement_executed}) {
 }
 
 interpreter::~interpreter() = default;

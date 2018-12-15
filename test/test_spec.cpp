@@ -136,7 +136,7 @@ private:
     explicit test_spec_runner(gc_heap& h, const std::vector<test_spec>& specs, const block_statement& statements)
         : specs_(specs)
         , source_(statements.extend().file)
-        , i_(h, statements, [this](const statement& s, const completion& res) {
+        , i_(h, tested_version(), statements, [this](const statement& s, const completion& res) {
 #ifdef TEST_SPEC_DEBUG
             std::wcout << pos_w << s.extend().start << "-" << pos_w << s.extend().end << ": ";
             print(std::wcout, s);

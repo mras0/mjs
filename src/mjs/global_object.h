@@ -3,6 +3,7 @@
 
 #include "value.h"
 #include "object.h"
+#include "version.h"
 
 namespace mjs {
 
@@ -10,7 +11,7 @@ namespace mjs {
 
 class global_object : public object {
 public:
-    static gc_heap_ptr<global_object> make(gc_heap& h);
+    static gc_heap_ptr<global_object> make(gc_heap& h, version ver);
     virtual ~global_object() {}
 
     virtual object_ptr object_prototype() const = 0;
@@ -58,7 +59,10 @@ public:
     // Make a string (to make it possible to use a cache)
     virtual string common_string(const char* str) = 0;
 
+    version language_version() const { return version_; }
+
 protected:
+    version version_;
     using object::object;
     global_object(global_object&&) = default;
 

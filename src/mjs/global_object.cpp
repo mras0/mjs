@@ -62,6 +62,11 @@ create_result make_object_object(global_object& global) {
     global.put_native_function(prototype, "valueOf", [](const value& this_, const std::vector<value>&){
         return this_;
     }, 0);
+
+    if (global.language_version() >= version::es3) {
+        prototype->put(global.common_string("toLocaleString"), prototype->get(L"toString"), global_object::default_attributes);
+    }
+
     return { o, prototype };
 }
 
@@ -1145,7 +1150,8 @@ private:
         return string_cache_.get(heap(), str);
     }
 
-    explicit global_object_impl(gc_heap& h) : global_object(string{h, "Global"}, object_ptr{}), string_cache_(h, 16) {
+    explicit global_object_impl(gc_heap& h, version ver) : global_object(string{h, "Global"}, object_ptr{}), string_cache_(h, 16) {
+        version_ = ver;
     }
 
     global_object_impl(global_object_impl&& other) = default;
@@ -1155,8 +1161,8 @@ private:
     friend global_object;
 };
 
-gc_heap_ptr<global_object> global_object::make(gc_heap& h) {
-    auto global = h.make<global_object_impl>(h);
+gc_heap_ptr<global_object> global_object::make(gc_heap& h, version ver) {
+    auto global = h.make<global_object_impl>(h, ver);
     global->self_ = global;
     global->popuplate_global(); // Populate here so the safe_ptr() won't fail the assert
     return global;
