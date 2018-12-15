@@ -41,6 +41,32 @@ value get_arg(const std::vector<value>& args, int index) {
 // Object
 //
 
+// TODO: This is a bit of a hacky way to get the global object to have the same behavior as a normal object.
+//       Could probably share the functions..
+void add_object_prototype_functions(global_object& global, const object_ptr& prototype) {
+    auto& h = global.heap();
+    global.put_native_function(prototype, "toString", [&h](const value& this_, const std::vector<value>&){
+        return value{string{h, "[object "} + this_.object_value()->class_name() + string{h, "]"}};
+    }, 0);
+    global.put_native_function(prototype, "valueOf", [](const value& this_, const std::vector<value>&){
+        return this_;
+    }, 0);
+
+    if (global.language_version() >= version::es3) {
+        prototype->put(global.common_string("toLocaleString"), prototype->get(L"toString"), global_object::default_attributes);
+        global.put_native_function(prototype, "hasOwnProperty", [](const value& this_, const std::vector<value>& args) {
+            assert(this_.type() == value_type::object);
+            const auto& o = this_.object_value();
+            return value{o->check_own_property_attribute(to_string(o.heap(), get_arg(args, 0)).view(), property_attribute::none, property_attribute::none)};
+        }, 1);
+        global.put_native_function(prototype, "propertyIsEnumerable", [](const value& this_, const std::vector<value>& args) {
+            assert(this_.type() == value_type::object);
+            const auto& o = this_.object_value();
+            return value{o->check_own_property_attribute(to_string(o.heap(), get_arg(args, 0)).view(), property_attribute::dont_enum, property_attribute::none)};
+        }, 1);
+    }
+}
+
 create_result make_object_object(global_object& global) {
     auto& h = global.heap();
     auto o = global.make_function([global = global.self_ptr()](const value&, const std::vector<value>& args) {
@@ -56,16 +82,8 @@ create_result make_object_object(global_object& global) {
     // §15.2.4
     auto prototype = global.object_prototype();
     prototype->put(global.common_string("constructor"), value{o}, global_object::default_attributes);
-    global.put_native_function(prototype, "toString", [&h](const value& this_, const std::vector<value>&){
-        return value{string{h, "[object "} + this_.object_value()->class_name() + string{h, "]"}};
-    }, 0);
-    global.put_native_function(prototype, "valueOf", [](const value& this_, const std::vector<value>&){
-        return this_;
-    }, 0);
 
-    if (global.language_version() >= version::es3) {
-        prototype->put(global.common_string("toLocaleString"), prototype->get(L"toString"), global_object::default_attributes);
-    }
+    add_object_prototype_functions(global, prototype);
 
     return { o, prototype };
 }
@@ -1107,7 +1125,7 @@ private:
         add("Date", make_date_object);
         add("console", make_console_object);
 
-        assert(get(L"Object").object_value()->can_put(L"prototype") == false);
+        assert(!get(L"Object").object_value()->can_put(L"prototype"));
 
         put(string{heap(), "NaN"}, value{NAN}, default_attributes);
         put(string{heap(), "Infinity"}, value{INFINITY}, default_attributes);
@@ -1144,6 +1162,11 @@ private:
             return value::undefined;
         }, 1);
 
+        // Add this class as the global object
+        auto self = self_ptr();
+        put(common_string("global"), value{self}, property_attribute::dont_delete | property_attribute::read_only);
+        // Give it the same properties as a normal object
+        add_object_prototype_functions(*this, self);
     }
 
     string common_string(const char* str) override {
@@ -1164,7 +1187,7 @@ private:
 gc_heap_ptr<global_object> global_object::make(gc_heap& h, version ver) {
     auto global = h.make<global_object_impl>(h, ver);
     global->self_ = global;
-    global->popuplate_global(); // Populate here so the safe_ptr() won't fail the assert
+    global->popuplate_global(); // Populate here so the self_ptr() won't fail the assert
     return global;
 }
 

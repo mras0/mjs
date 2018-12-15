@@ -96,6 +96,7 @@ value parse_value(gc_heap& h, const std::string& s) {
 }
 
 struct test_spec {
+    source_extend extend;
     uint32_t position;
     value expected;
 };
@@ -115,7 +116,7 @@ public:
 #endif
         test_spec_runner tsr{h, specs, statements};
         tsr.i_.eval_program();
-        tsr.check_test_spec_done(statements.extend(), statements.extend().end);
+        tsr.check_test_spec_done(statements.extend().end);
 #ifdef TEST_SPEC_DEBUG
         std::wcout << "\n";
 #endif
@@ -143,7 +144,7 @@ private:
             std::wcout << " ==> " << debug_string(res.result) << "\n";
 #endif
             if (s.extend().file == source_ && s.extend().start > last_line_) {
-                check_test_spec_done(s.extend(), s.extend().start);
+                check_test_spec_done(s.extend().start);
                 last_result_ = res;
                 last_line_ = s.extend().start;
             }
@@ -157,23 +158,24 @@ private:
     {
     }
 
-    void check_test_spec_done(const source_extend& e, uint32_t check_pos) {
+    void check_test_spec_done(uint32_t check_pos) {
         if (index_ == specs_.size()) {
             return;
         }
+        const auto& s = specs_[index_];
 
-        if (check_pos > specs_[index_].position) {
+        if (check_pos > s.position) {
 #ifdef TEST_SPEC_DEBUG
-            std::wcout << pos_w << check_pos << ": Checking at pos " << pos_w << specs_[index_].position << " expecting " << specs_[index_].expected.type() << " " << to_string(heap_, specs_[index_].expected) << "\n";
+            std::wcout << pos_w << check_pos << ": Checking pos " << pos_w << s.position << " at " << s.extend << " expecting " << debug_string(s.expected) << "\n";
 #endif
             if (last_result_) {
                 std::wostringstream oss;
-                oss << source_->filename << " failed: " << last_result_.type << " " << debug_string(last_result_.result);
+                oss << source_->filename << " failed: " << last_result_.type << " " << debug_string(last_result_.result) << " at " << s.extend << "\n" << s.extend.source_view();
                 THROW_RUNTIME_ERROR(oss.str());
             }
             if (last_result_.result != specs_[index_].expected) {
                 std::wostringstream oss;
-                oss << "Expecting " << debug_string(specs_[index_].expected) << " got " <<  debug_string(last_result_.result) << " at " << e;
+                oss << "Expecting " << debug_string(specs_[index_].expected) << " got " << debug_string(last_result_.result) << " at " << s.extend << "\n" << s.extend.source_view();
                 THROW_RUNTIME_ERROR(oss.str());
             }
             ++index_;
@@ -190,6 +192,7 @@ void run_test_spec(const std::string_view& source_text, const std::string_view& 
 
     {
         std::vector<test_spec> specs;
+        auto file = std::make_shared<source_file>(std::wstring(name.begin(), name.end()), std::wstring(source_text.begin(), source_text.end()));
 
         for (size_t pos = 0, next_pos; pos < source_text.length(); pos = next_pos + 1) {
             size_t delim_pos = source_text.find(delim, pos);
@@ -202,14 +205,17 @@ void run_test_spec(const std::string_view& source_text, const std::string_view& 
             }
 
             delim_pos += delim_len;
-            specs.push_back(test_spec{static_cast<uint32_t>(delim_pos), parse_value(heap, std::string(trim(source_text.substr(delim_pos, next_pos - delim_pos))))});
+
+            source_extend extend{file, static_cast<uint32_t>(pos), static_cast<uint32_t>(next_pos)};
+
+            specs.push_back(test_spec{extend, static_cast<uint32_t>(delim_pos), parse_value(heap, std::string(trim(source_text.substr(delim_pos, next_pos - delim_pos))))});
         }
 
         if (specs.empty()) {
             throw std::runtime_error("Invalid test spec." + std::string(name) + ": No specs found");
         }
 
-        auto bs = parse(std::make_shared<source_file>(std::wstring(name.begin(), name.end()), std::wstring(source_text.begin(), source_text.end())), tested_version());
+        auto bs = parse(file, tested_version());
         const auto index = test_spec_runner::run(heap, specs, *bs);
         if (index != specs.size()) {
             throw std::runtime_error("Invalid test spec." + std::string(name) + ": Only " + std::to_string(index) + " of " + std::to_string(specs.size()) + " specs ran");

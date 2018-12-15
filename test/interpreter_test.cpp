@@ -224,6 +224,10 @@ with(42) {
 
 
     run_test(L"function sum() {  var s = 0; for (var i = 0; i < arguments.length; ++i) s += arguments[i]; return s; } sum(1,2,3)", value{6.0});
+
+    // ES3, 15.1: The [[Prototype]] and [[Class]] properties of the global object are implementation-dependent
+    run_test(L"global.toString()", value{string{h, "[object Global]"}});
+
     // Object
     run_test(L"''+Object(null)", value{string{h, "[object Object]"}});
     run_test(L"o=Object(null); o.x=42; o.y=60; o.x+o['y']", value{102.0});
@@ -482,7 +486,7 @@ evil(12, 34);
 )");
 }
 
-void test_global_functions() {
+void test_global_functions() {  
     // Values
     RUN_TEST_SPEC(R"(
 NaN //$ number NaN
@@ -902,6 +906,31 @@ o.valueOf() == o; //$boolean true
     //       propertyIsEnumerable 
     RUN_TEST_SPEC(R"(
 Object.prototype.toLocaleString === Object.prototype.toString; //$boolean true
+
+o = {x:42};
+'toLocaleString' in o; //$boolean true
+'x' in o; //$boolean true
+o.hasOwnProperty('toLocaleString'); //$boolean false
+o.hasOwnProperty('x'); //$boolean true
+o.propertyIsEnumerable('x'); //$boolean true
+
+a = [42];
+a.hasOwnProperty('length'); //$boolean true
+a.propertyIsEnumerable('length'); //$boolean false
+a.hasOwnProperty('prototype'); //$boolean false
+a.propertyIsEnumerable('prototype'); //$boolean false
+a.hasOwnProperty('0'); //$boolean true
+a.hasOwnProperty(0); //$boolean true
+a.propertyIsEnumerable(0); //$boolean true
+a.hasOwnProperty(); //$ boolean false
+a.propertyIsEnumerable();//$ boolean false
+a[undefined]=1;
+a.hasOwnProperty(); //$ boolean true
+a.propertyIsEnumerable();//$ boolean true
+
+global.hasOwnProperty('parseInt'); //$boolean true
+global.propertyIsEnumerable('parseInt'); //$boolean false
+
         )");
 }
 

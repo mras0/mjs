@@ -64,6 +64,14 @@ public:
     // [[Delete]] (PropertyName)
     virtual bool delete_property(const std::wstring_view& name);
 
+    // Check if the object has a property with matching attributes
+    virtual bool check_own_property_attribute(const std::wstring_view& name, property_attribute mask, property_attribute expected) const {
+        if (auto it = find(name).first; it) {
+            return (it->attributes & mask) == expected;
+        }
+        return false;
+    }
+
     virtual value_type default_value_type() const {
         // When hint is undefined, assume Number unless it's a Date object in which case assume String
         return value_type::number;

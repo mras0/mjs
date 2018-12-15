@@ -62,6 +62,13 @@ public:
         return native_object::delete_property(name);
     }
 
+    bool check_own_property_attribute(const std::wstring_view& name, property_attribute mask, property_attribute expected) const override {
+        if (const uint32_t index = get_array_index(name); index != invalid_array_index && index_present(index)) {
+            return expected == property_attribute::none;
+        }
+        return native_object::check_own_property_attribute(name, mask, expected);
+    }
+
     void unchecked_put(uint32_t index, const value& val) {
         assert(index < length_);
         values_.dereference(heap())[index] = value_representation{val};
