@@ -1,5 +1,6 @@
 #include "value.h"
 #include "object.h"
+#include "function_object.h"
 #include <ostream>
 #include <stdexcept>
 #include <sstream>
@@ -144,11 +145,7 @@ value to_primitive(const value& v, value_type hint) {
         if (fo.type() != value_type::object) {
             continue;
         }
-        auto f = fo.object_value()->call_function();
-        if (!f) {
-            continue;
-        }
-        auto res = f->call(v, {});
+        auto res = call_function(fo, v, {});
         if (!is_primitive(res.type())) {
             continue;
         }

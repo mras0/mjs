@@ -64,7 +64,7 @@ create_result make_object_object(global_object& global) {
             return value{global->make_object()};
         }
         return value{global->to_object(args.front())};
-    }, prototype->class_name().unsafe_raw_get(), nullptr, 1);
+    }, prototype->class_name().unsafe_raw_get(), 1);
     o->default_construct_function();
 
     // §15.2.4
@@ -103,7 +103,7 @@ create_result make_string_object(global_object& global) {
 
     auto c = make_function(global, [&h](const value&, const std::vector<value>& args) {
         return value{args.empty() ? string{h, ""} : to_string(h, args.front())};
-    }, String_str_.unsafe_raw_get(), nullptr, 1);
+    }, String_str_.unsafe_raw_get(), 1);
     make_constructable(global, c, [prototype](const value&, const std::vector<value>& args) {
         return value{prototype.heap().make<string_object>(prototype, args.empty() ? string{prototype.heap(), ""} : to_string(prototype.heap(), args.front()))};
     });
@@ -246,7 +246,7 @@ create_result make_boolean_object(global_object& global) {
 
     auto c = make_function(global, [](const value&, const std::vector<value>& args) {
         return value{!args.empty() && to_boolean(args.front())};
-    },  bool_str.unsafe_raw_get(), nullptr, 1);
+    },  bool_str.unsafe_raw_get(), 1);
     make_constructable(global, c, [prototype](const value&, const std::vector<value>& args) {
         return value{new_boolean(prototype, !args.empty() && to_boolean(args.front()))};
     });
@@ -286,7 +286,7 @@ create_result make_number_object(global_object& global) {
 
     auto c = make_function(global, [](const value&, const std::vector<value>& args) {
         return value{args.empty() ? 0.0 : to_number(args.front())};
-    }, Number_str_.unsafe_raw_get(), nullptr, 1);
+    }, Number_str_.unsafe_raw_get(), 1);
     make_constructable(global, c, [prototype](const value&, const std::vector<value>& args) {
         return value{new_number(prototype, args.empty() ? 0.0 : to_number(args.front()))};
     });
@@ -626,7 +626,7 @@ create_result make_date_object(global_object& global) {
     auto c = make_function(global, [prototype, new_date](const value&, const std::vector<value>&) {
         // Equivalent to (new Date()).toString()
         return value{to_string(prototype.heap(), value{new_date(date_helper::current_time_utc())})};
-    }, Date_str_.unsafe_raw_get(), nullptr, 7);
+    }, Date_str_.unsafe_raw_get(), 7);
     make_constructable(global, c, [new_date](const value&, const std::vector<value>& args) {
         if (args.empty()) {
             return value{new_date(date_helper::current_time_utc())};

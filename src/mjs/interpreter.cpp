@@ -400,12 +400,6 @@ public:
             woss << e.member() << " is not a function";
             throw eval_exception(stack_trace(e.extend()), woss.str());
         }
-        auto c = mval.object_value()->call_function();
-        if (!c) {
-            std::wostringstream woss;
-            woss << e.member() << " is not callable";
-            throw eval_exception(stack_trace(e.extend()), woss.str());
-        }
         auto this_ = value::null;
         if (member.type() == value_type::reference) {
             if (auto o = member.reference_value().base(); !o.has_type<activation_object>()) {
@@ -414,7 +408,7 @@ public:
         }
 
         auto_stack_update asu{*this, e.extend()};
-        return c->call(this_, args);
+        return call_function(mval, this_, args);
     }
 
     value operator()(const prefix_expression& e) {
@@ -447,7 +441,7 @@ public:
             case value_type::boolean: return value{string{heap_, "boolean"}};
             case value_type::number: return value{string{heap_, "number"}};
             case value_type::string: return value{string{heap_, "string"}};
-            case value_type::object: return value{string{heap_, u.object_value()->call_function() ? "function" : "object"}};
+            case value_type::object: return value{string{heap_, u.object_value().has_type<function_object>() ? "function" : "object"}};
             default:
                 NOT_IMPLEMENTED(u.type());
             }
@@ -1105,20 +1099,14 @@ private:
             o = eval(e);
         }
         o = get_value(o);
-        if (o.type() != value_type::object) {
+        try {
+            auto_stack_update asu{*this, e.extend()};
+            return construct_function(o, value::undefined, args);
+        } catch (const not_callable_exception&) {
             std::wostringstream woss;
-            woss << e << " is not an object";
+            woss << e << " is not " << (o.type() != value_type::object ? "an object" : "constructable");
             throw eval_exception(stack_trace(e.extend()), woss.str());
         }
-        auto c = o.object_value()->construct_function();
-        if (!c) {
-            std::wostringstream woss;
-            woss << e << " is not constructable";
-            throw eval_exception(stack_trace(e.extend()), woss.str());
-        }
-
-        auto_stack_update asu{*this, e.extend()};
-        return c->call(value::undefined, args);
     }
 
     object_ptr create_function(const string& id, const std::shared_ptr<block_statement>& block, const std::vector<std::wstring>& param_names, const std::wstring& body_text, const scope_ptr& prev_scope) {
@@ -1146,14 +1134,14 @@ private:
         };
         callee->put_function(func, nullptr, string{heap_, L"function " + std::wstring{id.view()} + body_text}.unsafe_raw_get(), static_cast<int>(param_names.size()));
 
-        callee->construct_function(gc_function::make(heap_, [global = global_, callee, id](const value& this_, const std::vector<value>& args) {
+        callee->construct_function([global = global_, callee, id](const value& this_, const std::vector<value>& args) {
             assert(this_.type() == value_type::undefined); (void)this_; // [[maybe_unused]] not working with MSVC here?
             assert(!id.view().empty());
             auto p = callee->get(L"prototype");
             auto o = value{global->heap().make<object>(id, p.type() == value_type::object ? p.object_value() : global->object_prototype())};
-            auto r = callee->call_function()->call(o, args);
+            auto r = callee->call(o, args);
             return r.type() == value_type::object ? r : value{o};
-        }));
+        });
 
         return callee;
     }

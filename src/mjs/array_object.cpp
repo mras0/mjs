@@ -179,7 +179,7 @@ create_result make_array_object(global_object& global) {
 
     auto c = make_function(global, [prototype](const value&, const std::vector<value>& args) {
         return value{make_array(prototype, args)};
-    }, Array_str_.unsafe_raw_get(), nullptr, 1);
+    }, Array_str_.unsafe_raw_get(), 1);
     c->default_construct_function();
 
     put_native_function(global, prototype, "toString", [](const value& this_, const std::vector<value>&) {
@@ -214,15 +214,7 @@ create_result make_array_object(global_object& global) {
         auto& h = o.heap(); // Capture heap reference (which continues to be valid even after GC) since `this` can move when calling a user-defined compare function (since this can cause GC)
         const uint32_t length = to_uint32(o.get(L"length"));
 
-        native_function_type comparefn{};
-        if (!args.empty()) {
-            if (args.front().type() == value_type::object) {
-                comparefn = args.front().object_value()->call_function();
-            }
-            if (!comparefn) {
-                NOT_IMPLEMENTED("Invalid compare function given to sort");
-            }
-        }
+        value comparefn = !args.empty() ? args.front() : value::undefined;
 
         auto sort_compare = [comparefn, &h](const value& x, const value& y) {
             if (x.type() == value_type::undefined && y.type() == value_type::undefined) {
@@ -232,8 +224,8 @@ create_result make_array_object(global_object& global) {
             } else if (y.type() == value_type::undefined) {
                 return -1;
             }
-            if (comparefn) {
-                const auto r = to_number(comparefn->call(value::null, {x,y}));
+            if (comparefn.type() != value_type::undefined) {
+                const auto r = to_number(call_function(comparefn, value::null, {x,y}));
                 if (r < 0) return -1;
                 if (r > 0) return 1;
                 return 0;

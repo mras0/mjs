@@ -1,14 +1,12 @@
 #ifndef MJS_OBJECT_H
 #define MJS_OBJECT_H
 
+#include "value.h"
 #include "value_representation.h"
 #include "property_attribute.h"
 #include "gc_vector.h"
-#include "gc_function.h"
 
 namespace mjs {
-
-using native_function_type = gc_heap_ptr<gc_function>;
 
 class object {
 public:
@@ -76,12 +74,6 @@ public:
         // When hint is undefined, assume Number unless it's a Date object in which case assume String
         return value_type::number;
     }
-
-    // [[Construct]] (Arguments...)
-    virtual native_function_type construct_function() const { return nullptr; }
-
-    // [[Call]] (Arguments...)
-    virtual native_function_type call_function() const { return nullptr; }
 
     std::vector<string> property_names() const;
 
