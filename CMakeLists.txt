@@ -1,7 +1,9 @@
 cmake_minimum_required(VERSION 3.7)
-project(mjs)
+project(mjs CXX)
 
 # Just hack the settings for now
+
+# Note: To use clang-cl on windows: set CXX=clang-cl && cmake -G "NMake Makefiles" <path>
 
 if (MSVC)
     set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "Supported build configurations" FORCE)
