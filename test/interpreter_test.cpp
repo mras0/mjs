@@ -1017,8 +1017,28 @@ r.lastIndex; //$number 0
 r.toString(); //$string '/a*b/gim'
 )");
 
+
+    //
+    // RegExp literal
+    //
+
+    RUN_TEST_SPEC(R"(
+r = / test \/ foo /gi;
+
+r instanceof RegExp; //$boolean true
+r.source; //$string ' test \\/ foo '
+r.global; //$boolean true
+r.ignoreCase; //$boolean true
+r.multiline; //$boolean false
+r.lastIndex; //$number 0
+
+r.toString(); //$string '/ test \\/ foo /gi'
+
+x = /a/gi; x === x; //$boolean true
+/a/gi == /a/gi; //$boolean false
+)");
+
     //TODO:
-    // - RegExp literal
     // - Invalid flags (no duplicates, case sensitive, invalid characters not allowed) => SyntaxError
     // - Invalid pattern => SyntaxError
     // - Matching (basic)

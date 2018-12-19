@@ -6,7 +6,7 @@
 namespace mjs {
 
 create_result make_regexp_object(global_object& global);
-//object_ptr make_array(const object_ptr& array_prototype, const std::vector<value>& args);
+object_ptr make_regexp(global_object& global, const string& pattern, const string& flags);
 
 } // namespace mjs
 

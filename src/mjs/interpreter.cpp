@@ -4,6 +4,7 @@
 #include "native_object.h"
 #include "array_object.h"
 #include "function_object.h"
+#include "regexp_object.h"
 #include "printer.h"
 
 #include <sstream>
@@ -216,8 +217,6 @@ private:
     }
 };
 
-
-
 static std::string get_eval_exception_repr(const std::vector<source_extend>& stack_trace, const std::wstring_view& msg) {
     std::ostringstream oss;
     oss << std::string(msg.begin(), msg.end());
@@ -389,6 +388,10 @@ public:
             }
         }
         return value{o};
+    }
+
+    value operator()(const regexp_literal_expression& e) {
+        return value{make_regexp(*global_, string{heap_, e.pattern()}, string{heap_, e.flags()})};
     }
 
     value operator()(const call_expression& e) {

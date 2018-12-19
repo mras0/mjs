@@ -54,6 +54,10 @@ public:
         os_ << '}';
     }
 
+    void operator()(const regexp_literal_expression& e) {
+        os_ << '/' << e.pattern() << '/' << e.flags();
+    }
+
     void operator()(const call_expression& e) {
         accept(e.member(), *this);
         os_ << '(';

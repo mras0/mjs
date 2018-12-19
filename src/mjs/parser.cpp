@@ -314,6 +314,15 @@ private:
                 elements.push_back(property_name_and_value{std::move(p), std::move(v)});
             }
             return make_expression<object_literal_expression>(std::move(elements));
+        } else if (version_ >= version::es3 && (current_token_type() == token_type::divide || current_token_type() == token_type::divideequal)) {
+            // RegularExpressionLiteral
+            const auto lit = lexer_.get_regex_literal();
+            skip_whitespace();
+            assert(lit.size() >= 3);
+            assert(lit[0] == '/');
+            const auto lit_end = lit.find_last_of('/');
+            assert(lit_end > 1 && lit_end != std::wstring_view::npos);
+            return make_expression<regexp_literal_expression>(lit.substr(1, lit_end-1), lit.substr(lit_end+1));
         } else if (accept(token_type::lparen)) {
             auto e = parse_expression();
             EXPECT(token_type::rparen);

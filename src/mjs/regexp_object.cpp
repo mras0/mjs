@@ -142,4 +142,8 @@ create_result make_regexp_object(global_object& global) {
     return { constructor, prototype };
 }
 
+object_ptr make_regexp(global_object& global, const string& pattern, const string& flags) {
+    return regexp_object::make(global, pattern, flags);
+}
+
 } // namespace mjs

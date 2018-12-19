@@ -161,6 +161,7 @@ void test_es1_fails_with_new_constructs() {
     test_parse_fails("throw 42;");
     test_parse_fails("a = function x() {}");
     test_parse_fails("a = function() {}");
+    test_parse_fails("a = /4/;");
 }
 
 template<typename T>
@@ -293,6 +294,21 @@ void test_labelled_statements() {
     REQUIRE_EQ(lsy.s().type(), statement_type::empty);
 }
 
+void test_regexp_literal() {
+    auto s = parse_one_statement(R"(a = /a*b\//g;)");
+    REQUIRE_EQ(s->type(), statement_type::expression);
+    const auto& es = static_cast<const expression_statement&>(*s);
+    REQUIRE_EQ(es.e().type(), expression_type::binary);
+    const auto& be = static_cast<const binary_expression&>(es.e());
+    REQUIRE_EQ(be.op(), token_type::equal);
+    REQUIRE_EQ(be.lhs().type(), expression_type::identifier);
+    REQUIRE_EQ(static_cast<const identifier_expression&>(be.lhs()).id(), L"a");
+    REQUIRE_EQ(be.rhs().type(), expression_type::regexp_literal);
+    const auto& rle = static_cast<const regexp_literal_expression&>(be.rhs());
+    REQUIRE_EQ(rle.pattern(), LR"(a*b\/)");
+    REQUIRE_EQ(rle.flags(), L"g");
+}
+
 
 int main() {
     try {
@@ -308,6 +324,7 @@ int main() {
             test_array_literal();
             test_object_literal();
             test_labelled_statements();
+            test_regexp_literal();
         }
 
     } catch (const std::runtime_error& e) {

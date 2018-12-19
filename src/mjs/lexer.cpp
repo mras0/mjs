@@ -9,20 +9,42 @@ namespace mjs {
 
 const token eof_token{token_type::eof};
 
-std::wstring cpp_quote(const std::wstring_view& s) {
-    std::wstring r;
-    for (const auto c: s) {
-        if (c < 32 || c > 127) {
-            constexpr const char* const hexchars = "0123456789ABCDEF";
-            r += '\\';
+namespace {
+
+void cpp_quote_escape(std::wstring& r, char16_t c) {
+    switch (c) {
+    case '\'': r += L"\\\'"; break;
+    case '\"': r += L"\\\""; break;
+    case '\\': r += L"\\\\"; break;
+    case '\b': r += L"\\b"; break;
+    case '\f': r += L"\\f"; break;
+    case '\n': r += L"\\n"; break;
+    case '\r': r += L"\\r"; break;
+    case '\t': r += L"\\t"; break;
+    default:
+        constexpr const char* const hexchars = "0123456789ABCDEF";
+        r += '\\';
+        if (c <= 255) {
+            r += 'x';
+            r += hexchars[(c>>4)&0xf];
+            r += hexchars[c&0xf];
+        } else {
             r += 'u';
             r += hexchars[(c>>12)&0xf];
             r += hexchars[(c>>8)&0xf];
             r += hexchars[(c>>4)&0xf];
             r += hexchars[c&0xf];
-        } else if (c == '\"') {
-            r += '\\';
-            r += c;
+        }
+    }
+}
+
+} // unnamed namespace
+
+std::wstring cpp_quote(const std::wstring_view& s) {
+    std::wstring r;
+    for (const auto c: s) {
+        if (c < 32 || c > 127 || c == '\'' || c == '\"' || c == '\\') {
+            cpp_quote_escape(r, c);
         } else {
             r += c;
         }

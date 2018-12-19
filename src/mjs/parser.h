@@ -94,6 +94,7 @@ enum class expression_type {
     literal,
     array_literal,
     object_literal,
+    regexp_literal,
     call,
     prefix,
     postfix,
@@ -233,6 +234,26 @@ private:
             os << *elements_[i].first << ": " << *elements_[i].second;
         }
         os << "}";
+    }
+};
+
+class regexp_literal_expression : public expression {
+public:
+
+    explicit regexp_literal_expression(const source_extend& extend, std::wstring_view pattern, std::wstring_view flags) : expression(extend), pattern_(pattern), flags_(flags) {
+    }
+
+    expression_type type() const override { return expression_type::regexp_literal; }
+
+    const std::wstring& pattern() const { return pattern_; }
+    const std::wstring& flags() const { return flags_; }
+
+private:
+    std::wstring pattern_;
+    std::wstring flags_;
+
+    void print(std::wostream& os) const override {
+        os << "regexp_literal_expression{" << pattern_ << ", " << flags_ << "}";
     }
 };
 
@@ -393,6 +414,7 @@ auto accept(const expression& e, Visitor& v) {
     case expression_type::literal:          return v(static_cast<const literal_expression&>(e));
     case expression_type::array_literal:    return v(static_cast<const array_literal_expression&>(e));
     case expression_type::object_literal:   return v(static_cast<const object_literal_expression&>(e));
+    case expression_type::regexp_literal:   return v(static_cast<const regexp_literal_expression&>(e));
     case expression_type::call:             return v(static_cast<const call_expression&>(e));
     case expression_type::prefix:           return v(static_cast<const prefix_expression&>(e));
     case expression_type::postfix:          return v(static_cast<const postfix_expression&>(e));
