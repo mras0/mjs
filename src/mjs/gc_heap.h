@@ -436,8 +436,11 @@ public:
 
     gc_heap_ptr() = default;
     gc_heap_ptr(std::nullptr_t) : gc_heap_ptr_untyped() {}
+    gc_heap_ptr(const gc_heap_ptr<T>& p) = default;
     template<typename U, typename = typename std::enable_if<std::is_convertible_v<U*, T*>>::type>
     gc_heap_ptr(const gc_heap_ptr<U>& p) : gc_heap_ptr_untyped(p) {}
+    template<typename U, typename = typename std::enable_if<!std::is_convertible_v<U*, T*>>::type, typename = void>
+    explicit gc_heap_ptr(const gc_heap_ptr<U>& p) : gc_heap_ptr_untyped(p) {}
 
     T* get() const { return static_cast<T*>(gc_heap_ptr_untyped::get()); }
     T* operator->() const { return get(); }

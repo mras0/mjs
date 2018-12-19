@@ -27,13 +27,16 @@
         - mutators
         - time zone adjustments
         - to/from string
-    - Split into multiple classes/files
+    - Make it possible to implement native (member) functions more easily. Perhaps create the ECMAScript function object only if requested?
     - Optimize `array_object` - may need to make more `object` functions virtual and do the same for string objects
     - Add test cases for directly relatable to clauses in the spec (e.g. `Boolean.prototype.constructor` exists and is correct)
     - ES3 support
         * Error object
         * RegExp
+        * Lots and lots of missing functionality functions etc. -
+          Consider implementing it in ECMAScript (i.e. polyfill it)!
     - Probably other missing stuff and non-compliant implementations...
+    - Split up `mjs_lib` into its constituents (e.g. GC lib, lexer lib, ...), but most important to get global object and friends out
 * Better GC
     - Ensure exception safety
     - Support growing the heap (and support growing it as needed)
@@ -60,7 +63,7 @@
     - Embedding mjs (I.e. adding user-defined classes)
 * Make `string` easier to use - without going back to having a static `local_heap`
     - make `string_builder` class or drop support for operator+?
-* Make it easy to evaluate Javascript expressions (e.g. String('12') + 34)
+* Make it easy to evaluate (and inspect) Javascript expressions (e.g. String('12') + 34)
 * Use `char16_t` instead of `wchar_t` (and update `wstring`/`wistringstream` etc. etc.)
 * Avoid duplicating `duration_cast`/`typeid()` logic with `expression_type`/`statement_type`. Consider using std::variant.
 * General refactoring, implement ES5, ES...., JIT, etc. :)

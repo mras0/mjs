@@ -22,6 +22,8 @@ add_library(mjs_lib STATIC
     mjs/printer.cpp
     mjs/printer.h
     mjs/property_attribute.h
+    mjs/regexp_object.cpp
+    mjs/regexp_object.h
     mjs/string.cpp
     mjs/string.h
     mjs/value.cpp

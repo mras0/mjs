@@ -962,10 +962,78 @@ void test_function_object() {
     // TODO: Check all the properties do what they're supposed to
 }
 
+void test_regexp_object() {
+    if (tested_version() == version::es1) {
+        expect_exception<eval_exception>(L"new RegExp();");
+        return;
+    }
+
+    // TODO: There will be looooooots of cases missing here...
+
+    RUN_TEST_SPEC(R"(
+r=new RegExp();
+
+r.key=42;
+keys = '';
+for (var k in r) { keys += k+','; }
+keys; //$string 'key,'
+
+delete r.source;
+r.source; //$string '(?:)'
+r.source=42;
+r.source; //$string '(?:)'
+
+delete r.global;
+r.global; //$boolean false
+r.global = 42;
+r.global; //$boolean false
+
+delete r.ignoreCase;
+r.ignoreCase; //$boolean false
+r.ignoreCase = 42;
+r.ignoreCase; //$boolean false
+
+delete r.multiline;
+r.multiline; //$boolean false
+r.multiline = false;
+r.multiline; //$boolean false
+
+delete r.lastIndex;
+r.lastIndex; //$number 0
+r.lastIndex = 42;
+r.lastIndex; //$number 42
+)");
+
+    RUN_TEST_SPEC(R"(
+RegExp.prototype.constructor.length;//$number 2
+r=RegExp.prototype.constructor('a*b', 'gim');
+
+r.source; //$string 'a*b'
+r.global; //$boolean true
+r.ignoreCase; //$boolean true
+r.multiline; //$boolean true
+r.lastIndex; //$number 0
+
+r.toString(); //$string '/a*b/gim'
+)");
+
+    //TODO:
+    // - RegExp literal
+    // - Invalid flags (no duplicates, case sensitive, invalid characters not allowed) => SyntaxError
+    // - Invalid pattern => SyntaxError
+    // - Matching (basic)
+    //    - RegExp.prototype.exec(string)
+    //    - RegExp.prototype.test(string) `RegExp.prototype.exec(string) != null`
+    // - Constructor corner cases
+    // - etc...
+}
+
 int main() {
     try {
         for (const auto ver: supported_versions) {
             tested_version(ver);
+
+            test_regexp_object(); // TODO: Move lower
             eval_tests();
             if (tested_version() >= version::es3) {
                 test_es3_statements();

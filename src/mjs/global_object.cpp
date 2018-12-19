@@ -4,6 +4,7 @@
 #include "array_object.h"
 #include "native_object.h"
 #include "function_object.h"
+#include "regexp_object.h"
 #include <sstream>
 #include <chrono>
 #include <algorithm>
@@ -23,7 +24,7 @@ namespace mjs {
 
 namespace {
 
-value get_arg(const std::vector<value>& args, int index) {
+inline value get_arg(const std::vector<value>& args, int index) {
     return index < static_cast<int>(args.size()) ? args[index] : value::undefined;
 }
 
@@ -997,6 +998,7 @@ public:
     object_ptr object_prototype() const override { return object_prototype_.track(heap()); }
     object_ptr function_prototype() const override { return function_prototype_.track(heap()); }
     object_ptr array_prototype() const override { return array_prototype_.track(heap()); }
+    object_ptr regexp_prototype() const override { assert(language_version() >= version::es3); return regexp_prototype_.track(heap()); }
 
     object_ptr to_object(const value& v) override {
         switch (v.type()) {
@@ -1029,6 +1031,7 @@ private:
     gc_heap_ptr_untracked<object> string_prototype_;
     gc_heap_ptr_untracked<object> boolean_prototype_;
     gc_heap_ptr_untracked<object> number_prototype_;
+    gc_heap_ptr_untracked<object> regexp_prototype_;
     gc_heap_ptr_untracked<global_object_impl> self_;
 
     void fixup() {
@@ -1040,6 +1043,7 @@ private:
         string_prototype_.fixup(h);
         boolean_prototype_.fixup(h);
         number_prototype_.fixup(h);
+        regexp_prototype_.fixup(h);
         self_.fixup(h);
         global_object::fixup();
     }
@@ -1078,6 +1082,10 @@ private:
         add("Math", make_math_object);
         add("Date", make_date_object);
         add("console", make_console_object);
+
+        if (language_version() >= version::es3) {
+            add("RegExp", make_regexp_object, &regexp_prototype_);
+        }
 
         assert(!get(L"Object").object_value()->can_put(L"prototype"));
 
