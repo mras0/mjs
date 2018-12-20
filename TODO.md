@@ -33,6 +33,7 @@
     - ES3 support
         * Error object
         * RegExp
+            - multiline regexp
         * Lots and lots of missing functionality functions etc. -
           Consider implementing it in ECMAScript (i.e. polyfill it)!
     - Probably other missing stuff and non-compliant implementations...

@@ -11,6 +11,7 @@ class gc_heap;
 class value_representation {
 public:
     value_representation() = default;
+    explicit value_representation(double num);
     explicit value_representation(const value& v);
     value get_value(gc_heap& heap) const;
     void fixup(gc_heap& old_heap);

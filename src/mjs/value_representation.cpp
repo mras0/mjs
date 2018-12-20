@@ -37,6 +37,9 @@ static uint64_t number_repr(double d) {
     return repr;
 }
 
+value_representation::value_representation(double num) : repr_(number_repr(num)) {
+}
+
 value_representation::value_representation(const value& v) {
     switch (v.type()) {
     case value_type::undefined: [[fallthrough]];

@@ -1038,12 +1038,70 @@ x = /a/gi; x === x; //$boolean true
 /a/gi == /a/gi; //$boolean false
 )");
 
+    //
+    // Check basic matching
+    //
+    RUN_TEST_SPEC(R"(
+r = /(a*)b/;
+
+r.exec('xx');       //$null
+r.test('xx');       //$boolean false
+
+/undef/.test();     //$boolean true
+
+x = r.exec('aabb');
+x instanceof Array; //$boolean true
+x.length;           //$number 2
+x[0];               //$string 'aab'
+x[1];               //$string 'aa'
+x.index;            //$number 0
+x.input;            //$string 'aabb'
+r.lastIndex;        //$number 0
+
+x = r.exec('aabb');
+x.length;           //$number 2
+x[0];               //$string 'aab'
+x[1];               //$string 'aa'
+x.index;            //$number 0
+x.input;            //$string 'aabb'
+r.lastIndex;        //$number 0
+
+r.test('aaaaaabb'); //$boolean true
+
+y = r.exec('x ab');
+y.length;           //$number 2
+y[0];               //$string 'ab'
+y[1];               //$string 'a'
+y.index;            //$number 2
+y.input;            //$string 'x ab'
+
+r = /\w+/g;
+s = 'xx yy zz';
+w = r.exec(s);
+
+w.length;           //$number 1
+w[0];               //$string 'xx'
+r.lastIndex;        //$number 2
+
+w = r.exec(s);
+w.length;           //$number 1
+w[0];               //$string 'yy'
+r.lastIndex;        //$number 5
+
+w = r.exec(s);
+w.length;           //$number 1
+w[0];               //$string 'zz'
+r.lastIndex;        //$number 8
+)");
+
     //TODO:
     // - Invalid flags (no duplicates, case sensitive, invalid characters not allowed) => SyntaxError
     // - Invalid pattern => SyntaxError
     // - Matching (basic)
     //    - RegExp.prototype.exec(string)
     //    - RegExp.prototype.test(string) `RegExp.prototype.exec(string) != null`
+    // - Multiline regex
+    // - RegExp use with String
     // - Constructor corner cases
     // - etc...
 }
