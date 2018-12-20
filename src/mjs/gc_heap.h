@@ -128,10 +128,6 @@ public:
         return get().get_index();
     }
 
-    bool is_convertible(const gc_type_info& t) const {
-        return &t == this || (std::is_same_v<object, T> && t.is_convertible_to_object());
-    }
-
     // Helper so gc_*** classes don't have to friend both gc_heap and gc_type_info_registration
     template<typename... Args>
     static void construct(void* p, Args&&... args) {
@@ -342,7 +338,13 @@ private:
 #ifndef NDEBUG
     template<typename T>
     bool type_check(uint32_t pos) const {
-        return gc_type_info_registration<T>::get().is_convertible(get_at(pos-1)->allocation.type_info());
+        const auto a = get_at(pos-1)->allocation;
+        if constexpr (std::is_convertible_v<T*, object*>) {
+            // Avoid creating gc_type_info_registration<T>'s for interface types
+            return a.type_info().is_convertible_to_object() && dynamic_cast<T*>(reinterpret_cast<object*>(get_at(pos)));
+        } else {
+            return gc_type_info_registration<T>::index()  == a.type;
+        }
     }
 #endif
 

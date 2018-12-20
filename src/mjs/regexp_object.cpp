@@ -22,9 +22,30 @@ constexpr inline regexp_flag operator&(regexp_flag l, regexp_flag r) {
     return static_cast<regexp_flag>(static_cast<int>(l) & static_cast<int>(r));
 }
 
+regexp_flag parse_regexp_flags(const std::wstring_view& s) {
+    auto f = regexp_flag::none;
+    for (const auto ch: s) {
+        if (ch == 'g' && (f & regexp_flag::global) == regexp_flag::none) {
+            f = f | regexp_flag::global;
+        } else if (ch == 'i' && (f & regexp_flag::ignore_case) == regexp_flag::none) {
+            f = f | regexp_flag::ignore_case;
+        } else if (ch == 'm' && (f & regexp_flag::multiline) == regexp_flag::none) {
+            f = f | regexp_flag::multiline;
+        } else {
+            NOT_IMPLEMENTED("throw SyntaxError");
+        }
+    }
+    return f;
+}
+
 class regexp_object : public native_object {
 public:
-    static gc_heap_ptr<regexp_object> make(global_object& global, const string& pattern, const string& flags);
+    static gc_heap_ptr<regexp_object> make(const gc_heap_ptr<global_object>& global, const string& pattern, const string& flags) {
+        // TODO: ES3, 15.10.4.1
+        // - "If pattern is an object R whose [[Class]] property is "RegExp" and flags is undefined , then return R unchanged."
+        // - ..
+        return global.heap().make<regexp_object>(global, pattern.view().empty() ? string{global.heap(), "(?:)"} : pattern, parse_regexp_flags(flags.view()));
+    }
 
     static gc_heap_ptr<regexp_object> check_type(const value& v) {
         // TODO: See ES3, 15.10.6 on thowing TypeError
@@ -76,7 +97,7 @@ public:
             last_index_ = value_representation{static_cast<double>(match[0].second - wstr.cbegin())};
         }
 
-        auto res = make_array(array_prototype_.track(heap()), {});
+        auto res = make_array(global_.dereference(heap()).array_prototype(), {});
 
         res->put(string{heap(), "input"}, value{str});
         res->put(string{heap(), "index"}, value{static_cast<double>(match[0].first - wstr.cbegin())});
@@ -90,10 +111,10 @@ public:
 
 private:
     friend gc_type_info_registration<regexp_object>;
-    gc_heap_ptr_untracked<object>       array_prototype_;
-    gc_heap_ptr_untracked<gc_string>    source_;
-    value_representation                last_index_;
-    regexp_flag                         flags_;
+    gc_heap_ptr_untracked<global_object>    global_;
+    gc_heap_ptr_untracked<gc_string>        source_;
+    value_representation                    last_index_;
+    regexp_flag                             flags_;
 
     value get_source() const {
         return value{source_.track(heap())};
@@ -119,9 +140,9 @@ private:
         last_index_ = value_representation{v};
     }
 
-    explicit regexp_object(global_object& global, const string& source, regexp_flag flags)
-        : native_object(global.common_string("RegExp"), global.regexp_prototype())
-        , array_prototype_(global.array_prototype())
+    explicit regexp_object(const gc_heap_ptr<global_object>& global, const string& source, regexp_flag flags)
+        : native_object(global->common_string("RegExp"), global->regexp_prototype())
+        , global_(global)
         , source_(source.unsafe_raw_get())
         , last_index_(value_representation{0.0})
         , flags_(flags) {
@@ -134,7 +155,7 @@ private:
 
     void fixup() {
         auto& h = heap();
-        array_prototype_.fixup(h);
+        global_.fixup(h);
         source_.fixup(h);
         last_index_.fixup(h);
         native_object::fixup();
@@ -142,29 +163,6 @@ private:
 };
 static_assert(!gc_type_info_registration<regexp_object>::needs_destroy);
 static_assert(gc_type_info_registration<regexp_object>::needs_fixup);
-
-regexp_flag parse_regexp_flags(const std::wstring_view& s) {
-    auto f = regexp_flag::none;
-    for (const auto ch: s) {
-        if (ch == 'g' && (f & regexp_flag::global) == regexp_flag::none) {
-            f = f | regexp_flag::global;
-        } else if (ch == 'i' && (f & regexp_flag::ignore_case) == regexp_flag::none) {
-            f = f | regexp_flag::ignore_case;
-        } else if (ch == 'm' && (f & regexp_flag::multiline) == regexp_flag::none) {
-            f = f | regexp_flag::multiline;
-        } else {
-            NOT_IMPLEMENTED("throw SyntaxError");
-        }
-    }
-    return f;
-}
-
-gc_heap_ptr<regexp_object> regexp_object::make(global_object& global, const string& pattern, const string& flags) {
-    // TODO: ES3, 15.10.4.1
-    // - "If pattern is an object R whose [[Class]] property is "RegExp" and flags is undefined , then return R unchanged."
-    // - ..
-    return global.heap().make<regexp_object>(global, pattern.view().empty() ? string{global.heap(), "(?:)"} : pattern, parse_regexp_flags(flags.view()));
-}
 
 create_result make_regexp_object(global_object& global) {
 //    auto& h = global.heap();
@@ -175,7 +173,7 @@ create_result make_regexp_object(global_object& global) {
         auto& h = global_.heap();
         auto p = args.size() > 0 && args[0].type() != value_type::undefined? to_string(h, args[0]) : string{h, ""};
         auto f = args.size() > 1 && args[1].type() != value_type::undefined? to_string(h, args[1]) : string{h, ""};
-        return value{regexp_object::make(*global_, p, f)};
+        return value{regexp_object::make(global_, p, f)};
     }, regexp_str.unsafe_raw_get(), 2);
     constructor->default_construct_function();
 
@@ -196,7 +194,7 @@ create_result make_regexp_object(global_object& global) {
     return { constructor, prototype };
 }
 
-object_ptr make_regexp(global_object& global, const string& pattern, const string& flags) {
+object_ptr make_regexp(const gc_heap_ptr<global_object>& global, const string& pattern, const string& flags) {
     return regexp_object::make(global, pattern, flags);
 }
 

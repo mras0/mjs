@@ -57,7 +57,6 @@
     - Consider making `gc_table` available for geenral use (e.g. by `string_cache`)
     - Have `native_object::add_native_property` take the name as a non-type template parameter and do some constexpr stuff (or something)
     - `native_object` should handle the issues faced by`activation_object` and `array_object` or probably die (or be repurposed)
-    - Handle interface pointers, they currently don't play nice with the type checks
 * REPL
     - Add tests
     - Add support for specifying the wanted ECMAScript version as a commandline argument

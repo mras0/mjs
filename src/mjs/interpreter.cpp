@@ -391,7 +391,7 @@ public:
     }
 
     value operator()(const regexp_literal_expression& e) {
-        return value{make_regexp(*global_, string{heap_, e.pattern()}, string{heap_, e.flags()})};
+        return value{make_regexp(global_, string{heap_, e.pattern()}, string{heap_, e.flags()})};
     }
 
     value operator()(const call_expression& e) {
