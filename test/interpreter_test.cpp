@@ -1106,12 +1106,65 @@ r.lastIndex;        //$number 8
     // - etc...
 }
 
+void test_error_object() {
+    if (tested_version() == version::es1) {
+        expect_exception<eval_exception>(L"new Error();");
+        return;
+    }
+
+    // TODO: Check that all the correct exception types are thrown (ES3, 15.11.6)
+
+    RUN_TEST_SPEC(R"(
+Error.prototype.constructor.length; //$number 1
+e1 = Error.prototype.constructor(42);
+s=''; for (k in e1) { s+=k+','; }; s; //$string ''
+e1.message; //$string '42'
+e1.name; //$ string 'Error'
+e1.message=false;
+e1.name=true;
+e1.message; //$boolean false
+e1.name; //$boolean true
+e1 instanceof Error; //$boolean true
+
+se = new SyntaxError('test');
+se.name;    //$string 'SyntaxError'
+se.message; //$string 'test'
+se instanceof Error; //$boolean true
+
+EvalError.prototype == Error.prototype; //$boolean false
+RangeError.prototype == Error.prototype; //$boolean false
+ReferenceError.prototype == Error.prototype; //$boolean false
+SyntaxError.prototype == Error.prototype; //$boolean false
+TypeError.prototype == Error.prototype; //$boolean false
+URIError.prototype == Error.prototype; //$boolean false
+
+SyntaxError = 42;
+SyntaxError; //$number 42
+delete SyntaxError;
+SyntaxError; //$undefined
+)");
+
+#if 0
+    RUN_TEST_SPEC(R"(
+try {
+    a.b;
+} catch (re) {
+    re.name;    //$string 'ReferenceError'
+    re.message; //$string 'a is not defined'
+    re instanceof Error; //$boolean true
+    re.toString(); //$string 'a is not defined\nSTACK TRACE TODO\n'
+}
+)");
+#endif
+
+}
+
 int main() {
     try {
         for (const auto ver: supported_versions) {
             tested_version(ver);
 
-            test_regexp_object(); // TODO: Move lower
+            test_error_object(); // TODO: Move lower
             eval_tests();
             if (tested_version() >= version::es3) {
                 test_es3_statements();
@@ -1121,6 +1174,7 @@ int main() {
             test_global_functions();
             test_math_functions();
             test_date_functions();
+            test_regexp_object();
             test_long_object_chain();
             test_eval_exception();
         }

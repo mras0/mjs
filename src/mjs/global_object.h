@@ -20,6 +20,7 @@ public:
     virtual object_ptr function_prototype() const = 0;
     virtual object_ptr array_prototype() const = 0;
     virtual object_ptr regexp_prototype() const = 0;
+    virtual object_ptr error_prototype() const = 0;
     virtual object_ptr to_object(const value& v) = 0;
 
     static constexpr auto prototype_attributes = property_attribute::dont_enum | property_attribute::dont_delete | property_attribute::read_only;

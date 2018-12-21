@@ -5,6 +5,7 @@
 #include "native_object.h"
 #include "function_object.h"
 #include "regexp_object.h"
+#include "error_object.h"
 #include <sstream>
 #include <chrono>
 #include <algorithm>
@@ -985,7 +986,7 @@ private:
 };
 
 #ifndef STRING_CACHE_STATS
-//static_assert(!gc_type_info_registration<string_cache>::needs_destroy); // FIXME
+static_assert(!gc_type_info_registration<string_cache>::needs_destroy);
 #endif
 static_assert(!gc_type_info_registration<string_cache>::needs_fixup);
 
@@ -999,6 +1000,7 @@ public:
     object_ptr function_prototype() const override { return function_prototype_.track(heap()); }
     object_ptr array_prototype() const override { return array_prototype_.track(heap()); }
     object_ptr regexp_prototype() const override { assert(language_version() >= version::es3); return regexp_prototype_.track(heap()); }
+    object_ptr error_prototype() const override { assert(language_version() >= version::es3); return error_prototype_.track(heap()); }
 
     object_ptr to_object(const value& v) override {
         switch (v.type()) {
@@ -1032,6 +1034,7 @@ private:
     gc_heap_ptr_untracked<object> boolean_prototype_;
     gc_heap_ptr_untracked<object> number_prototype_;
     gc_heap_ptr_untracked<object> regexp_prototype_;
+    gc_heap_ptr_untracked<object> error_prototype_;
     gc_heap_ptr_untracked<global_object_impl> self_;
 
     void fixup() {
@@ -1044,6 +1047,7 @@ private:
         boolean_prototype_.fixup(h);
         number_prototype_.fixup(h);
         regexp_prototype_.fixup(h);
+        error_prototype_.fixup(h);
         self_.fixup(h);
         global_object::fixup();
     }
@@ -1085,6 +1089,7 @@ private:
 
         if (language_version() >= version::es3) {
             add("RegExp", make_regexp_object, &regexp_prototype_);
+            add("Error", make_error_object, &error_prototype_);
         }
 
         assert(!get(L"Object").object_value()->can_put(L"prototype"));

@@ -165,7 +165,6 @@ static_assert(!gc_type_info_registration<regexp_object>::needs_destroy);
 static_assert(gc_type_info_registration<regexp_object>::needs_fixup);
 
 create_result make_regexp_object(global_object& global) {
-//    auto& h = global.heap();
     auto prototype = global.make_object();
     auto regexp_str = global.common_string("RegExp");
     auto constructor = make_function(global, [global_ = global.self_ptr()](const value&, const std::vector<value>& args) {
