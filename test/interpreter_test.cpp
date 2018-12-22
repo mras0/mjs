@@ -355,62 +355,6 @@ count(make(4)); //$number 31
 
     RUN_TEST(L"function  f ( x   ,\ny )  { return x + y;  }; f.toString()", value{string{h, "function f( x   ,\ny )  { return x + y;  }"}});
     RUN_TEST(L"a=parseInt;a.toString()", value{string{h, "function parseInt() { [native code] }"}});
-    // Array
-    RUN_TEST(L"Array.length", value{1.0});
-    RUN_TEST(L"Array.prototype.length", value{0.0});
-    RUN_TEST(L"new Array().length", value{0.0});
-    RUN_TEST(L"new Array(60).length", value{60.0});
-    RUN_TEST(L"new Array(1,2,3,4).length", value{4.0});
-    RUN_TEST(L"new Array(1,2,3,4)[3]", value{4.0});
-    RUN_TEST(L"new Array(1,2,3,4)[4]", value::undefined);
-    RUN_TEST(L"a=new Array(); a[5]=42; a.length", value{6.0});
-    RUN_TEST(L"a=new Array(); a[5]=42; a[3]=2; a.length", value{6.0});
-    RUN_TEST(L"a=new Array(1,2,3,4); a.length=2; a.length", value{2.0});
-    RUN_TEST(L"a=new Array(1,2,3,4); a.length=2; a[3]", value::undefined);
-    RUN_TEST(L"''+Array()", value{string{h, ""}});
-    RUN_TEST(L"a=Array();a[0]=1;''+a", value{string{h, "1"}});
-    RUN_TEST(L"''+Array(1,2,3,4)", value{string{h, "1,2,3,4"}});
-    RUN_TEST(L"Array(1,2,3,4).join()", value{string{h, "1,2,3,4"}});
-    RUN_TEST(L"Array(1,2,3,4).join('')", value{string{h, "1234"}});
-    RUN_TEST(L"Array(4).join()", value{string{h, ",,,"}});
-    RUN_TEST(L"Array(1,2,3,4).reverse()+''", value{string{h, "4,3,2,1"}});
-    RUN_TEST(L"''+Array('March', 'Jan', 'Feb', 'Dec').sort()", value{string{h, "Dec,Feb,Jan,March"}});
-    RUN_TEST(L"''+Array(1,30,4,21).sort()", value{string{h, "1,21,30,4"}});
-    RUN_TEST(L"function c(x,y) { return x-y; }; ''+Array(1,30,4,21).sort(c)", value{string{h, "1,4,21,30"}});
-    RUN_TEST(L"new Array(1).toString()", value{string{h, ""}});
-    RUN_TEST(L"new Array(1,2).toString()", value{string{h, "1,2"}});
-    RUN_TEST(L"+new Array(1)", value{0.});
-    RUN_TEST(L"+new Array(1,2)", value{NAN});
-    // Make sure we handle "large" arrays
-    RUN_TEST(L"a=new Array(500);for (var i=0; i<a.length; ++i) a[i] = i; sum=0; for (var i=0; i<a.length; ++i) sum += a[i]; sum", value{499*500/2.});
-
-    RUN_TEST_SPEC(R"(
-var a = new Array();
-a[false] = 0;
-a.length; //$number 0
-a[2] = 42;
-a.length; //$number 3
-a[7] = 100;
-a.length; //$number 8
-var s = ''; for (var k in a) s += k + ','; s //$string 'false,2,7,'
-a.length=4;
-s = ''; for (var k in a) s += k + ','; s //$string 'false,2,'
-delete a[2];
-a.length; //$number 4
-s = ''; for (var k in a) s += k + ','; s //$string 'false,'
-
-a = new Array(); a['10']=1; a.length //$number 11
-
-a = new Array(); a[1e3]=1; a.length //$number 1001
-s = ''; for (var k in a) s += k + ','; s //$string '1000,'
-
-a = new Array(); a['1e3'] = 42; a.length //$number 0
-s = ''; for (var k in a) s += k + ','; s //$string '1e3,'
-
-a = new Array(); a[4294967296]=1; a.length //$number 0
-
- s = ''; for (var k in a) s += k + ','; s //$string '4294967296,'
-)");
 
     // String
     RUN_TEST(L"String()", value{string{h, ""}});
@@ -1238,11 +1182,6 @@ eval;//$number 42
 )");
 
     //
-    // RangeError
-    //
-    // ES3, 15.4.2.2, 15.4.5.1, 15.7.4.5, 15.7.4.6, and 15.7.4.7
-
-    //
     // ReferenceError
     //
     // ES3, 8.7.1 and 8.7.2
@@ -1268,6 +1207,14 @@ try {
 
 )");
 
+
+    // TODO: Check if these are tested elsewhere (some probably are)
+
+    //
+    // RangeError
+    //
+    // ES3, 15.4.2.2, 15.4.5.1, 15.7.4.5, 15.7.4.6, and 15.7.4.7
+
     //
     // SyntaxError
     //
@@ -1288,8 +1235,97 @@ try {
 
 }
 
+void test_array_object() {
+    gc_heap h{8192};
+
+    // Array
+    RUN_TEST(L"Array.length", value{1.0});
+    RUN_TEST(L"Array.prototype.length", value{0.0});
+    RUN_TEST(L"new Array().length", value{0.0});
+    RUN_TEST(L"new Array(60).length", value{60.0});
+    RUN_TEST(L"new Array(1,2,3,4).length", value{4.0});
+    RUN_TEST(L"new Array(1,2,3,4)[3]", value{4.0});
+    RUN_TEST(L"new Array(1,2,3,4)[4]", value::undefined);
+    RUN_TEST(L"a=new Array(); a[5]=42; a.length", value{6.0});
+    RUN_TEST(L"a=new Array(); a[5]=42; a[3]=2; a.length", value{6.0});
+    RUN_TEST(L"a=new Array(1,2,3,4); a.length=2; a.length", value{2.0});
+    RUN_TEST(L"a=new Array(1,2,3,4); a.length=2; a[3]", value::undefined);
+    RUN_TEST(L"''+Array()", value{string{h, ""}});
+    RUN_TEST(L"a=Array();a[0]=1;''+a", value{string{h, "1"}});
+    RUN_TEST(L"''+Array(1,2,3,4)", value{string{h, "1,2,3,4"}});
+    RUN_TEST(L"Array(1,2,3,4).join()", value{string{h, "1,2,3,4"}});
+    RUN_TEST(L"Array(1,2,3,4).join('')", value{string{h, "1234"}});
+    RUN_TEST(L"Array(4).join()", value{string{h, ",,,"}});
+    RUN_TEST(L"Array(1,2,3,4).reverse()+''", value{string{h, "4,3,2,1"}});
+    RUN_TEST(L"''+Array('March', 'Jan', 'Feb', 'Dec').sort()", value{string{h, "Dec,Feb,Jan,March"}});
+    RUN_TEST(L"''+Array(1,30,4,21).sort()", value{string{h, "1,21,30,4"}});
+    RUN_TEST(L"function c(x,y) { return x-y; }; ''+Array(1,30,4,21).sort(c)", value{string{h, "1,4,21,30"}});
+    RUN_TEST(L"new Array(1).toString()", value{string{h, ""}});
+    RUN_TEST(L"new Array(1,2).toString()", value{string{h, "1,2"}});
+    RUN_TEST(L"+new Array(1)", value{0.});
+    RUN_TEST(L"+new Array(1,2)", value{NAN});
+    // Make sure we handle "large" arrays
+    RUN_TEST(L"a=new Array(500);for (var i=0; i<a.length; ++i) a[i] = i; sum=0; for (var i=0; i<a.length; ++i) sum += a[i]; sum", value{499*500/2.});
+
+    RUN_TEST_SPEC(R"(
+var a = new Array();
+a[false] = 0;
+a.length; //$number 0
+a[2] = 42;
+a.length; //$number 3
+a[7] = 100;
+a.length; //$number 8
+var s = ''; for (var k in a) s += k + ','; s //$string 'false,2,7,'
+a.length=4;
+s = ''; for (var k in a) s += k + ','; s //$string 'false,2,'
+delete a[2];
+a.length; //$number 4
+s = ''; for (var k in a) s += k + ','; s //$string 'false,'
+
+a = new Array(); a['10']=1; a.length //$number 11
+
+a = new Array(); a[1e3]=1; a.length //$number 1001
+s = ''; for (var k in a) s += k + ','; s //$string '1000,'
+
+a = new Array(); a['1e3'] = 42; a.length //$number 0
+s = ''; for (var k in a) s += k + ','; s //$string '1e3,'
+
+a = new Array(); a[4294967296]=1; a.length //$number 0
+
+ s = ''; for (var k in a) s += k + ','; s //$string '4294967296,'
+)");
+
+    if (tested_version() < version::es3) {
+        RUN_TEST_SPEC(R"(
+ap = Array.prototype;
+ap['toLocaleString'] || ap['concat'] || ap['push'] || ap['pop'] || ap['shift'] || ap['unshift'] || ap['splice'] //undefined
+
+// Array.prototype.toString is generic in ES1
+function f() { this.length=2; this[0]='x'; this[1]='y'; }
+f.prototype.toString = Array.prototype.toString;
+''+new f();//$string 'x,y'
+        )");
+        return;
+    }
+
+    RUN_TEST_SPEC(R"(
+function f() { this.length=2; this[0]='x'; this[1]='y'; }
+f.prototype.toString = Array.prototype.toString;
+try { ''+new f(); } catch (e) {
+    e.toString(); //$string 'TypeError: f is not an array'
+}
+[].toLocaleString(); //$string ''
+function t(x) { this.x = x; }
+t.prototype.toLocaleString = function() { return this.x; };
+[new t(42)].toLocaleString(); //$string '42'
+a=[new t(1), new t(2), undefined, new t(3), null]; a[null]=new t(4); a.toLocaleString(); //$string '1,2,,3,'
+)");
+}
+
 int main() {
     try {
+        //test_array_object(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
+
         for (const auto ver: supported_versions) {
             tested_version(ver);
 
@@ -1299,6 +1335,7 @@ int main() {
             }
             test_object_object();
             test_function_object();
+            test_array_object();
             test_global_functions();
             test_math_functions();
             test_date_functions();

@@ -1008,9 +1008,9 @@ public:
         case value_type::undefined:
         case value_type::null:
             {
-                std::ostringstream oss;
-                oss << "Cannot convert " << v.type() << " to object in " << __FUNCTION__;
-                THROW_RUNTIME_ERROR(oss.str());
+                std::wostringstream woss;
+                woss << "Cannot convert " << v.type() << " to object";
+                throw native_error_exception{native_error_type::type, stack_trace(), woss.str()};
             }
         case value_type::boolean: return new_boolean(boolean_prototype_.track(heap()), v.boolean_value());
         case value_type::number:  return new_number(number_prototype_.track(heap()), v.number_value());
@@ -1182,7 +1182,7 @@ void global_object::validate_type(const value& v, const object_ptr& expected_pro
     } else {
         mjs::debug_print(woss, v, 2, 1);
     }
-    woss << " is not a " << expected_type;
+    woss << " is not a" << (strchr("aeiou", expected_type[0]) ? "n" : "") << " " << expected_type;
     throw native_error_exception(native_error_type::type, stack_trace(), woss.str());
 }
 

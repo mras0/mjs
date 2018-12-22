@@ -31,7 +31,6 @@
     - Add test cases for directly relatable to clauses in the spec (e.g. `Boolean.prototype.constructor` exists and is correct)
     - ES3 support
         * Array
-            - `toLocaleString`
             - `concat`
             - `pop`, `push`, `shift`, `unshift`
             - `splice`

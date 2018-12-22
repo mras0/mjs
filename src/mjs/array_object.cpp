@@ -16,8 +16,7 @@ public:
     value get(const std::wstring_view& name) const override {
         const uint32_t index = get_array_index(name);
         if (index != invalid_array_index) {
-            auto& h = heap();
-            return index_present(index) ? values_.dereference(h)[index].get_value(h) : value::undefined;
+            return get_at(index);
         } else {
             return native_object::get(name);
         }
@@ -76,6 +75,8 @@ public:
         present_mask_.dereference(heap())[index/64] |= 1ULL<<(index%64);
     }
 
+    static string to_locale_string(const gc_heap_ptr<global_object>& global, const gc_heap_ptr<array_object>& arr);
+
 private:
     uint32_t length_;
     gc_heap_ptr_untracked<gc_vector<value_representation>> values_;
@@ -93,6 +94,11 @@ private:
 
     bool index_present(uint32_t index) const {
         return index < length_ && (present_mask_.dereference(heap())[index/64]&(1ULL<<(index%64)));
+    }
+
+    value get_at(uint32_t index) const {
+        auto& h = heap();
+        return index_present(index) ? values_.dereference(h)[index].get_value(h) : value::undefined;
     }
 
     uint32_t get_array_index(const std::wstring_view& name) const {
@@ -158,6 +164,21 @@ private:
     }
 };
 
+string array_object::to_locale_string(const gc_heap_ptr<global_object>& global, const gc_heap_ptr<array_object>& arr) {
+    auto& h = arr.heap();
+    const uint32_t len = arr->length_;
+    std::wstring s;
+    for (uint32_t i = 0; i < len; ++i) {
+        if (i) s += L",";
+        auto v = arr->get_at(i);
+        if (v.type() != value_type::undefined && v.type() != value_type::null) {
+            auto o = global->to_object(v);
+            s += to_string(h, call_function(o->get(L"toLocaleString"), value{o}, {})).view();
+        }
+    }
+    return string{h, s};
+}
+
 string join(const object_ptr& o, const std::wstring_view& sep) {
     auto& h = o.heap();
     const uint32_t l = to_uint32(o->get(L"length"));
@@ -182,10 +203,23 @@ create_result make_array_object(global_object& global) {
     }, Array_str_.unsafe_raw_get(), 1);
     c->default_construct_function();
 
-    put_native_function(global, prototype, "toString", [](const value& this_, const std::vector<value>&) {
-        assert(this_.type() == value_type::object);
-        return value{join(this_.object_value(), L",")};
-    }, 0);
+    const auto version = global.language_version();
+
+    if (version < version::es3) {
+        put_native_function(global, prototype, "toString", [](const value& this_, const std::vector<value>&) {
+            assert(this_.type() == value_type::object);
+            return value{join(this_.object_value(), L",")};
+        }, 0);
+    } else {
+        put_native_function(global, prototype, "toString", [global = global.self_ptr()](const value& this_, const std::vector<value>&) {
+            global->validate_type(this_, global->array_prototype(), "array");
+            return value{join(this_.object_value(), L",")};
+        }, 0);
+        put_native_function(global, prototype, "toLocaleString", [global = global.self_ptr()](const value& this_, const std::vector<value>&) {
+            global->validate_type(this_, global->array_prototype(), "array");
+            return value{array_object::to_locale_string(global, static_cast<gc_heap_ptr<array_object>>(this_.object_value()))};
+        }, 0);
+    }
     put_native_function(global, prototype, "join", [&h](const value& this_, const std::vector<value>& args) {
         assert(this_.type() == value_type::object);
         string sep{h, L","};
