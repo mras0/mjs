@@ -164,13 +164,13 @@ void gc_heap::detach(gc_heap_ptr_untyped& p) {
 gc_heap::allocation_result gc_heap::allocation_context::allocate(size_t num_bytes) {
     if (!num_bytes || num_bytes >= UINT32_MAX) {
         assert(!"Invalid allocation size");
-        std::abort();
+        throw std::bad_alloc{};
     }
 
     const auto num_slots = 1 + bytes_to_slots(num_bytes);
     if (num_slots > capacity_ || next_free_ > capacity_ - num_slots) {
         assert(!"Not implemented: Ran out of heap");
-        std::abort();
+        throw std::bad_alloc{};
     }
     const auto pos = next_free_;
     next_free_ += num_slots;

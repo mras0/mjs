@@ -1047,7 +1047,9 @@ private:
     };
     class auto_stack_update {
     public:
-        explicit auto_stack_update(impl& parent, const source_extend& pos) : parent_(parent)
+        explicit auto_stack_update(impl& parent, const source_extend& pos)
+            : parent_(parent)
+            , old_extend_(parent.current_extend_)
 #ifndef NDEBUG
             , pos_(pos)
 #endif
@@ -1058,9 +1060,11 @@ private:
         ~auto_stack_update() {
             assert(!parent_.stack_trace_.empty() && parent_.stack_trace_.back() == pos_);
             parent_.stack_trace_.pop_back();
+            parent_.current_extend_ = old_extend_;
         }
     private:
         impl& parent_;
+        source_extend old_extend_;
 #ifndef NDEBUG
         source_extend pos_;
 #endif
