@@ -32,8 +32,7 @@
     - ES3 support
         * Array
             - `concat`
-            - `shift`, `unshift`
-            - `splice`
+            - `slice`
             - throw `RangeError`
         * String
             - `concat`

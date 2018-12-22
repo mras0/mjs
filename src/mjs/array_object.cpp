@@ -218,6 +218,52 @@ value array_push(const gc_heap_ptr<global_object>& global, const object_ptr& o, 
     return l;
 }
 
+value array_shift(const gc_heap_ptr<global_object>& global, const object_ptr& o) {
+    auto& h = global.heap();
+    const uint32_t l = to_uint32(o->get(L"length"));
+    if (l == 0) {
+        o->put(global->common_string("length"), value{0.});
+        return value::undefined;
+    }
+    auto last_idx = string{h, index_string(0)};
+    auto res = o->get(last_idx.view());
+    for (uint32_t k = 1; k < l; ++k) {
+        auto this_idx = string{h, index_string(k)};
+        if (o->has_property(this_idx.view())) { // should this be hasOwnProperty?
+            o->put(last_idx, o->get(this_idx.view()));
+        } else {
+            o->delete_property(last_idx.view());
+        }
+        last_idx = this_idx;
+    }
+    o->put(global->common_string("length"), value{static_cast<double>(l-1)});
+    return res;
+}
+
+value array_unshift(const gc_heap_ptr<global_object>& global, const object_ptr& o, const std::vector<value>& args) {
+    // ES3, 15.4.4.13
+    auto& h = global.heap();
+    const uint32_t l = to_uint32(o->get(L"length"));
+    uint32_t k = l;
+    const uint32_t num_args = static_cast<uint32_t>(args.size());
+    for (; k; k--) {
+        const auto last_idx = index_string(k-1);
+        const auto this_idx = index_string(k+num_args-1);
+        if (o->has_property(last_idx)) {
+            o->put(string{h, this_idx}, o->get(last_idx));
+        } else {
+            o->delete_property(this_idx);
+        }
+    }
+    k = 0;
+    for (const auto& a: args) {
+        o->put(string{h, index_string(k++)}, a);
+    }
+    value new_l{static_cast<double>(l + num_args)};
+    o->put(global->common_string("length"), new_l);
+    return new_l;
+}
+
 create_result make_array_object(global_object& global) {
     auto Array_str_ = global.common_string("Array");
     auto prototype = array_object::make(Array_str_, global.object_prototype(), 0);
@@ -250,6 +296,14 @@ create_result make_array_object(global_object& global) {
         put_native_function(global, prototype, "push", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
             global->validate_object(this_);
             return array_push(global, this_.object_value(), args);
+        }, 1);
+        put_native_function(global, prototype, "shift", [global = global.self_ptr()](const value& this_, const std::vector<value>&) {
+            global->validate_object(this_);
+            return array_shift(global, this_.object_value());
+        }, 0);
+        put_native_function(global, prototype, "unshift", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+            global->validate_object(this_);
+            return array_unshift(global, this_.object_value(), args);
         }, 1);
     }
     put_native_function(global, prototype, "join", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {

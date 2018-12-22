@@ -1357,15 +1357,52 @@ o[44];//$string 'z'
  Array.prototype.join.call(o); //$string ',,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,x,y,z'
 )");
 
+    RUN_TEST_SPEC(R"(
+Array.prototype.shift.length;//$number 0
+a=[];
+a.shift();//$undefined
+a.length;//$number 0
+
+a=[1,2,3];
+a.shift();//$number 1
+a.join();//$string '2,3'
+
+o={ 3:100, 4: 101, 6: 101, length: 7 };
+Array.prototype.shift.call(o); //$undefined
+o.length;//$ number 6
+Array.prototype.join.call(o); //$string ',,100,101,,101'
+
+o2={length:'x'}
+Array.prototype.shift.call(o2); //$undefined
+o2.length;//$number 0
+)");
+
+    RUN_TEST_SPEC(R"(
+Array.prototype.unshift.length;//$number 1
+a=[];
+a.unshift();//$number 0
+a.length;//$number 0
+
+a=[1,2,3];
+a.unshift(10,11,12);//$number 6
+a.join();//$string '10,11,12,1,2,3'
+
+o = {length:3,0:'a',2:'c',3:'d',4:'e'};
+var s = ''; for (k in o) { s += k+':'+o[k]+','; }; s; // $string '0:a,2:c,3:d,4:e,length:3,'
+Array.prototype.unshift.call(o, 1); //$number 4
+s = ''; for (k in o) { s += k+':'+o[k]+','; }; s; // $string '0:1,1:a,3:c,4:e,length:4'
+)");
+
     // TODO: `concat`
-    // TODO: `shift`, `unshift`
-    // TODO: `splice`
+    // TODO: `slice`
     // TODO: throw `RangeError`
 
 }
 
 int main() {
     try {
+        //test_array_object(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
+
         for (const auto ver: supported_versions) {
             tested_version(ver);
 
