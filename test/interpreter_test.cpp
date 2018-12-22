@@ -68,6 +68,7 @@ void eval_tests() {
     RUN_TEST(L"var x=2; x--;", value{2.0});
     RUN_TEST(L"var x=2; x--; x", value{1.0});
     RUN_TEST(L"var x = 42; delete x; x", value{42.}); // Variables aren't deleted
+    RUN_TEST(L"var i=42; var x=i; x;", value{42.0});
     RUN_TEST(L"void(2+2)", value::undefined);
     RUN_TEST(L"typeof(2)", value{string{h, "number"}});
     RUN_TEST(L"x=4.5; ++x", value{5.5});

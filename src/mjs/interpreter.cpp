@@ -755,7 +755,7 @@ public:
             assert(active_scope_->has_property(d.id()));
             if (d.init()) {
                 // Evaulate in two steps to avoid using stale activation object pointer in case the evaulation forces a garbage collection
-                auto init_val = eval(*d.init());
+                auto init_val = get_value(eval(*d.init()));
                 active_scope_->put(string{heap_, d.id()}, init_val);
             }
         }
