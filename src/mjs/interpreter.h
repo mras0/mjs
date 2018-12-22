@@ -3,6 +3,7 @@
 
 #include "value.h"
 #include "version.h"
+#include "error_object.h"
 #include <functional>
 #include <memory>
 #include <stdexcept>
@@ -44,11 +45,6 @@ struct completion {
    bool has_target() const { return type == completion_type::break_ || type == completion_type::continue_; }
 };
 std::wostream& operator<<(std::wostream& os, const completion& c);
-
-class eval_exception : public std::runtime_error {
-public:
-    explicit eval_exception(const std::vector<source_extend>& stack_trace, const std::wstring_view& msg);
-};
 
 class interpreter {
 public:

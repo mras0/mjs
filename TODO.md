@@ -6,7 +6,6 @@
         * Handling unicode format-control characters (§7.1)
         * Handling unicode space separator characters (§7.2)
         * Handling unicode characters (and escape sequences) in identifiers (§7.6)
-        * Regular expression literals (§7.8.5) - only basic support for now
 * Parser
     - Test `source_extend` logic (could probably be more precise for expressions/statements)
     - More tests...
@@ -31,13 +30,29 @@
     - Optimize `array_object` - may need to make more `object` functions virtual and do the same for string objects
     - Add test cases for directly relatable to clauses in the spec (e.g. `Boolean.prototype.constructor` exists and is correct)
     - ES3 support
-        * Error object
-        * RegExp
-            - multiline regexp
+        * Function - `prototype.{apply, call}`
+        * Array
+            - `toLocaleString`
+            - `concat`
+            - `pop`, `push`, `shift`, `unshift`
+            - `splice`
+            - throw `RangeError`
+        * String
+            - `concat`
+            - `localeCompare`, `toLocaleLowerCase`, `toLocaleUpperCase`
+            - `slice`
+            - new functions using regular expressions (`match`, `replace`, `search`, `split`)
+        * Number
+            - `toLocaleString`
+            - `toFixed`, `toExponential`, `toPrecision`
+        * Date
+            - locale functions
+        * RegExp - multiline regexp
         * Lots and lots of missing functionality functions etc. -
           Consider implementing it in ECMAScript (i.e. polyfill it)!
     - Probably other missing stuff and non-compliant implementations...
     - Split up `mjs_lib` into its constituents (e.g. GC lib, lexer lib, ...), but most important to get global object and friends out
+    - Create function objects on demand (?)
 * Better GC
     - Ensure exception safety
     - Support growing the heap (and support growing it as needed)
@@ -59,6 +74,7 @@
     - `native_object` should handle the issues faced by`activation_object` and `array_object` or probably die (or be repurposed)
     - Reduce number of registered classes by moving `gc_table` out of `gc_vector` (and possibly making it type erased?)
     - Handle interface types better (currently only `object` and derived classes are handled)
+    - Help debug missing calls to `{native_}object::fixup()` in derived classes
 * REPL
     - Add tests
     - Add support for specifying the wanted ECMAScript version as a commandline argument

@@ -1,22 +1,21 @@
 # mjs
 
 ## Introduction
-_mjs_ is an interpreter for [ECMAScript 1st
+_mjs_ is an interpreter for ECMAScript [1st
 edition](https://www.ecma-international.org/publications/files/ECMA-ST-ARCH/ECMA-262,%201st%20edition,%20June%201997.pdf)
-(a.k.a. Javascript 1997) written in C++17. It was written as a hobby
-project for the purpose of gaining a better understanding of how
-Javascript actually works. As such, it neither strives to be fast,
-secure nor particularly beautiful. In fact, some things are downright
-terribly implemented; also no real programs were actually tested.
-
-Most of ES1 should be implemented (to some degree...), but see the
-[TODO](TODO.md) file for details. Also be aware that you probably
-haven't programmed in ES1 before and will find most modern conveniences
-(e.g. array and object literals) missing from the specification.
-
-Support for [ECMAScript 3rd
+(a.k.a. Javascript 1997) and [3rd
 edition](http://www.ecma-international.org/publications/files/ECMA-ST-ARCH/ECMA-262,%203rd%20edition,%20December%201999.pdf)
-is currently (slowly) under way.
+written in C++17. It was written as a hobby project for the purpose of
+gaining a better understanding of how Javascript actually works. As
+such, it neither strives to be fast, secure nor particularly beautiful.
+In fact, some things are downright terribly implemented; also no real
+programs were actually tested.
+
+Most ES1 and ES3 language features should be implemented (to some
+degree...), but many built-in functions and classes are either
+incomplete or missing. See the [TODO](TODO.md) file for details. It is
+likely that the missing pieces will only be added once they're needed
+(by me).
 
 ## Building
 
@@ -46,9 +45,11 @@ These steps should work for most people:
 The project is currently light on the documentation front, but here is
 what's available so far:
 
-* [Implementing a Garbage Collector in C++](https://mras0.github.io/mjs/doc/gc/initial.html) about how the garbage collector was implemented
-* [Supporting ECMAScript 3rd Edition](doc/es3/es3.md) on the work being
-  done to support ES3 (very incomplete)
+* [Implementing a Garbage Collector in
+  C++](https://mras0.github.io/mjs/doc/gc/initial.html) about how the
+  garbage collector was implemented
+* [Supporting ECMAScript 3rd Edition](doc/es3/es3.md) on the work done
+  to support ES3 (very incomplete)
 
 ## Support
 

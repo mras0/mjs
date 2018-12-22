@@ -57,4 +57,6 @@ Weird stuff/notes:
 - `in` complication with `for..in` statement (another ugly hack in place...)
 - `instanceof` requires support for `[[HasInstance]]`
 - Implementation order..
+- `delete SyntaxError; x` makes the Node.js REPL exit (at least in
+  version 6.10.3)
 

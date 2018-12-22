@@ -30,18 +30,6 @@ const char* string_value(value_type t) {
 }
 
 //
-// reference
-//
-
-value reference::get_value() const {
-    return base_->get(property_name_.view());
-}
-
-void reference::put_value(const value& val) const {
-    base_->put(property_name_, val);
-}
-
-//
 // value
 //
 
@@ -113,12 +101,6 @@ bool operator==(const value& l, const value& r) {
     case value_type::reference: break;
     }
     NOT_IMPLEMENTED(l.type());
-}
-
-[[nodiscard]] bool put_value(const value& ref, const value& val) {
-    if (ref.type() != value_type::reference) return false;
-    ref.reference_value().put_value(val);
-    return true;
 }
 
 //

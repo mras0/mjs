@@ -69,6 +69,7 @@ void run_test(const std::wstring_view& text, const value& expected) {
             error_stream << "Pretty printed:\n";
             error_stream << start;
             print(error_stream, *bs);
+            error_stream << "\n";
             error_stream << end;
 
             error_stream << "\n";

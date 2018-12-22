@@ -37,14 +37,10 @@ using object_ptr = gc_heap_ptr<object>;
 class reference {
 public:
     explicit reference(const object_ptr& base, const string& property_name) : base_(base), property_name_(property_name) {
-        assert(base);
     }
 
     const object_ptr& base() const { return base_; }
     const string& property_name() const { return property_name_; }
-
-    value get_value() const;
-    void put_value(const value& val) const;
 
 private:
     object_ptr base_;
@@ -94,16 +90,6 @@ bool operator==(const value& l, const value& r);
 inline bool operator!=(const value& l, const value& r) {
     return !(l == r);
 }
-
-inline value get_value(const value& v) {
-    return v.type() == value_type::reference ? v.reference_value().get_value() : v;
-}
-
-inline value get_value(value&& v) {
-    return v.type() == value_type::reference ? v.reference_value().get_value() : std::move(v);
-}
-
-[[nodiscard]] bool put_value(const value& ref, const value& val);
 
 // §9 Type Conversions
 value to_primitive(const value& v, value_type hint = value_type::undefined);

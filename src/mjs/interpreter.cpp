@@ -217,22 +217,13 @@ private:
     }
 };
 
-static std::string get_eval_exception_repr(const std::vector<source_extend>& stack_trace, const std::wstring_view& msg) {
-    std::ostringstream oss;
-    oss << std::string(msg.begin(), msg.end());
-    for (const auto& e: stack_trace) {
-        assert(e.file);
-        oss << '\n' << e;
-    }
-    return oss.str();
-}
-
-eval_exception::eval_exception(const std::vector<source_extend>& stack_trace, const std::wstring_view& msg) : std::runtime_error(get_eval_exception_repr(stack_trace, msg)) {
-}
-
 class interpreter::impl {
 public:
-    explicit impl(gc_heap& h, version ver, const block_statement& program, const on_statement_executed_type& on_statement_executed) : heap_(h), program_(program), global_(global_object::make(h, ver)), on_statement_executed_(on_statement_executed) {
+    explicit impl(gc_heap& h, version ver, const block_statement& program, const on_statement_executed_type& on_statement_executed)
+        : heap_(h)
+        , program_(program)
+        , global_(global_object::make(h, ver))
+        , on_statement_executed_(on_statement_executed) {
         assert(!global_->has_property(L"eval"));
 
         put_native_function(*global_, global_, "eval", [this](const value&, const std::vector<value>& args) {
@@ -272,7 +263,7 @@ public:
 
 
         for (const auto& id: hoisting_visitor::scan(program)) {
-            global_->put(string{heap_, id}, value::undefined);
+            global_->put(string{heap_, id}, value::undefined, property_attribute::dont_delete);
         }
 
         active_scope_ = make_scope(global_, nullptr);
@@ -280,6 +271,10 @@ public:
 
     ~impl() {
         assert(active_scope_ && !active_scope_->get_prev());
+    }
+
+    void current_extend(const source_extend& e) {
+        current_extend_ = e;
     }
 
     value eval(const expression& e) {
@@ -306,13 +301,23 @@ public:
             --gc_cooldown_;
         }
 
-        if (on_statement_executed_) {
-            auto res = accept(s, *this);
-            on_statement_executed_(s, res);
-            return res;
+        completion res{};
+
+        current_extend(s.extend());
+
+        if (global_->language_version() >= version::es3) {
+            try {
+                res = accept(s, *this);
+            } catch (const native_error_exception& e) {
+                res = completion{value{e.make_error_object(global_)}, completion_type::throw_};
+            }
         } else {
-            return accept(s, *this);
+            res = accept(s, *this);
         }
+        if (on_statement_executed_) {
+            on_statement_executed_(s, res);
+        }
+        return res;
     }
 
     value top_level_eval(const statement& s, bool allow_return = true) {
@@ -323,9 +328,13 @@ public:
         if (allow_return && c.type == completion_type::return_) {
             return c.result;
         }
+        if (c.type == completion_type::throw_) {
+            assert(c.result.type() == value_type::object);
+            rethrow_error(c.result.object_value());
+        }
         std::wostringstream woss;
         woss << "Top level evaluation resulted in abrupt termination: " << c;
-        throw eval_exception(stack_trace(s.extend()), woss.str());
+        throw native_error_exception(native_error_type::eval, stack_trace(), woss.str());
     }
 
     value eval_program() {
@@ -400,8 +409,8 @@ public:
         auto args = eval_argument_list(e.arguments());
         if (mval.type() != value_type::object) {
             std::wostringstream woss;
-            woss << e.member() << " is not a function";
-            throw eval_exception(stack_trace(e.extend()), woss.str());
+            woss << to_string(heap_, mval).view() << " is not a function";
+            throw native_error_exception(native_error_type::type, stack_trace(), woss.str());
         }
         auto this_ = value::null;
         if (member.type() == value_type::reference) {
@@ -449,13 +458,8 @@ public:
                 NOT_IMPLEMENTED(u.type());
             }
         } else if (e.op() == token_type::plusplus || e.op() == token_type::minusminus) {
-            if (u.type() != value_type::reference) {
-                NOT_IMPLEMENTED(to_string(heap_, u));
-            }
             auto num = to_number(get_value(u)) + (e.op() == token_type::plusplus ? 1 : -1);
-            if (!put_value(u, value{num})) {
-                NOT_IMPLEMENTED(to_string(heap_, u));
-            }
+            put_value(u, value{num});
             return value{num};
         } else if (e.op() == token_type::plus) {
             return value{to_number(get_value(u))};
@@ -471,10 +475,6 @@ public:
 
     value operator()(const postfix_expression& e) {
         auto member = eval(e.e());
-        if (member.type() != value_type::reference) {
-            NOT_IMPLEMENTED(e);
-        }
-
         auto orig = to_number(get_value(member));
         auto num = orig;
         switch (e.op()) {
@@ -482,9 +482,7 @@ public:
         case token_type::minusminus: num -= 1; break;
         default: NOT_IMPLEMENTED(e.op());
         }
-        if (!put_value(member, value{num})) {
-            NOT_IMPLEMENTED(e);
-        }
+        put_value(member, value{num});
         return value{orig};
     }
 
@@ -645,9 +643,7 @@ public:
                 auto lval = get_value(l);
                 r = do_binary_op(without_assignment(e.op()), lval, r);
             }
-            if (!put_value(l, r)) {
-                NOT_IMPLEMENTED(e);
-            }
+            put_value(l, r);
             return r;
         }
 
@@ -839,11 +835,7 @@ public:
             auto o = global_->to_object(ev);
             const auto& lhs_expression = static_cast<const expression_statement&>(s.init()).e();
             for (const auto& n: o->property_names()) {
-                if (!put_value(eval(lhs_expression), value{n})) {
-                    std::wostringstream woss;
-                    woss << lhs_expression << " is not an valid left hand side expression in for in loop";
-                    throw eval_exception(stack_trace(lhs_expression.extend()), woss.str());
-                }
+                put_value(eval(lhs_expression), value{n});
                 c = eval(s.s());
                 if (handle_completion(c, ls)) {
                     return c;
@@ -856,10 +848,7 @@ public:
             const auto& init = var_statement.l()[0];
 
             auto assign = [&](const value& val) {
-                if (!put_value(value{active_scope_->lookup(init.id())}, val)) {
-                    // Shouldn't happen (?)
-                    NOT_IMPLEMENTED(s);
-                }
+                put_value(value{active_scope_->lookup(init.id())}, val);
             };
 
             assign(init.init() ? get_value(eval(*init.init())) : value::undefined);
@@ -908,7 +897,7 @@ public:
         if (std::find(label_set_.begin(), label_set_.end(), s.id()) != label_set_.end()) {
             std::wostringstream woss;
             woss << "Duplicate label " << s.id();
-            throw eval_exception(stack_trace(s.extend()), woss.str());
+            throw native_error_exception(native_error_type::syntax, stack_trace(), woss.str());
         }
         label_set_.push_back(s.id());
         labels_valid_for_ = &s.s();
@@ -997,10 +986,14 @@ private:
 #endif
 
         reference lookup(const string& id) const {
-            if (!prev_ || activation_.dereference(heap_).has_property(id.view())) {
+            if (activation_.dereference(heap_).has_property(id.view())) {
                 return reference{activation_.track(heap_), id};
             }
-            return prev_.dereference(heap_).lookup(id);
+            if (prev_) {
+                return prev_.dereference(heap_).lookup(id);
+            } else {
+                return reference{nullptr, id};
+            }
         }
 
         reference lookup(const std::wstring& id) const {
@@ -1071,14 +1064,15 @@ private:
     int                            gc_cooldown_ = 0;
     label_set                      label_set_;
     const statement*               labels_valid_for_ = nullptr;
+    source_extend                  current_extend_;
 
     static scope_ptr make_scope(const object_ptr& act, const scope_ptr& prev) {
         return act.heap().make<scope>(act, prev);
     }
 
-    std::vector<source_extend> stack_trace(const source_extend& current_extend) const {
+    std::vector<source_extend> stack_trace() const {
         std::vector<source_extend> t;
-        t.push_back(current_extend);
+        t.push_back(current_extend_);
         t.insert(t.end(), stack_trace_.rbegin(), stack_trace_.rend());
         return t;
     }
@@ -1107,8 +1101,13 @@ private:
             return construct_function(o, value::undefined, args);
         } catch (const not_callable_exception&) {
             std::wostringstream woss;
-            woss << e << " is not " << (o.type() != value_type::object ? "an object" : "constructable");
-            throw eval_exception(stack_trace(e.extend()), woss.str());
+            if (o.type() != value_type::object) {
+                woss << to_string(heap_, o).view() << " is not an object";
+            } else {
+                // TODO: Could get function name here at some point
+                woss << o.object_value()->class_name().view() << " is not constructable";
+            }            
+            throw native_error_exception(native_error_type::type, stack_trace(), woss.str());
         }
     }
 
@@ -1152,6 +1151,37 @@ private:
     object_ptr create_function(const function_base& f, const scope_ptr& prev_scope) {
         return create_function(string{heap_, f.id()}, f.block_ptr(), f.params(), std::wstring{f.body_extend().source_view()}, prev_scope);
     }
+
+    // ES3, 8.7.1
+    value get_value(const value& v) const {
+        if (v.type() != value_type::reference) {
+            return v;
+        }
+        auto& r = v.reference_value();
+        auto b = r.base();
+        if (!b) {
+            std::wostringstream woss;
+            woss << r.property_name().view() << " is not defined";
+            throw native_error_exception{native_error_type::reference, stack_trace(), woss.str()};
+        }
+        return b->get(r.property_name().view());
+    }
+
+    // ES3, 8.7.2
+    void put_value(const value& v, const value& w) const {
+        if (v.type() != value_type::reference) {
+            std::wostringstream woss;
+            debug_print(woss, v, 4);
+            woss << " is not a reference";
+            throw native_error_exception{native_error_type::reference, stack_trace(), woss.str()};
+        }
+        auto& r = v.reference_value();
+        auto b = r.base();
+        if (!b) {
+            b = global_;
+        }
+        b->put(r.property_name(), w);
+    }
 };
 
 interpreter::interpreter(gc_heap& h, version ver, const block_statement& program, const on_statement_executed_type& on_statement_executed) : impl_(new impl{h, ver, program, on_statement_executed}) {
@@ -1160,8 +1190,8 @@ interpreter::interpreter(gc_heap& h, version ver, const block_statement& program
 interpreter::~interpreter() = default;
 
 value interpreter::eval(const expression& e) {
+    impl_->current_extend(e.extend());
     return impl_->eval(e);
-
 }
 
 completion interpreter::eval(const statement& s) {

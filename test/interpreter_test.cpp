@@ -67,7 +67,7 @@ void eval_tests() {
     RUN_TEST(L"var x=2; x++; x", value{3.0});
     RUN_TEST(L"var x=2; x--;", value{2.0});
     RUN_TEST(L"var x=2; x--; x", value{1.0});
-    RUN_TEST(L"var x = 42; delete x; x", value::undefined);
+    RUN_TEST(L"var x = 42; delete x; x", value{42.}); // Variables aren't deleted
     RUN_TEST(L"void(2+2)", value::undefined);
     RUN_TEST(L"typeof(2)", value{string{h, "number"}});
     RUN_TEST(L"x=4.5; ++x", value{5.5});
@@ -164,10 +164,10 @@ function r(o) {
     return s;
 }
 r(42); //$ string ''
-k; //$ undefined
+global['k']; //$ undefined
 var o = new Object(); o.x=42; o.y=60;
 r(o); //$ string 'x,y'
-k; //$ string 'y'
+global['k']; //$ string 'y'
 )");
 
     RUN_TEST_SPEC(R"(
@@ -180,10 +180,10 @@ function r(o) {
     return s;
 }
 r(42); //$ string ''
-k; //$ undefined
+global['k']; //$ undefined
 var o = new Object(); o['test test'] = 60; o.prop = 12;
 r(o); //$ string 'test test,prop'
-k; //$ undefined
+global['k']; //$ undefined
 
 for (var y = 11 in 60){}
 y; //$ number 11
@@ -198,8 +198,8 @@ with (a) {
     x = 60;
     y = true;
 }
-x; //$ undefined
-y; //$ boolean true
+global['x']; //$ undefined
+global['y']; //$ boolean true
 a.x; //$ number 60
 a.y; //$ undefined
 
@@ -212,8 +212,8 @@ function f() {
     }
 };
 f();
-x; //$ undefined
-y; //$ boolean true
+global['x']; //$ undefined
+global['y']; //$ boolean true
 a.x; //$ number 123
 a.y; //$ number 1
 
@@ -669,20 +669,20 @@ null
 #define EX_EQUAL(expected, actual) do { const auto _e = (expected); const auto _a = (actual); if (_e != _a) { std::ostringstream _woss; _woss << "Expected\n\"" << _e << "\" got\n\"" << _a << "\"\n"; THROW_RUNTIME_ERROR(_woss.str()); } } while (0)
 
 void test_eval_exception() {
-    EX_EQUAL("identifier_expression{not_callable} is not a function\ntest:1:2-1:16", expect_exception<>(LR"( not_callable(); )"));
-    EX_EQUAL("identifier_expression{x} is not a function\ntest:2:16-2:19\ntest:3:19-3:22\ntest:4:17-4:20\ntest:5:40-5:43", expect_exception<>(LR"(
+    EX_EQUAL("ReferenceError: not_callable is not defined\ntest:1:2-1:18", expect_exception<>(LR"( not_callable(); )"));
+    EX_EQUAL("TypeError: 42 is not a function\ntest:2:16-2:21\ntest:3:19-3:22\ntest:4:17-4:20\ntest:5:40-5:43", expect_exception<>(LR"( x = 42;
 function a() { x(); }
    function b() { a(); }
  function c() { b(); }
                                        c();
 )"));
 
-    EX_EQUAL("call_expression{identifier_expression{bar}, {}} is not an object\ntest:2:41-2:50\ntest:2:32-2:39\ntest:2:32-2:39\ntest:3:1-3:5", expect_exception<>(LR"(
+    EX_EQUAL("ReferenceError: bar is not defined\ntest:2:17-2:52\ntest:2:32-2:39\ntest:2:32-2:39\ntest:3:1-3:5", expect_exception<>(LR"(
 function f(i) { return i > 2 ? f(i-1) : new bar(); }
 f(4);
 )"));
 
-    EX_EQUAL("call_expression{identifier_expression{parseInt}, {literal_expression{token{numeric_literal, 42}}}} is not constructable\ntest:1:1-1:17", expect_exception<eval_exception>(L"new parseInt(42);"));
+    EX_EQUAL("TypeError: Function is not constructable\ntest:1:1-1:18", expect_exception<eval_exception>(L"new parseInt(42);"));
 }
 
 void test_es3_statements() {
@@ -1138,24 +1138,79 @@ SyntaxError.prototype == Error.prototype; //$boolean false
 TypeError.prototype == Error.prototype; //$boolean false
 URIError.prototype == Error.prototype; //$boolean false
 
+'SyntaxError' in global; //$boolean true
 SyntaxError = 42;
 SyntaxError; //$number 42
 delete SyntaxError;
-SyntaxError; //$undefined
+'SyntaxError' in global; //$boolean false
 )");
 
-#if 0
+    //
+    // EvalError
+    //
+    // ES3, 15.1.2.1
+    //
+    // Use is optional, see ES3, 16:
+    //
+    // An implementation is not required to detect EvalError.
+    // If it chooses not to detect EvalError, the implementation must allow eval
+    // to be used indirectly and/or allow assignments to eval.
+
     RUN_TEST_SPEC(R"(
+x = eval;
+x(60); //$number 60
+eval=42;
+eval;//$number 42
+)");
+
+    //
+    // RangeError
+    //
+    // ES3, 15.4.2.2, 15.4.5.1, 15.7.4.5, 15.7.4.6, and 15.7.4.7
+
+    //
+    // ReferenceError
+    //
+    // ES3, 8.7.1 and 8.7.2
+    RUN_TEST_SPEC(R"(
+// 8.7.1
 try {
     a.b;
 } catch (re) {
     re.name;    //$string 'ReferenceError'
     re.message; //$string 'a is not defined'
     re instanceof Error; //$boolean true
-    re.toString(); //$string 'a is not defined\nSTACK TRACE TODO\n'
+    re.toString(); //$string 'ReferenceError: a is not defined'
 }
+
+// 8.7.2
+try {
+    ++42;
+} catch (re) {
+    re.name;    //$string 'ReferenceError'
+    re.message; //$string '42 is not a reference'
+    re.toString(); //$string 'ReferenceError: 42 is not a reference'
+}
+
 )");
-#endif
+
+    //
+    // SyntaxError
+    //
+    // ES3, 15.1.2.1, 15.3.2.1, 15.10.2.5, 15.10.2.9, 15.10.2.15, 15.10.2.19, and 15.10.4.1
+
+    //
+    // TypeError
+    //
+    // ES3, 8.6.2, 8.6.2.6, 9.9, 11.2.2, 11.2.3, 11.8.6, 11.8.7, 15.3.4.2, 15.3.4.3,
+    // 15.3.4.4, 15.3.5.3, 15.4.4.2, 15.4.4.3, 15.5.4.2, 15.5.4.3, 15.6.4, 15.6.4.2,
+    // 15.6.4.3, 15.7.4, 15.7.4. 2, 15.7.4.4, 15.9.5, 15.9.5.9, 15.9.5.27, 15.10.4.1,
+    // and 15.10.6.
+
+    //
+    // URIError
+    //
+    // ES3, 15.1.3
 
 }
 
@@ -1164,7 +1219,6 @@ int main() {
         for (const auto ver: supported_versions) {
             tested_version(ver);
 
-            test_error_object(); // TODO: Move lower
             eval_tests();
             if (tested_version() >= version::es3) {
                 test_es3_statements();
@@ -1175,6 +1229,7 @@ int main() {
             test_math_functions();
             test_date_functions();
             test_regexp_object();
+            test_error_object();
             test_long_object_chain();
             test_eval_exception();
         }
