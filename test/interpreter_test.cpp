@@ -941,9 +941,6 @@ o.valueOf() == o; //$boolean true
         return;
     }
 
-    // TODO: hasOwnProperty
-    //       isPrototypeOf
-    //       propertyIsEnumerable 
     RUN_TEST_SPEC(R"(
 Object.prototype.toLocaleString === Object.prototype.toString; //$boolean true
 
@@ -994,12 +991,49 @@ void test_function_object() {
     if (tested_version() < version::es3) {
         // In ES1 prototype should be DontEnum only
         RUN_TEST(L"function a(){}; (delete a.prototype)", value{true});
-    } else {
-        // In ES3 prototype is DontDelete
-        RUN_TEST(L"function a(){}; (delete a.prototype)", value{false});
+        // Shouldn't have call/apply
+        RUN_TEST(L"fp = Function.prototype; fp['call'] || fp['apply']", value::undefined);
+        return;
     }
 
-    // TODO: Check all the properties do what they're supposed to
+    // In ES3 prototype is DontDelete
+    RUN_TEST(L"function a(){}; (delete a.prototype)", value{false});
+
+    RUN_TEST_SPEC(R"(
+Function.prototype.apply.length; //$number 2
+function f(a,b,c) { return ''+this['x']+a+b+c; }
+x=42;
+f.apply(); //$string '42undefinedundefinedundefined'
+f.apply(null); //$string '42undefinedundefinedundefined'
+f.apply({}); //$string 'undefinedundefinedundefinedundefined'
+f.apply({x:60},['a','b']); //$string '60abundefined'
+f.apply({x:'z'},[1,2,3,4]); //$string 'z123'
+
+String.prototype.charAt.apply('test',[2]); //$string 's'
+
+String.prototype.apply = Function.prototype.apply;
+try { ('h').apply(); } catch (e) {
+    e.toString(); //$ string 'TypeError: String is not a function'
+}
+)");
+
+    RUN_TEST_SPEC(R"(
+Function.prototype.call.length; //$number 1
+function f(a,b,c) { return ''+this['x']+a+b+c; }
+x=42;
+f.call(); //$string '42undefinedundefinedundefined'
+f.call(null); //$string '42undefinedundefinedundefined'
+f.call({}); //$string 'undefinedundefinedundefinedundefined'
+f.call({x:60},'a','b'); //$string '60abundefined'
+f.call({x:'z'},1,2,3,4); //$string 'z123'
+
+String.prototype.charAt.call('test',2); //$string 's'
+
+String.prototype.call = Function.prototype.call;
+try { ('h').call(); } catch (e) {
+    e.toString(); //$ string 'TypeError: String is not a function'
+}
+)");
 }
 
 void test_regexp_object() {

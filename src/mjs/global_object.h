@@ -4,6 +4,7 @@
 #include "value.h"
 #include "object.h"
 #include "version.h"
+#include <functional>
 
 namespace mjs {
 
@@ -21,7 +22,7 @@ public:
     virtual object_ptr array_prototype() const = 0;
     virtual object_ptr regexp_prototype() const = 0;
     virtual object_ptr error_prototype() const = 0;
-    virtual object_ptr to_object(const value& v) = 0;
+    virtual object_ptr to_object(const value& v) = 0;    
 
     static constexpr auto prototype_attributes = property_attribute::dont_enum | property_attribute::dont_delete | property_attribute::read_only;
     static constexpr auto default_attributes = property_attribute::dont_enum;
@@ -35,14 +36,28 @@ public:
 
     object_ptr make_object();
 
+    std::wstring stack_trace() const {
+        assert(stack_trace_);
+        return stack_trace_();
+    }
+
+    void set_stack_trace_function(const std::function<std::wstring()>& f) {
+        assert(!stack_trace_);
+        stack_trace_ = f;
+    }
+
+    void validate_type(const value& v, const object_ptr& expected_prototype, const char* expected_type);
+
 protected:
     version version_;
     using object::object;
     global_object(global_object&&) = default;
+
+private:
+    std::function<std::wstring()> stack_trace_;
 };
 
 extern std::wstring index_string(uint32_t index);
-extern void validate_type(const value& v, const object_ptr& expected_prototype, const char* expected_type);
 
 // TODO: Need better name
 struct create_result {

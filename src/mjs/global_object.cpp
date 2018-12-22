@@ -118,8 +118,8 @@ create_result make_string_object(global_object& global) {
         return value{string{h, s}};
     }, 0);
 
-    auto check_type = [prototype](const value& this_) {
-        validate_type(this_, prototype, "String");
+    auto check_type = [global = global.self_ptr(), prototype](const value& this_) {
+        global->validate_type(this_, prototype, "String");
     };
 
     put_native_function(global, prototype, global.common_string("toString"), [check_type](const value& this_, const std::vector<value>&){
@@ -253,8 +253,8 @@ create_result make_boolean_object(global_object& global) {
         return value{new_boolean(prototype, !args.empty() && to_boolean(args.front()))};
     });
 
-    auto check_type = [prototype](const value& this_) {
-        validate_type(this_, prototype, "Boolean");
+    auto check_type = [global = global.self_ptr(), prototype](const value& this_) {
+        global->validate_type(this_, prototype, "Boolean");
     };
 
     put_native_function(global, prototype, global.common_string("toString"), [check_type](const value& this_, const std::vector<value>&){
@@ -299,8 +299,8 @@ create_result make_number_object(global_object& global) {
     c->put(string{h, "NEGATIVE_INFINITY"}, value{-INFINITY}, global_object::default_attributes);
     c->put(string{h, "POSITIVE_INFINITY"}, value{INFINITY}, global_object::default_attributes);
 
-    auto check_type = [prototype](const value& this_) {
-        validate_type(this_, prototype, "Number");
+    auto check_type = [global = global.self_ptr(), prototype](const value& this_) {
+        global->validate_type(this_, prototype, "Number");
     };
 
     put_native_function(global, prototype, global.common_string("toString"), [check_type](const value& this_, const std::vector<value>& args){
@@ -658,8 +658,8 @@ create_result make_date_object(global_object& global) {
 
     // TODO: Date.parse(string)
 
-    auto check_type = [prototype](const value& this_) {
-        validate_type(this_, prototype, "Date");
+    auto check_type = [global = global.self_ptr(), prototype](const value& this_) {
+        global->validate_type(this_, prototype, "Date");
     };
 
     auto make_date_getter = [&](const char* name, auto f) {
@@ -1172,15 +1172,18 @@ std::wstring index_string(uint32_t index) {
     return std::wstring{p};
 }
 
-// FIXME: Is this sufficient to guard against clever users?
-void validate_type(const value& v, const object_ptr& expected_prototype, const char* expected_type) {
+void global_object::validate_type(const value& v, const object_ptr& expected_prototype, const char* expected_type) {
     if (v.type() == value_type::object && v.object_value()->prototype().get() == expected_prototype.get()) {
         return;
     }
     std::wostringstream woss;
-    mjs::debug_print(woss, v, 2, 1);
+    if (v.type() == value_type::object) {
+        woss << v.object_value()->class_name();
+    } else {
+        mjs::debug_print(woss, v, 2, 1);
+    }
     woss << " is not a " << expected_type;
-    THROW_RUNTIME_ERROR(woss.str());
+    throw native_error_exception(native_error_type::type, stack_trace(), woss.str());
 }
 
 } // namespace mjs

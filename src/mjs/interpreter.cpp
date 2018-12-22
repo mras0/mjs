@@ -224,8 +224,13 @@ public:
         , program_(program)
         , global_(global_object::make(h, ver))
         , on_statement_executed_(on_statement_executed) {
-        assert(!global_->has_property(L"eval"));
 
+
+        global_->set_stack_trace_function([this]() {
+            return stack_trace();
+        });
+
+        assert(!global_->has_property(L"eval"));
         put_native_function(*global_, global_, "eval", [this](const value&, const std::vector<value>& args) {
             // ES3, 15.1.2.1
             if (args.empty()) {
@@ -1085,11 +1090,15 @@ private:
         return act.heap().make<scope>(act, prev);
     }
 
-    std::vector<source_extend> stack_trace() const {
-        std::vector<source_extend> t;
-        t.push_back(current_extend_);
-        t.insert(t.end(), stack_trace_.rbegin(), stack_trace_.rend());
-        return t;
+    std::wstring stack_trace() const {
+        std::wostringstream woss;
+        assert(current_extend_.file);
+        woss << current_extend_;
+        for (auto it =  stack_trace_.crbegin(), end = stack_trace_.crend(); it != end; ++it) {
+            assert(it->file);
+            woss << "\n" << *it;
+        }
+        return woss.str();
     }
 
     std::vector<value> eval_argument_list(const expression_list& es) {

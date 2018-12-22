@@ -30,7 +30,6 @@
     - Optimize `array_object` - may need to make more `object` functions virtual and do the same for string objects
     - Add test cases for directly relatable to clauses in the spec (e.g. `Boolean.prototype.constructor` exists and is correct)
     - ES3 support
-        * Function - `prototype.{apply, call}`
         * Array
             - `toLocaleString`
             - `concat`

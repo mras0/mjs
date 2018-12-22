@@ -36,8 +36,8 @@ public:
         construct_ = call_;
     }
 
-    value call(const value& this_, const std::vector<value>& args);
-    value construct(const value& this_, const std::vector<value>& args);
+    value call(const value& this_, const std::vector<value>& args) const;
+    value construct(const value& this_, const std::vector<value>& args) const;
 
 private:
     friend gc_type_info_registration<function_object>;

@@ -1,7 +1,6 @@
 #include "error_object.h"
 #include "native_object.h"
 #include "function_object.h"
-#include "parser.h" // source_extend
 #include <sstream>
 
 namespace mjs {
@@ -125,21 +124,6 @@ create_result make_error_object(global_object& global) {
 
 namespace {
 
-std::wstring make_stack_trace(const std::vector<source_extend>& stack_trace) {
-    std::wostringstream woss;
-    bool first = true;
-    for (const auto& e: stack_trace) {
-        assert(e.file);
-        if (first) {
-            first = false;
-        } else {
-            woss << '\n';
-        }
-        woss << e;
-    }
-    return woss.str();
-}
-
 std::string get_eval_exception_repr(native_error_type type, const std::wstring_view& stack_trace, const std::wstring_view& msg) {
     std::ostringstream oss;
     oss << type_string(type) << ": "<< std::string(msg.begin(), msg.end());
@@ -156,10 +140,6 @@ native_error_exception::native_error_exception(native_error_type type, const std
     , type_{type}
     , msg_{msg}
     , stack_trace_{stack_trace} {
-}
-
-native_error_exception::native_error_exception(native_error_type type, const std::vector<source_extend>& stack_trace, const std::wstring_view& msg)
-    : native_error_exception{type, make_stack_trace(stack_trace), msg} {
 }
 
 object_ptr native_error_exception::make_error_object(const gc_heap_ptr<global_object>& global) const {

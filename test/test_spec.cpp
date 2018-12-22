@@ -175,7 +175,7 @@ private:
             }
             if (last_result_.result != specs_[index_].expected) {
                 std::wostringstream oss;
-                oss << "Expecting " << debug_string(specs_[index_].expected) << " got " << debug_string(last_result_.result) << " at " << s.extend << "\n" << s.extend.source_view();
+                oss << "Expecting\n" << debug_string(specs_[index_].expected) << "\ngot\n" << debug_string(last_result_.result) << "\nat " << s.extend << "\n" << s.extend.source_view();
                 THROW_RUNTIME_ERROR(oss.str());
             }
             ++index_;
