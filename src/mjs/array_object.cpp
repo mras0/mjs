@@ -179,7 +179,7 @@ string array_object::to_locale_string(const gc_heap_ptr<global_object>& global, 
     return string{h, s};
 }
 
-string join(const object_ptr& o, const std::wstring_view& sep) {
+string array_join(const object_ptr& o, const std::wstring_view& sep) {
     auto& h = o.heap();
     const uint32_t l = to_uint32(o->get(L"length"));
     std::wstring s;
@@ -193,8 +193,32 @@ string join(const object_ptr& o, const std::wstring_view& sep) {
     return string{h, s};
 }
 
-create_result make_array_object(global_object& global) {
+value array_pop(const gc_heap_ptr<global_object>& global, const object_ptr& o) {
+    const uint32_t l = to_uint32(o->get(L"length"));
+    if (l == 0) {
+        o->put(global->common_string("length"), value{0.});
+        return value::undefined;
+    }
+    const auto idx_str = index_string(l - 1);
+    auto res = o->get(idx_str);
+    o->delete_property(idx_str);
+    o->put(global->common_string("length"), value{static_cast<double>(l-1)});
+    return res;
+}
+
+value array_push(const gc_heap_ptr<global_object>& global, const object_ptr& o, const std::vector<value>& args) {
+    // FIXME: Overflow of n is possible
     auto& h = global.heap();
+    uint32_t n = to_uint32(o->get(L"length"));
+    for (const auto& a: args) {
+        o->put(string{h, index_string(n++)}, a);
+    }
+    value l{static_cast<double>(n)};
+    o->put(global->common_string("length"), l);
+    return l;
+}
+
+create_result make_array_object(global_object& global) {
     auto Array_str_ = global.common_string("Array");
     auto prototype = array_object::make(Array_str_, global.object_prototype(), 0);
 
@@ -206,32 +230,38 @@ create_result make_array_object(global_object& global) {
     const auto version = global.language_version();
 
     if (version < version::es3) {
-        put_native_function(global, prototype, "toString", [](const value& this_, const std::vector<value>&) {
-            assert(this_.type() == value_type::object);
-            return value{join(this_.object_value(), L",")};
+        put_native_function(global, prototype, "toString", [global = global.self_ptr()](const value& this_, const std::vector<value>&) {
+            global->validate_object(this_);
+            return value{array_join(this_.object_value(), L",")};
         }, 0);
     } else {
         put_native_function(global, prototype, "toString", [global = global.self_ptr()](const value& this_, const std::vector<value>&) {
             global->validate_type(this_, global->array_prototype(), "array");
-            return value{join(this_.object_value(), L",")};
+            return value{array_join(this_.object_value(), L",")};
         }, 0);
         put_native_function(global, prototype, "toLocaleString", [global = global.self_ptr()](const value& this_, const std::vector<value>&) {
             global->validate_type(this_, global->array_prototype(), "array");
             return value{array_object::to_locale_string(global, static_cast<gc_heap_ptr<array_object>>(this_.object_value()))};
         }, 0);
+        put_native_function(global, prototype, "pop", [global = global.self_ptr()](const value& this_, const std::vector<value>&) {
+            global->validate_object(this_);
+            return array_pop(global, this_.object_value());
+        }, 0);
+        put_native_function(global, prototype, "push", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+            global->validate_object(this_);
+            return array_push(global, this_.object_value(), args);
+        }, 1);
     }
-    put_native_function(global, prototype, "join", [&h](const value& this_, const std::vector<value>& args) {
-        assert(this_.type() == value_type::object);
-        string sep{h, L","};
-        if (!args.empty()) {
-            sep = to_string(h, args.front());
-        }
-        return value{join(this_.object_value(), sep.view())};
+    put_native_function(global, prototype, "join", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+        global->validate_object(this_);
+        auto& h = global.heap();
+        return value{array_join(this_.object_value(), !args.empty() ? to_string(h, args.front()).view() : std::wstring_view{L","})};
     }, 1);
-    put_native_function(global, prototype, "reverse", [&h](const value& this_, const std::vector<value>&) {
-        assert(this_.type() == value_type::object);
+    put_native_function(global, prototype, "reverse", [global = global.self_ptr()](const value& this_, const std::vector<value>&) {
+        global->validate_object(this_);
         const auto& o = this_.object_value();
         const uint32_t length = to_uint32(o->get(L"length"));
+        auto& h = global.heap();
         for (uint32_t k = 0; k != length / 2; ++k) {
             const auto i1 = index_string(k);
             const auto i2 = index_string(length - k - 1);
@@ -242,8 +272,8 @@ create_result make_array_object(global_object& global) {
         }
         return this_;
     }, 0);
-    put_native_function(global, prototype, "sort", [](const value& this_, const std::vector<value>& args) {
-        assert(this_.type() == value_type::object);
+    put_native_function(global, prototype, "sort", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+        global->validate_object(this_);
         const auto& o = *this_.object_value();
         auto& h = o.heap(); // Capture heap reference (which continues to be valid even after GC) since `this` can move when calling a user-defined compare function (since this can cause GC)
         const uint32_t length = to_uint32(o.get(L"length"));

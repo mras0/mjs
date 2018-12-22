@@ -46,13 +46,13 @@ void add_object_prototype_functions(global_object& global, const object_ptr& pro
 
     if (global.language_version() >= version::es3) {
         prototype->put(global.common_string("toLocaleString"), prototype->get(L"toString"), global_object::default_attributes);
-        put_native_function(global, prototype, "hasOwnProperty", [](const value& this_, const std::vector<value>& args) {
-            assert(this_.type() == value_type::object);
+        put_native_function(global, prototype, "hasOwnProperty", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+            global->validate_object(this_);
             const auto& o = this_.object_value();
             return value{o->check_own_property_attribute(to_string(o.heap(), get_arg(args, 0)).view(), property_attribute::none, property_attribute::none)};
         }, 1);
-        put_native_function(global, prototype, "propertyIsEnumerable", [](const value& this_, const std::vector<value>& args) {
-            assert(this_.type() == value_type::object);
+        put_native_function(global, prototype, "propertyIsEnumerable", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+            global->validate_object(this_);
             const auto& o = this_.object_value();
             return value{o->check_own_property_attribute(to_string(o.heap(), get_arg(args, 0)).view(), property_attribute::dont_enum, property_attribute::none)};
         }, 1);
@@ -1172,7 +1172,17 @@ std::wstring index_string(uint32_t index) {
     return std::wstring{p};
 }
 
-void global_object::validate_type(const value& v, const object_ptr& expected_prototype, const char* expected_type) {
+void global_object::validate_object(const value& v) const {
+    if (v.type() == value_type::object) {
+        return;
+    }
+    std::wostringstream woss;
+    mjs::debug_print(woss, v, 2, 1);
+    woss << " is not an object";
+    throw native_error_exception(native_error_type::type, stack_trace(), woss.str());
+}
+
+void global_object::validate_type(const value& v, const object_ptr& expected_prototype, const char* expected_type) const {
     if (v.type() == value_type::object && v.object_value()->prototype().get() == expected_prototype.get()) {
         return;
     }

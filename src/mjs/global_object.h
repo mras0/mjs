@@ -46,7 +46,11 @@ public:
         stack_trace_ = f;
     }
 
-    void validate_type(const value& v, const object_ptr& expected_prototype, const char* expected_type);
+    // Throw TypeError if 'v' is not an object
+    void validate_object(const value& v) const;
+
+    // Throw TypeError if 'v' isn't an object with prototype equal to 'expected_prototype'
+    void validate_type(const value& v, const object_ptr& expected_prototype, const char* expected_type) const;
 
 protected:
     version version_;

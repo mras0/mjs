@@ -1320,12 +1320,52 @@ t.prototype.toLocaleString = function() { return this.x; };
 [new t(42)].toLocaleString(); //$string '42'
 a=[new t(1), new t(2), undefined, new t(3), null]; a[null]=new t(4); a.toLocaleString(); //$string '1,2,,3,'
 )");
+
+    RUN_TEST_SPEC(R"(
+Array.prototype.pop.length;//$number 0
+[].pop(); //$undefined
+a=[1,2,'x'];
+a.pop(); //$string 'x'
+a.join(); //$string '1,2'
+
+o = {length:2, 1:42};
+Array.prototype.pop.call(o); //$number 42
+o.length; //$number 1
+'1' in o; //$boolean false
+
+o={length:'test'};
+Array.prototype.pop.apply(o);
+o.length;//$number 0
+)");
+
+    RUN_TEST_SPEC(R"(
+Array.prototype.push.length;//$number 1
+a=[];
+a.push();
+a.length;//$number 0
+a.push(1,2,3,4);
+a.join();//$string '1,2,3,4'
+
+o={length:42};
+o.push = Array.prototype.push;
+o.push('x','y','z'); //$number 45
+o.length;//$number 45
+o[42];//$string 'x'
+o[43];//$string 'y'
+o[44];//$string 'z'
+0 in o;//$boolean false
+ Array.prototype.join.call(o); //$string ',,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,x,y,z'
+)");
+
+    // TODO: `concat`
+    // TODO: `shift`, `unshift`
+    // TODO: `splice`
+    // TODO: throw `RangeError`
+
 }
 
 int main() {
     try {
-        //test_array_object(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
-
         for (const auto ver: supported_versions) {
             tested_version(ver);
 
