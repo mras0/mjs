@@ -19,11 +19,11 @@ namespace mjs {
 
 std::wostream& operator<<(std::wostream& os, const completion_type& t) {
     switch (t) {
-    case completion_type::normal: return os << "Normal completion";
-    case completion_type::break_: return os << "Break";
-    case completion_type::continue_: return os << "Continue";
-    case completion_type::return_: return os << "Return";
-    case completion_type::throw_: return os << "Throw";
+    case completion_type::normal: return os << "normal completion";
+    case completion_type::break_: return os << "break";
+    case completion_type::continue_: return os << "continue";
+    case completion_type::return_: return os << "return";
+    case completion_type::throw_: return os << "throw";
     }
     NOT_IMPLEMENTED((int)t);
 }
@@ -227,13 +227,24 @@ public:
         assert(!global_->has_property(L"eval"));
 
         put_native_function(*global_, global_, "eval", [this](const value&, const std::vector<value>& args) {
+            // ES3, 15.1.2.1
             if (args.empty()) {
                 return value::undefined;
             } else if (args.front().type() != value_type::string) {
                 return args.front();
             }
             auto bs = parse(std::make_shared<source_file>(L"eval", args.front().string_value().view()), global_->language_version());
-            return top_level_eval(*bs);
+            auto c = eval(*bs);
+            if (!c) {
+                return c.result;
+            } else if (c.type == completion_type::throw_) {
+                assert(c.result.type() == value_type::object); // FIXME should probably support any value type?
+                rethrow_error(c.result.object_value());
+            }
+
+            std::wostringstream woss;
+            woss << "Illegal " << c.type << " statement";
+            throw native_error_exception{native_error_type::syntax, stack_trace(), woss.str()};
         }, 1);
 
         auto func_obj = global_->get(L"Function").object_value();
@@ -322,15 +333,15 @@ public:
 
     value top_level_eval(const statement& s, bool allow_return = true) {
         auto c = eval(s);
-        if (!c) {
-            return c.result;
-        }
-        if (allow_return && c.type == completion_type::return_) {
-            return c.result;
-        }
+        // ES3, 13.2.1 [[Call]]
         if (c.type == completion_type::throw_) {
             assert(c.result.type() == value_type::object);
             rethrow_error(c.result.object_value());
+        } else if  (allow_return && c.type == completion_type::return_) {
+            return c.result;
+        } else if (!c) {
+            // Don't let normal completion values escape
+            return value::undefined;
         }
         std::wostringstream woss;
         woss << "Top level evaluation resulted in abrupt termination: " << c;

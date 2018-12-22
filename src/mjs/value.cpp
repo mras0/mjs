@@ -340,6 +340,15 @@ void debug_print(std::wostream& os, const value& v, int indent_incr, int max_nes
     case value_type::object:
         v.object_value()->debug_print(os, indent_incr, max_nest, indent);
         break;
+    case value_type::reference:
+        os << "reference to ";
+        if (auto b = v.reference_value().base()) {
+            os << b->class_name();
+        } else {
+            os << "null";
+        }
+        os << " '" << v.reference_value().property_name().view() << "'";
+        break;
     default:
         assert(false);
         os << "[Unhandled type " << v.type() << "]";

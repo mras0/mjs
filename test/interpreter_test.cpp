@@ -317,6 +317,41 @@ function f(x) {
 ''+f(42); //$ string '42,0,1'
 ''+f(43); //$ string '43,1,2'
 )");
+    RUN_TEST_SPEC(R"(
+function f() { 42; }
+f(); //$undefined
+
+function f(y) { this.x=y; }
+a = new f(parseInt);
+a.x == parseInt; //$boolean true
+
+function f(x) { this.x=x; }
+a = new f(new f(42));
+a.x.x ; //$number 42
+
+function t(l,r) { this.l=l; this.r=r; }
+function make(d) { return d > 0 ? new t(make(d-1),make(d-1)) : new t(null, null); }
+
+x = make(1);
+x.l == null; //$boolean false
+x.r == null; //$boolean false
+x.l.l == null; //$boolean true
+x.l.r == null; //$boolean true
+x.r.l == null; //$boolean true
+x.r.r == null; //$boolean true
+
+new t(42,60).l; //$number 42
+new t(42,60).r; //$number 60
+var x = new t(1,2);
+x.l; //$number 1
+x.r; //$number 2
+
+function count(t) { return 1 + (t.l ? count(t.l) + count(t.r) : 0); }
+count(make(1)); //$number 3
+count(make(2)); //$number 7
+count(make(3)); //$number 15
+count(make(4)); //$number 31
+)");
 
     RUN_TEST(L"function  f ( x   ,\ny )  { return x + y;  }; f.toString()", value{string{h, "function f( x   ,\ny )  { return x + y;  }"}});
     RUN_TEST(L"a=parseInt;a.toString()", value{string{h, "function parseInt() { [native code] }"}});
@@ -684,6 +719,10 @@ f(4);
 )"));
 
     EX_EQUAL("TypeError: Function is not constructable\ntest:1:1-1:18", expect_exception<eval_exception>(L"new parseInt(42);"));
+
+    EX_EQUAL("SyntaxError: Illegal return statement\neval:1:1-1:11\ntest:1:1-1:19", expect_exception<eval_exception>(L"eval('return 42;');"));
+    EX_EQUAL("SyntaxError: Illegal break statement\neval:1:1-1:7\ntest:1:1-1:15", expect_exception<eval_exception>(L"eval('break;');"));
+    EX_EQUAL("SyntaxError: Illegal continue statement\neval:1:1-1:10\ntest:1:1-1:18", expect_exception<eval_exception>(L"eval('continue;');"));
 }
 
 void test_es3_statements() {

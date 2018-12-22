@@ -74,18 +74,23 @@ void run_test(const std::wstring_view& text, const value& expected) {
 
             error_stream << "\n";
         };
-        value res;
+        completion c;
         try {
             interpreter i{h, tested_version(), *bs};
-            res = i.eval_program();
+            c = i.eval(*bs);
         } catch (const std::exception& e) {
             pb();
             error_stream << "Unexpected exception thrown: " << e.what() << "\n";
             THROW_RUNTIME_ERROR(error_stream.str());
         }
-        if (res != expected) {
+        if (c) {
             pb();
-            error_stream << "Expecting " << debug_string(expected) << " got " << debug_string(res) << "\n";
+            error_stream << "Got unexpected abrupt completion: " << c << "\n";
+            THROW_RUNTIME_ERROR(error_stream.str());
+        }
+        if (c.result != expected) {
+            pb();
+            error_stream << "Expecting " << debug_string(expected) << " got " << debug_string(c.result) << "\n";
             THROW_RUNTIME_ERROR(error_stream.str());
         }
     }
