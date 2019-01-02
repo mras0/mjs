@@ -1548,11 +1548,19 @@ String.prototype.slice.length;//$number 2
 String.prototype.slice.call(12345,-3,7); //$string '345'
 )");
 
-#if 0
     // match
     RUN_TEST_SPEC(R"(
-String.prototype.match.length;//$number 1
+m='aabb'.match('b');
+m.index;//$number 2
+m.input;//string 'aabb'
+m[0];//$string 'b'
+
+m2=String.prototype.match.call(123,/2|/g);
+m2.length;//$number 4
+m2.toString();//$string ',2,,'
+m2 instanceof Array;//$boolean true
 )");
+#if 0
     // replace
     RUN_TEST_SPEC(R"(
 String.prototype.replace.length;//$number 1

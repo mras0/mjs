@@ -59,6 +59,19 @@ public:
         return gc_heap_ptr<regexp_object>{o};
     }
 
+    regexp_flag flags() const {
+        return flags_;
+    }
+
+    double last_index() const {
+        // Could optimize by providing better accessors in value_representation
+        return to_number(last_index_.get_value(heap()));
+    }
+
+    void last_index(uint32_t val) {
+        last_index_ = value_representation{static_cast<double>(val)};
+    }
+
     string to_string() const {
         std::wostringstream woss;
         woss << "/" << source_.track(heap()) << "/";
@@ -195,6 +208,48 @@ create_result make_regexp_object(global_object& global) {
 
 object_ptr make_regexp(const gc_heap_ptr<global_object>& global, const string& pattern, const string& flags) {
     return regexp_object::make(global, pattern, flags);
+}
+
+namespace {
+
+gc_heap_ptr<regexp_object> to_regexp_object(const gc_heap_ptr<global_object>& global, const value& regexp) {
+    if (regexp.type() == value_type::object) {
+        const auto& o = regexp.object_value();
+        if (o.has_type<regexp_object>()) {
+            return gc_heap_ptr<regexp_object>{o};
+        }
+    }
+    auto& h = global.heap();
+    return regexp_object::make(global, to_string(h, regexp), string{h, ""});
+}
+
+} // unnamed namespace
+
+value string_match(const gc_heap_ptr<global_object>& global, const string& str, const value& regexp) {
+    auto re = to_regexp_object(global, regexp);
+    if ((re->flags() & regexp_flag::global) == regexp_flag::none) {
+        return re->exec(str);
+    }
+    // Global regexp
+    re->last_index(0);
+
+    auto res = make_array(global, 0);
+    auto& h = global.heap();
+    for (uint32_t i=0;; ++i) {
+        const auto last_index_before = re->last_index();
+        auto match = re->exec(str);
+        if (match.type() == value_type::null) {
+            break;
+        }
+        assert(match.type() == value_type::object);
+        const auto& matcho_object = match.object_value();
+        res->put(string{h, index_string(i)}, matcho_object->get(L"0"));
+        if (last_index_before == re->last_index()) {
+            // Empty match
+            re->last_index(static_cast<uint32_t>(last_index_before + 1));
+        }
+    }
+    return value{res};
 }
 
 } // namespace mjs

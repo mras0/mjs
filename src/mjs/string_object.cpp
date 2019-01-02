@@ -2,6 +2,7 @@
 #include "native_object.h"
 #include "function_object.h"
 #include "array_object.h"
+#include "regexp_object.h"
 #include <cmath>
 
 namespace mjs {
@@ -68,42 +69,43 @@ create_result make_string_object(global_object& global) {
 
     auto make_string_function = [&](const char* name, int num_args, auto f) {
         put_native_function(global, prototype, string{h, name}, [&h, f](const value& this_, const std::vector<value>& args){
-            return value{f(to_string(h, this_).view(), args)};
+            return value{f(to_string(h, this_), args)};
         }, num_args);
     };
 
-    make_string_function("charAt", 1, [&h](const std::wstring_view& s, const std::vector<value>& args){
+    make_string_function("charAt", 1, [&h](const string& s, const std::vector<value>& args){
         const int position = to_int32(get_arg(args, 0));
-        if (position < 0 || position >= static_cast<int>(s.length())) {
+        if (position < 0 || position >= static_cast<int>(s.view().length())) {
             return string{h, ""};
         }
-        return string{h, s.substr(position, 1)};
+        return string{h, s.view().substr(position, 1)};
     });
 
-    make_string_function("charCodeAt", 1, [](const std::wstring_view& s, const std::vector<value>& args){
+    make_string_function("charCodeAt", 1, [](const string& s, const std::vector<value>& args){
         const int position = to_int32(get_arg(args, 0));
-        if (position < 0 || position >= static_cast<int>(s.length())) {
+        if (position < 0 || position >= static_cast<int>(s.view().length())) {
             return static_cast<double>(NAN);
         }
-        return static_cast<double>(s[position]);
+        return static_cast<double>(s.view()[position]);
     });
 
-    make_string_function("indexOf", 2, [&h](const std::wstring_view& s, const std::vector<value>& args){
+    make_string_function("indexOf", 2, [&h](const string& s, const std::vector<value>& args){
         const auto& search_string = to_string(h, get_arg(args, 0));
         const int position = to_int32(get_arg(args, 1));
-        auto index = s.find(search_string.view(), position);
+        auto index = s.view().find(search_string.view(), position);
         return index == std::wstring_view::npos ? -1. : static_cast<double>(index);
     });
 
-    make_string_function("lastIndexOf", 2, [&h](const std::wstring_view& s, const std::vector<value>& args){
+    make_string_function("lastIndexOf", 2, [&h](const string& s, const std::vector<value>& args){
         const auto& search_string = to_string(h, get_arg(args, 0));
         double position = to_number(get_arg(args, 1));
         const int ipos = std::isnan(position) ? INT_MAX : to_int32(position);
-        auto index = s.rfind(search_string.view(), ipos);
+        auto index = s.view().rfind(search_string.view(), ipos);
         return index == std::wstring_view::npos ? -1. : static_cast<double>(index);
     });
 
-    make_string_function("split", 1, [global = global.self_ptr()](const std::wstring_view& s, const std::vector<value>& args){
+    make_string_function("split", 1, [global = global.self_ptr()](const string& str, const std::vector<value>& args){
+        const auto s = str.view();
         auto& h = global->heap();
         auto a = make_array(global, 0);
         if (args.empty()) {
@@ -133,7 +135,8 @@ create_result make_string_object(global_object& global) {
         return a;
     });
 
-    make_string_function("substring", 1, [&h](const std::wstring_view& s, const std::vector<value>& args){
+    make_string_function("substring", 1, [&h](const string& str, const std::vector<value>& args) {
+        const auto s = str.view();
         int start = std::min(std::max(to_int32(get_arg(args, 0)), 0), static_cast<int>(s.length()));
         if (args.size() < 2) {
             return string{h, s.substr(start)};
@@ -145,17 +148,17 @@ create_result make_string_object(global_object& global) {
         return string{h, s.substr(start, end-start)};
     });
 
-    auto to_lower = [&h](const std::wstring_view& s, const std::vector<value>&){
+    auto to_lower = [&h](const string& s, const std::vector<value>&){
         std::wstring res;
-        for (auto c: s) {
+        for (auto c: s.view()) {
             res.push_back(towlower(c));
         }
         return string{h, res};
     };
 
-    auto to_upper = [&h](const std::wstring_view& s, const std::vector<value>&){
+    auto to_upper = [&h](const string& s, const std::vector<value>&){
         std::wstring res;
-        for (auto c: s) {
+        for (auto c: s.view()) {
             res.push_back(towupper(c));
         }
         return string{h, res};
@@ -167,18 +170,19 @@ create_result make_string_object(global_object& global) {
     if (global.language_version() >= version::es3) {
         make_string_function("toLocaleLowerCase", 0, to_lower);
         make_string_function("toLocaleUpperCase", 0, to_upper);
-        make_string_function("localeCompare", 1, [&h](const std::wstring_view& s, const std::vector<value>& args){
-            const auto res = s.compare(to_string(h, get_arg(args, 0)).view());
+        make_string_function("localeCompare", 1, [&h](const string& s, const std::vector<value>& args){
+            const auto res = s.view().compare(to_string(h, get_arg(args, 0)).view());
             return value{ static_cast<double>(res < 0 ? 1 : res > 0 ? -1 : 0) };
         });
-        make_string_function("concat", 1, [&h](const std::wstring_view& s, const std::vector<value>& args) {
-            std::wstring res{s};
+        make_string_function("concat", 1, [&h](const string& s, const std::vector<value>& args) {
+            std::wstring res{s.view()};
             for (const auto& a: args) {
                 res += to_string(h, a).view();
             }
             return value{string{h, res}};
         });
-        make_string_function("slice", 2, [&h](const std::wstring_view& s, const std::vector<value>& args) {
+        make_string_function("slice", 2, [&h](const string& str, const std::vector<value>& args) {
+            const auto s = str.view();
             const auto l = static_cast<uint32_t>(s.length());
             const auto ns = to_integer(get_arg(args, 0));
             const auto& end_arg = get_arg(args, 1);
@@ -186,6 +190,9 @@ create_result make_string_object(global_object& global) {
             const auto start = static_cast<uint32_t>(ns < 0 ? std::max(l + ns, 0.0) : std::min(ns, 0.0+l));
             const auto end   = static_cast<uint32_t>(ne < 0 ? std::max(l + ne, 0.0) : std::min(ne, 0.0+l));
             return value{string{h, s.substr(start, start < end ? end - start : 0)}};
+        });
+        make_string_function("match", 1, [global = global.self_ptr()](const string& s, const std::vector<value>& args) {
+            return string_match(global, s, get_arg(args, 0));
         });
     }
 
