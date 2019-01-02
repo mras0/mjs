@@ -57,6 +57,7 @@
     - Reduce number of registered classes by moving `gc_table` out of `gc_vector` (and possibly making it type erased?)
     - Handle interface types better (currently only `object` and derived classes are handled)
     - Help debug missing calls to `{native_}object::fixup()` in derived classes
+    - Passing const references to `gc_heap_ptr`s can be dangerous when calling out to functions that might trigger GC!
 * REPL
     - Add tests
     - Add support for specifying the wanted ECMAScript version as a commandline argument

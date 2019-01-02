@@ -185,10 +185,11 @@ private:
     }
 };
 
-string array_object::to_locale_string(const gc_heap_ptr<global_object>& global, const gc_heap_ptr<array_object>& arr) {
+string array_object::to_locale_string(const gc_heap_ptr<global_object>& global_, const gc_heap_ptr<array_object>& arr) {
     auto& h = arr.heap();
     const uint32_t len = arr->length_;
     std::wstring s;
+    gc_heap_ptr<global_object> global = global_; // Keep local copy since due to use of call_function below (XXX)
     for (uint32_t i = 0; i < len; ++i) {
         if (i) s += L",";
         auto v = arr->get_at(i);
