@@ -1577,7 +1577,7 @@ re.lastIndex; //$string 'hello'
 #if 0
     // replace
     RUN_TEST_SPEC(R"(
-String.prototype.replace.length;//$number 1
+String.prototype.replace.call(...)
 )");
 #endif
 }

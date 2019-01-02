@@ -18,34 +18,23 @@
     - Optimize nested functions (they only need to be processed once (?))
     - AST optimizations (constant propagation etc.)
     - Escape analysis
-    - ES3 support:
-        * Handle "joined object" (§13.1.2) in comparison
-        * Throw correct errors (search for EvalError/TypeError/etc. - also see ES3 §15.11.6)
+    - Check that correct errors are thrown (search for EvalError/TypeError/etc. - also see ES3 §15.11.6)
  * Global object
+    - ES3, 15.5.4.11: `String.prototype.replace`
+    - Number
+        - `toLocaleString`
+        - `toFixed`, `toExponential`, `toPrecision`
     - Date
         - mutators
         - time zone adjustments
         - to/from string
+        - locale functions
+    - RegExp - multiline regexp
     - Make it possible to implement native (member) functions more easily. Perhaps create the ECMAScript function object only if requested?
-    - Optimize `array_object` - may need to make more `object` functions virtual and do the same for string objects
     - Add test cases for directly relatable to clauses in the spec (e.g. `Boolean.prototype.constructor` exists and is correct)
-    - ES3 support
-        * String
-            - `concat`
-            - `localeCompare`, `toLocaleLowerCase`, `toLocaleUpperCase`
-            - `slice`
-            - new functions using regular expressions (`match`, `replace`, `search`, `split`)
-        * Number
-            - `toLocaleString`
-            - `toFixed`, `toExponential`, `toPrecision`
-        * Date
-            - locale functions
-        * RegExp - multiline regexp
-        * Lots and lots of missing functionality functions etc. -
-          Consider implementing it in ECMAScript (i.e. polyfill it)!
-    - Probably other missing stuff and non-compliant implementations...
     - Split up `mjs_lib` into its constituents (e.g. GC lib, lexer lib, ...), but most important to get global object and friends out
     - Create function objects on demand (?)
+    - Consider implementing some things in ECMAScript (i.e. polyfill it)!
 * Better GC
     - Ensure exception safety
     - Support growing the heap (and support growing it as needed)

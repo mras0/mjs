@@ -11,11 +11,10 @@ such, it neither strives to be fast, secure nor particularly beautiful.
 In fact, some things are downright terribly implemented; also no real
 programs were actually tested.
 
-Most ES1 and ES3 language features should be implemented (to some
-degree...), but many built-in functions and classes are either
-incomplete or missing. See the [TODO](TODO.md) file for details. It is
-likely that the missing pieces will only be added once they're needed
-(by me).
+Most ES1 and ES3 features should be implemented (to some
+degree...), but conformance is always work in progress.
+
+See the [TODO](TODO.md) file some of the known pain points.
 
 ## Building
 
