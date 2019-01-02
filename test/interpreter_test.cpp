@@ -1412,7 +1412,47 @@ res[0]; //$undefined
 res[1]; //$string 'c'
 )");
 
-    // TODO: splice
+    RUN_TEST_SPEC(R"(
+Array.prototype.splice.length;//$number 2
+
+var a = [0,1,2,3,4];
+var r = a.splice(0,0);
+r.length; //$number 0
+r instanceof Array; //$boolean true
+r.toString(); //$string ''
+a.toString(); //$string '0,1,2,3,4'
+
+var a = [0,1,2,3,4];
+a.splice(1,-1).toString(); //$string ''
+a.toString(); //$string '0,1,2,3,4'
+
+var a = [0,1,2,3,4];
+a.splice(2,100).toString(); //$string '2,3,4'
+a.toString(); //$string '0,1'
+
+var a = [0,1,2,3,4];
+a.splice(2,1).toString(); //$string '2'
+a.toString(); //$string '0,1,3,4'
+
+var a = [0,1,2,3,4];
+a.splice(-2,2).toString(); //$string '3,4'
+a.toString(); //$string '0,1,2'
+
+var a = [0,1,2,3,4];
+a.splice(3,1,'x','y','z').toString(); //$string '3'
+a.toString(); //$string '0,1,2,x,y,z,4'
+
+o={length:2,0:42,1:60,2:123};
+Array.prototype.splice.call(o, 1, 1, 'x').toString(); //$string '60'
+o.length;//$number 2
+o[0];//$number 42
+o[1];//$string 'x'
+o[2];//$number 123
+
+var a = [0,1,2,3,4];
+a.splice(0,1,'x','y').toString();//$string '0'
+a.toString();//$string 'x,y,1,2,3,4'
+)");
     // TODO: Check that `RangeError` is thrown
 
 }

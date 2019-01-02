@@ -266,19 +266,20 @@ value array_unshift(const gc_heap_ptr<global_object>& global, const object_ptr& 
     return new_l;
 }
 
+uint32_t calc_start_index(const value& v, const uint32_t l) {
+    auto s = to_integer(v);
+    if (s < 0) {
+        return static_cast<uint32_t>(std::max(0., l + s));
+    } else {
+        return static_cast<uint32_t>(std::min(s, static_cast<double>(l)));
+    }
+}
+
 value array_slice(const gc_heap_ptr<global_object>& global, const object_ptr& o, const std::vector<value>& args) {
     // ES3, 15.4.4.10
     const uint32_t l = to_uint32(o->get(L"length"));
-    uint32_t start = 0, end = l;
-    if (args.size() > 0) {
-        auto s = to_integer(args[0]);
-        if (s < 0) {
-            s = std::max(0., l + s);
-        } else {
-            s = std::min(s, static_cast<double>(l));
-        }
-        start = static_cast<uint32_t>(s);
-    }
+    const uint32_t start = args.size() > 0 ? calc_start_index(args[0], l) : 0;
+    uint32_t end = l;
     if (args.size() > 1) {
         auto e = to_integer(args[1]);
         if (e < 0) {
@@ -296,6 +297,63 @@ value array_slice(const gc_heap_ptr<global_object>& global, const object_ptr& o,
         res->put(string{h, index_string(n)}, o->get(index_string(start+n)));
     }
 
+    return value{res};
+}
+
+value array_splice(const gc_heap_ptr<global_object>& global, const object_ptr& o, const std::vector<value>& args) {
+    const uint32_t num_args = static_cast<uint32_t>(args.size());
+    if (num_args < 2) {
+        NOT_IMPLEMENTED("Splice needs at least 2 arguments"); // Before ES2015(?) calling array_splice with fewer than 2 arguments isn't specified
+    }
+
+    const uint32_t l = to_uint32(o->get(L"length")); // Result(3)
+    const uint32_t start = calc_start_index(args[0], l); // Result(5)
+    const uint32_t delete_count = static_cast<uint32_t>(std::min(std::max(to_integer(args[1]), 0.0), 0.0+l-start)); // Result(6)
+    
+    auto res = make_array(global->array_prototype(), {});
+    auto& h = global.heap();
+    for (uint32_t k = 0; k < delete_count; ++k) {
+        const auto prop_name = index_string(start + k);
+        if (o->has_property(prop_name)) {
+            res->put(string{h, index_string(k)}, o->get(prop_name));
+        }
+    }
+    res->put(global->common_string("length"), value{static_cast<double>(delete_count)});
+
+    // step 17
+    const uint32_t item_count = num_args > 2 ? num_args - 2 : 0;
+    if (item_count < delete_count) {
+        // Step 20-30
+        for (uint32_t k = start; k < l - delete_count; ++k) {
+            const auto from_name = index_string(k + delete_count);
+            const auto to_name = index_string(k + item_count);
+            if (o->has_property(from_name)) {
+                o->put(string{h, to_name}, o->get(from_name));
+            } else {
+                o->delete_property(to_name);
+            }
+        }
+        for (uint32_t k = l; k-- > l - delete_count + item_count;) {
+            o->delete_property(index_string(k));
+        }
+    } else if (item_count > delete_count) {
+        // Step 31-47
+        for (uint32_t k = l - delete_count; k-- > start; ) {
+            const auto from_name = index_string(k + delete_count);
+            const auto to_name = index_string(k + item_count);
+            if (o->has_property(from_name)) {
+                o->put(string{h, to_name}, o->get(from_name));
+            } else {
+                o->delete_property(to_name);
+            }
+        }
+    }
+
+    // step 48
+    for (uint32_t i = 0; i < item_count; ++i) {
+        o->put(string{h, index_string(start + i)}, args[2+i]);
+    }
+    o->put(global->common_string("length"), value{static_cast<double>(l - delete_count + item_count)});
     return value{res};
 }
 
@@ -345,6 +403,10 @@ create_result make_array_object(global_object& global) {
         put_native_function(global, prototype, "slice", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
             global->validate_object(this_);
             return array_slice(global, this_.object_value(), args);
+        }, 2);
+        put_native_function(global, prototype, "splice", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+            global->validate_object(this_);
+            return array_splice(global, this_.object_value(), args);
         }, 2);
     }
     put_native_function(global, prototype, "join", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {

@@ -1163,7 +1163,8 @@ object_ptr global_object::make_object() {
 }
 
 std::wstring index_string(uint32_t index) {
-    wchar_t buffer[10], *p = &buffer[10];
+    assert(index != UINT32_MAX);
+    wchar_t buffer[12], *p = &buffer[sizeof(buffer)/sizeof(*buffer)];
     *--p = '\0';
     do {
         *--p = '0' + index % 10;
