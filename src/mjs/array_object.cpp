@@ -179,6 +179,8 @@ string array_object::to_locale_string(const gc_heap_ptr<global_object>& global, 
     return string{h, s};
 }
 
+namespace {
+
 string array_join(const object_ptr& o, const std::wstring_view& sep) {
     auto& h = o.heap();
     const uint32_t l = to_uint32(o->get(L"length"));
@@ -264,6 +266,41 @@ value array_unshift(const gc_heap_ptr<global_object>& global, const object_ptr& 
     return new_l;
 }
 
+value array_slice(const gc_heap_ptr<global_object>& global, const object_ptr& o, const std::vector<value>& args) {
+    // ES3, 15.4.4.10
+    const uint32_t l = to_uint32(o->get(L"length"));
+    uint32_t start = 0, end = l;
+    if (args.size() > 0) {
+        auto s = to_integer(args[0]);
+        if (s < 0) {
+            s = std::max(0., l + s);
+        } else {
+            s = std::min(s, static_cast<double>(l));
+        }
+        start = static_cast<uint32_t>(s);
+    }
+    if (args.size() > 1) {
+        auto e = to_integer(args[1]);
+        if (e < 0) {
+            e = std::max(0., l + e);
+        } else {
+            e = std::min(e, static_cast<double>(l));
+        }
+        end = static_cast<uint32_t>(e);
+    }
+
+    // TODO: Could use unchecked_put since we know the length
+    auto res = make_array(global->array_prototype(), {});
+    auto& h = global.heap();
+    for (uint32_t n = 0; start + n < end; ++n) {
+        res->put(string{h, index_string(n)}, o->get(index_string(start+n)));
+    }
+
+    return value{res};
+}
+
+} // unnamed namespace
+
 create_result make_array_object(global_object& global) {
     auto Array_str_ = global.common_string("Array");
     auto prototype = array_object::make(Array_str_, global.object_prototype(), 0);
@@ -305,6 +342,10 @@ create_result make_array_object(global_object& global) {
             global->validate_object(this_);
             return array_unshift(global, this_.object_value(), args);
         }, 1);
+        put_native_function(global, prototype, "slice", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+            global->validate_object(this_);
+            return array_slice(global, this_.object_value(), args);
+        }, 2);
     }
     put_native_function(global, prototype, "join", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
         global->validate_object(this_);

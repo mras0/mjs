@@ -1298,7 +1298,7 @@ a = new Array(); a[4294967296]=1; a.length //$number 0
     if (tested_version() < version::es3) {
         RUN_TEST_SPEC(R"(
 ap = Array.prototype;
-ap['toLocaleString'] || ap['concat'] || ap['push'] || ap['pop'] || ap['shift'] || ap['unshift'] || ap['splice'] //undefined
+ap['toLocaleString'] || ap['concat'] || ap['push'] || ap['pop'] || ap['shift'] || ap['unshift'] || ap['slice'] || ap['splice'] //undefined
 
 // Array.prototype.toString is generic in ES1
 function f() { this.length=2; this[0]='x'; this[1]='y'; }
@@ -1393,9 +1393,27 @@ Array.prototype.unshift.call(o, 1); //$number 4
 s = ''; for (k in o) { s += k+':'+o[k]+','; }; s; // $string '0:1,1:a,3:c,4:e,length:4'
 )");
 
-    // TODO: `concat`
-    // TODO: `slice`
-    // TODO: throw `RangeError`
+    RUN_TEST_SPEC(R"(
+Array.prototype.slice.length;//$number 2
+a=[0,1,2,3,4];
+a.slice().toString(); //$string '0,1,2,3,4'
+a.slice(2).toString(); //$string '2,3,4'
+a.slice(1,-1).toString(); //$string '1,2,3'
+a.slice(-2,-1).toString(); //$string '3'
+a.slice(-1,-2).toString(); //$string ''
+
+o = {length:3,0:'a',2:'c',3:'d',4:'e'};
+var s = ''; for (k in o) { s += k+':'+o[k]+','; }; s; // $string '0:a,2:c,3:d,4:e,length:3,'
+res = Array.prototype.slice.call(o, 1, 4);
+var s = ''; for (k in o) { s += k+':'+o[k]+','; }; s; // $string '0:a,2:c,3:d,4:e,length:3,'
+res instanceof Array; //$boolean true
+res.length; //$number 2
+res[0]; //$undefined
+res[1]; //$string 'c'
+)");
+
+    // TODO: splice
+    // TODO: Check that `RangeError` is thrown
 
 }
 
