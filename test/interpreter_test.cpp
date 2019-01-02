@@ -356,50 +356,6 @@ count(make(4)); //$number 31
     RUN_TEST(L"function  f ( x   ,\ny )  { return x + y;  }; f.toString()", value{string{h, "function f( x   ,\ny )  { return x + y;  }"}});
     RUN_TEST(L"a=parseInt;a.toString()", value{string{h, "function parseInt() { [native code] }"}});
 
-    // String
-    RUN_TEST(L"String()", value{string{h, ""}});
-    RUN_TEST(L"String('test')", value{string{h, "test"}});
-    RUN_TEST(L"String('test').length", value{4.0});
-    RUN_TEST(L"s = new String('test'); s.length = 42; s.length", value{4.0});
-    RUN_TEST(L"''+new String()", value{string{h, ""}});
-    RUN_TEST(L"''+new String('test')", value{string{h, "test"}});
-    RUN_TEST(L"Object('testXX').valueOf()", value{string{h, "testXX"}});
-    RUN_TEST(L"String.fromCharCode()", value{string{h, ""}});
-    RUN_TEST(L"String.fromCharCode(65,66,67+32)", value{string{h, "ABc"}});
-    RUN_TEST(L"'test'.charAt(0)", value{string{h, "t"}});
-    RUN_TEST(L"'test'.charAt(2)", value{string{h, "s"}});
-    RUN_TEST(L"'test'.charAt(5)", value{string{h, ""}});
-    RUN_TEST(L"'test'.charCodeAt(0)", value{(double)'t'});
-    RUN_TEST(L"'test'.charCodeAt(2)", value{(double)'s'});
-    RUN_TEST(L"'test'.charCodeAt(5)", value{NAN});
-    RUN_TEST(L"''.indexOf()", value{-1.});
-    RUN_TEST(L"'11 undefined'.indexOf()", value{3.});
-    RUN_TEST(L"'testfesthest'.indexOf('XX')", value{-1.});
-    RUN_TEST(L"'testfesthest'.indexOf('est')", value{1.});
-    RUN_TEST(L"'testfesthest'.indexOf('est',3)", value{5.});
-    RUN_TEST(L"'testfesthest'.indexOf('est',7)", value{9.});
-    RUN_TEST(L"'testfesthest'.indexOf('est',11)", value{-1.});
-    RUN_TEST(L"'testfesthest'.lastIndexOf('estX')", value{-1.});
-    RUN_TEST(L"'testfesthest'.lastIndexOf('est')", value{9.});
-    RUN_TEST(L"'testfesthest'.lastIndexOf('est',1)", value{1.});
-    RUN_TEST(L"'testfesthest'.lastIndexOf('est',3)", value{1.});
-    RUN_TEST(L"'testfesthest'.lastIndexOf('est',7)", value{5.});
-    RUN_TEST(L"'testfesthest'.lastIndexOf('est', 22)", value{9.});
-    RUN_TEST(L"''.split()+''", value{string{h, ""}});
-    RUN_TEST(L"'1 2 3'.split()+''", value{string{h, "1 2 3"}});
-    RUN_TEST(L"'abcd'.split('')+''", value{string{h, "a,b,c,d"}});
-    RUN_TEST(L"'1 2 3'.split('not found')+''", value{string{h, "1 2 3"}});
-    RUN_TEST(L"'1 2 3'.split(' ')+''", value{string{h, "1,2,3"}});
-    RUN_TEST(L"'foo bar'.substring()", value{string{h, "foo bar"}});
-    RUN_TEST(L"'foo bar'.substring(-1)", value{string{h, "foo bar"}});
-    RUN_TEST(L"'foo bar'.substring(42)", value{string{h, ""}});
-    RUN_TEST(L"'foo bar'.substring(3)", value{string{h, " bar"}});
-    RUN_TEST(L"'foo bar'.substring(0, 1)", value{string{h, "f"}});
-    RUN_TEST(L"'foo bar'.substring(1, 0)", value{string{h, "f"}});
-    RUN_TEST(L"'foo bar'.substring(1000, -1)", value{string{h, "foo bar"}});
-    RUN_TEST(L"'foo bar'.substring(1, 4)", value{string{h, "oo "}});
-    RUN_TEST(L"'ABc'.toLowerCase()", value{string{h, "abc"}});
-    RUN_TEST(L"'ABc'.toUpperCase()", value{string{h, "ABC"}});
     // Boolean
     RUN_TEST(L"Boolean()", value{false});
     RUN_TEST(L"Boolean(true)", value{true});
@@ -1489,9 +1445,128 @@ try {
 )");
 }
 
+void test_string_object() {
+    gc_heap h{8192};
+
+    // String
+    RUN_TEST(L"String()", value{string{h, ""}});
+    RUN_TEST(L"String('test')", value{string{h, "test"}});
+    RUN_TEST(L"String('test').length", value{4.0});
+    RUN_TEST(L"s = new String('test'); s.length = 42; s.length", value{4.0});
+    RUN_TEST(L"''+new String()", value{string{h, ""}});
+    RUN_TEST(L"''+new String('test')", value{string{h, "test"}});
+    RUN_TEST(L"Object('testXX').valueOf()", value{string{h, "testXX"}});
+    RUN_TEST(L"String.fromCharCode()", value{string{h, ""}});
+    RUN_TEST(L"String.fromCharCode(65,66,67+32)", value{string{h, "ABc"}});
+    RUN_TEST_SPEC(R"(
+'test'.charAt(0); //$string 't'
+'test'.charAt(2); //$string 's'
+'test'.charAt(5); //$string ''
+'test'.charAt(-1); //$string ''
+
+o = new Object();
+o.charAt = String.prototype.charAt;
+o.charAt(1); //$string 'o'
+
+)");
+    RUN_TEST_SPEC(R"(
+'test'.charCodeAt(0); //$number 116
+'test'.charCodeAt(2); //$number 115
+'test'.charCodeAt(5); //$number NaN
+'test'.charCodeAt(-1); //$number NaN
+
+o = new Object();
+o.charCodeAt = String.prototype.charCodeAt;
+o.charCodeAt(0); //$number 91
+o.charCodeAt(-1); //$number NaN
+)");
+
+    RUN_TEST(L"''.indexOf()", value{-1.});
+    RUN_TEST(L"'11 undefined'.indexOf()", value{3.});
+    RUN_TEST(L"'testfesthest'.indexOf('XX')", value{-1.});
+    RUN_TEST(L"'testfesthest'.indexOf('est')", value{1.});
+    RUN_TEST(L"'testfesthest'.indexOf('est',3)", value{5.});
+    RUN_TEST(L"'testfesthest'.indexOf('est',7)", value{9.});
+    RUN_TEST(L"'testfesthest'.indexOf('est',11)", value{-1.});
+    RUN_TEST(L"'testfesthest'.lastIndexOf('estX')", value{-1.});
+    RUN_TEST(L"'testfesthest'.lastIndexOf('est')", value{9.});
+    RUN_TEST(L"'testfesthest'.lastIndexOf('est',1)", value{1.});
+    RUN_TEST(L"'testfesthest'.lastIndexOf('est',3)", value{1.});
+    RUN_TEST(L"'testfesthest'.lastIndexOf('est',7)", value{5.});
+    RUN_TEST(L"'testfesthest'.lastIndexOf('est', 22)", value{9.});
+    RUN_TEST(L"''.split()+''", value{string{h, ""}});
+    RUN_TEST(L"'1 2 3'.split()+''", value{string{h, "1 2 3"}});
+    RUN_TEST(L"'abcd'.split('')+''", value{string{h, "a,b,c,d"}});
+    RUN_TEST(L"'1 2 3'.split('not found')+''", value{string{h, "1 2 3"}});
+    RUN_TEST(L"'1 2 3'.split(' ')+''", value{string{h, "1,2,3"}});
+    RUN_TEST(L"'foo bar'.substring()", value{string{h, "foo bar"}});
+    RUN_TEST(L"'foo bar'.substring(-1)", value{string{h, "foo bar"}});
+    RUN_TEST(L"'foo bar'.substring(42)", value{string{h, ""}});
+    RUN_TEST(L"'foo bar'.substring(3)", value{string{h, " bar"}});
+    RUN_TEST(L"'foo bar'.substring(0, 1)", value{string{h, "f"}});
+    RUN_TEST(L"'foo bar'.substring(1, 0)", value{string{h, "f"}});
+    RUN_TEST(L"'foo bar'.substring(1000, -1)", value{string{h, "foo bar"}});
+    RUN_TEST(L"'foo bar'.substring(1, 4)", value{string{h, "oo "}});
+    RUN_TEST(L"'ABc'.toLowerCase()", value{string{h, "abc"}});
+    RUN_TEST(L"'ABc'.toUpperCase()", value{string{h, "ABC"}});
+
+    if (tested_version() < version::es3) {
+        RUN_TEST_SPEC(R"(
+var sp = String.prototype;
+sp.concat || sp.localeCompare || sp.match || sp.replace || sp.search || sp.slice || sp.toLocaleLowerCase || sp.toLocaleUpperCase;//$undefined
+)");
+        return;
+    }
+
+
+    // *locale*
+    RUN_TEST_SPEC(R"(
+'abc'.localeCompare('abc');//$number 0
+'abc'.localeCompare('Abc');//$number -1
+'Abc'.localeCompare('abc');//$number 1
+ 'undefined'.localeCompare();//$number 0
+
+'ABc'.toLocaleLowerCase();//$string 'abc'
+'ABc'.toLocaleUpperCase();//$string 'ABC'
+)");
+
+    // concat
+    RUN_TEST_SPEC(R"(
+String.prototype.concat.length;//$number 1
+''.concat(); //$string ''
+'x'.concat('y'); //$string 'xy'
+String.prototype.concat.call(42,43); //$string '4243'
+)");
+
+    // slice
+    RUN_TEST_SPEC(R"(
+String.prototype.slice.length;//$number 2
+'012345'.slice(); //$string '012345'
+'012345'.slice(1); //$string '12345'
+'012345'.slice(1,3); //$string '12'
+'012345'.slice(-3,-1); //$string '34'
+String.prototype.slice.call(12345,-3,7); //$string '345'
+)");
+
+#if 0
+    // match
+    RUN_TEST_SPEC(R"(
+String.prototype.match.length;//$number 1
+)");
+    // replace
+    RUN_TEST_SPEC(R"(
+String.prototype.replace.length;//$number 1
+)");
+    // search
+    RUN_TEST_SPEC(R"(
+String.prototype.search.length;//$number 1
+)");
+#endif
+}
+
 int main() {
     try {
-        //test_array_object(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
+        //test_string_object(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
 
         for (const auto ver: supported_versions) {
             tested_version(ver);
@@ -1503,6 +1578,7 @@ int main() {
             test_object_object();
             test_function_object();
             test_array_object();
+            test_string_object();
             test_global_functions();
             test_math_functions();
             test_date_functions();

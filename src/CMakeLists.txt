@@ -28,6 +28,8 @@ add_library(mjs_lib STATIC
     mjs/regexp_object.h
     mjs/string.cpp
     mjs/string.h
+    mjs/string_object.cpp
+    mjs/string_object.h
     mjs/value.cpp
     mjs/value.h
     mjs/value_representation.cpp
