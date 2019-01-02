@@ -1,16 +1,34 @@
 #include "array_object.h"
 #include "native_object.h"
 #include "function_object.h"
+#include "error_object.h"
 #include <sstream>
 
 namespace mjs {
+
+namespace {
+
+uint32_t check_array_length(const global_object& g, const double n) {
+    const auto l = to_uint32(n);
+    if (g.language_version() >= version::es3 && n != l) {
+        throw native_error_exception(native_error_type::range, g.stack_trace(), L"Invalid array length");
+    }
+    return l;
+}
+
+} // unnamed namespace
 
 class array_object : public native_object {
 public:
     friend gc_type_info_registration<array_object>;
 
-    static gc_heap_ptr<array_object> make(const string& class_name, const object_ptr& prototype, uint32_t length) {
-        return class_name.heap().make<array_object>(class_name, prototype, length);
+    static gc_heap_ptr<array_object> make(const gc_heap_ptr<global_object>& global, const string& class_name, const object_ptr& prototype, uint32_t length) {
+        return class_name.heap().make<array_object>(global, class_name, prototype, length);
+    }
+
+    static gc_heap_ptr<array_object> make(const gc_heap_ptr<global_object>& global, uint32_t length) {
+        auto ap = global->array_prototype();
+        return global.heap().make<array_object>(global, ap->class_name(), ap, length);
     }
 
     value get(const std::wstring_view& name) const override {
@@ -78,6 +96,7 @@ public:
     static string to_locale_string(const gc_heap_ptr<global_object>& global, const gc_heap_ptr<array_object>& arr);
 
 private:
+    gc_heap_ptr_untracked<global_object> global_;
     uint32_t length_;
     gc_heap_ptr_untracked<gc_vector<value_representation>> values_;
     gc_heap_ptr_untracked<gc_vector<uint64_t>> present_mask_;
@@ -87,7 +106,8 @@ private:
     }
 
     void put_length(const value& v) {
-        resize(to_uint32(v));
+        // ES3, 15.4.5.1
+        resize(check_array_length(global_.dereference(heap()), to_number(v)));
     }
 
     static constexpr uint32_t invalid_array_index = UINT32_MAX;
@@ -140,6 +160,7 @@ private:
     }
 
     void fixup() {
+        global_.fixup(heap());
         values_.fixup(heap());
         present_mask_.fixup(heap());
         native_object::fixup();
@@ -158,7 +179,7 @@ private:
         }
     }
 
-    explicit array_object(const string& class_name, const object_ptr& prototype, uint32_t length) : native_object{class_name, prototype}, length_(0) {
+    explicit array_object(const gc_heap_ptr<global_object>& global, const string& class_name, const object_ptr& prototype, uint32_t length) : native_object{class_name, prototype}, global_(global), length_(0) {
         DEFINE_NATIVE_PROPERTY(array_object, length);
         resize(length);
     }
@@ -291,7 +312,7 @@ value array_slice(const gc_heap_ptr<global_object>& global, const object_ptr& o,
     }
 
     // TODO: Could use unchecked_put since we know the length
-    auto res = make_array(global->array_prototype(), {});
+    auto res = make_array(global, 0);
     auto& h = global.heap();
     for (uint32_t n = 0; start + n < end; ++n) {
         res->put(string{h, index_string(n)}, o->get(index_string(start+n)));
@@ -302,15 +323,20 @@ value array_slice(const gc_heap_ptr<global_object>& global, const object_ptr& o,
 
 value array_splice(const gc_heap_ptr<global_object>& global, const object_ptr& o, const std::vector<value>& args) {
     const uint32_t num_args = static_cast<uint32_t>(args.size());
-    if (num_args < 2) {
-        NOT_IMPLEMENTED("Splice needs at least 2 arguments"); // Before ES2015(?) calling array_splice with fewer than 2 arguments isn't specified
+
+    auto res = make_array(global, 0);
+
+    // Fewer than 2 arguments isn't specified until ES2015
+    // No arugments: same as splice(0,0)
+    // One argument: same as splice(start, len-start)
+    if (num_args == 0) {
+        return value{res};
     }
 
     const uint32_t l = to_uint32(o->get(L"length")); // Result(3)
     const uint32_t start = calc_start_index(args[0], l); // Result(5)
-    const uint32_t delete_count = static_cast<uint32_t>(std::min(std::max(to_integer(args[1]), 0.0), 0.0+l-start)); // Result(6)
+    const uint32_t delete_count = static_cast<uint32_t>(std::min(num_args < 2 ? static_cast<double>(l) : std::max(to_integer(args[1]), 0.0), 0.0+l-start)); // Result(6)
     
-    auto res = make_array(global->array_prototype(), {});
     auto& h = global.heap();
     for (uint32_t k = 0; k < delete_count; ++k) {
         const auto prop_name = index_string(start + k);
@@ -361,10 +387,10 @@ value array_splice(const gc_heap_ptr<global_object>& global, const object_ptr& o
 
 create_result make_array_object(global_object& global) {
     auto Array_str_ = global.common_string("Array");
-    auto prototype = array_object::make(Array_str_, global.object_prototype(), 0);
+    auto prototype = array_object::make(global.self_ptr(), Array_str_, global.object_prototype(), 0);
 
-    auto c = make_function(global, [prototype](const value&, const std::vector<value>& args) {
-        return value{make_array(prototype, args)};
+    auto c = make_function(global, [global = global.self_ptr()](const value&, const std::vector<value>& args) {
+        return value{make_array(global, args)};
     }, Array_str_.unsafe_raw_get(), 1);
     c->default_construct_function();
 
@@ -476,11 +502,16 @@ create_result make_array_object(global_object& global) {
     return { c, prototype };
 }
 
-object_ptr make_array(const object_ptr& array_prototype, const std::vector<value>& args) {
+object_ptr make_array(const gc_heap_ptr<global_object>& global, uint32_t length) {
+    return array_object::make(global, length);
+}
+
+object_ptr make_array(const gc_heap_ptr<global_object>& global, const std::vector<value>& args) {
+    auto array_prototype = global->array_prototype();
     if (args.size() == 1 && args[0].type() == value_type::number) {
-        return array_object::make(array_prototype->class_name(), array_prototype, to_uint32(args[0].number_value()));
+        return array_object::make(global, check_array_length(*global, args[0].number_value()));
     }
-    auto arr = array_object::make(array_prototype->class_name(), array_prototype, static_cast<uint32_t>(args.size()));
+    auto arr = array_object::make(global, static_cast<uint32_t>(args.size()));
     for (uint32_t i = 0; i < args.size(); ++i) {
         arr->unchecked_put(i, args[i]);
     }

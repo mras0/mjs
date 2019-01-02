@@ -171,7 +171,7 @@ create_result make_string_object(global_object& global) {
 
     make_string_function("split", 1, [global = global.self_ptr()](const std::wstring_view& s, const std::vector<value>& args){
         auto& h = global->heap();
-        auto a = make_array(global->array_prototype(), {});
+        auto a = make_array(global, 0);
         if (args.empty()) {
             a->put(string{h, index_string(0)}, value{string{h, s}});
         } else {

@@ -1304,6 +1304,11 @@ ap['toLocaleString'] || ap['concat'] || ap['push'] || ap['pop'] || ap['shift'] |
 function f() { this.length=2; this[0]='x'; this[1]='y'; }
 f.prototype.toString = Array.prototype.toString;
 ''+new f();//$string 'x,y'
+
+// Can assign invalid lengths
+var a = new Array();
+a.length = 42.5;
+a.length; //$number 42
         )");
         return;
     }
@@ -1452,9 +1457,36 @@ o[2];//$number 123
 var a = [0,1,2,3,4];
 a.splice(0,1,'x','y').toString();//$string '0'
 a.toString();//$string 'x,y,1,2,3,4'
-)");
-    // TODO: Check that `RangeError` is thrown
 
+// Extensions (specified in ES2015)
+var a = [0,1,2];
+a.splice().toString(); //$string ''
+a.toString(); //$string '0,1,2'
+
+var a = [0,1,2];
+a.splice(1).toString(); //$string '1,2'
+a.toString(); //$string '0'
+)");
+
+    // Check that `RangeError` is thrown (15.4.2.2, 15.4.5.1)
+    RUN_TEST_SPEC(R"(
+
+// ES3, 15.4.2.2
+try {
+    new Array(42.5);
+} catch (e) {
+    e.toString(); //$string 'RangeError: Invalid array length'
+}
+
+// ES3, 15.4.5.1
+try {
+    a = [1,2,3];
+    a.length=0.5;
+} catch (e) {
+    e.toString(); //$string 'RangeError: Invalid array length'
+}
+
+)");
 }
 
 int main() {

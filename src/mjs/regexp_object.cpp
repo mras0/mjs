@@ -97,7 +97,7 @@ public:
             last_index_ = value_representation{static_cast<double>(match[0].second - wstr.cbegin())};
         }
 
-        auto res = make_array(global_.dereference(heap()).array_prototype(), {});
+        auto res = make_array(global_.track(heap()), 0);
 
         res->put(string{heap(), "input"}, value{str});
         res->put(string{heap(), "index"}, value{static_cast<double>(match[0].first - wstr.cbegin())});

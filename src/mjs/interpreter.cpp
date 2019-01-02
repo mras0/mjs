@@ -375,7 +375,7 @@ public:
     }
 
     value operator()(const array_literal_expression& e) {
-        auto a = make_array(global_->array_prototype(), {});
+        auto a = make_array(global_, 0);
         const auto& es = e.elements();
         for (unsigned i = 0; i < es.size(); ++i) {
             if (es[i]) {

@@ -6,7 +6,8 @@
 namespace mjs {
 
 create_result make_array_object(global_object& global);
-object_ptr make_array(const object_ptr& array_prototype, const std::vector<value>& args);
+object_ptr make_array(const gc_heap_ptr<global_object>& global, uint32_t length);
+object_ptr make_array(const gc_heap_ptr<global_object>& global, const std::vector<value>& args);
 
 } // namespace mjs
 
