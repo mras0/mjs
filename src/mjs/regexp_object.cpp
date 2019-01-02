@@ -38,6 +38,8 @@ regexp_flag parse_regexp_flags(const std::wstring_view& s) {
     return f;
 }
 
+// TODO: Could optimize by not creating a new regex object each time,
+//       but need to be careful about not using too much (non-GC) memory.
 class regexp_object : public native_object {
 public:
     static gc_heap_ptr<regexp_object> make(const gc_heap_ptr<global_object>& global, const string& pattern, const string& flags) {
@@ -82,9 +84,6 @@ public:
     }
 
     value exec(const string& str) {
-        // TODO: Could optimize by not creating a new regex object each time,
-        //       but need to be careful about not using too much (non-GC) memory.
-
         const bool global = (flags_ & regexp_flag::global) != regexp_flag::none;
 
         auto flags = std::regex_constants::ECMAScript;
@@ -100,26 +99,38 @@ public:
         }
 
         std::wregex regex{std::wstring{source_.dereference(heap()).view()}, flags};
-        std::wsmatch match;
-        std::wstring wstr{str.view()};
-        if (!std::regex_search(wstr.cbegin() + start_index, wstr.cend(), match, regex)) {
+        const wchar_t* const str_beg = str.view().data();
+        const wchar_t* const str_end = str_beg + str.view().length();
+        std::wcmatch match;
+        if (!std::regex_search(str_beg + start_index, str_end, match, regex)) {
             return value::null;
         }
 
         if (global) {
-            last_index_ = value_representation{static_cast<double>(match[0].second - wstr.cbegin())};
+            last_index_ = value_representation{static_cast<double>(match[0].second - str_beg)};
         }
 
         auto res = make_array(global_.track(heap()), 0);
 
         res->put(string{heap(), "input"}, value{str});
-        res->put(string{heap(), "index"}, value{static_cast<double>(match[0].first - wstr.cbegin())});
+        res->put(string{heap(), "index"}, value{static_cast<double>(match[0].first - str_beg)});
 
         for (uint32_t i = 0; i < static_cast<uint32_t>(match.size()); ++i) {
             res->put(string{heap(), index_string(i)}, value{string{heap(), match[i].str()}});
         }
 
         return value{res};
+    }
+
+    double search(const string& str) const {
+        std::wregex regex{std::wstring{source_.dereference(heap()).view()}, std::regex_constants::ECMAScript};
+        std::wcmatch match;
+        const wchar_t* const str_beg = str.view().data();
+        const wchar_t* const str_end = str_beg + str.view().length();
+        if (!std::regex_search(str_beg, str_end, match, regex)) {
+            return -1;
+        }
+        return static_cast<double>(match[0].first - str_beg);
     }
 
 private:
@@ -250,6 +261,10 @@ value string_match(const gc_heap_ptr<global_object>& global, const string& str, 
         }
     }
     return value{res};
+}
+
+value string_search(const gc_heap_ptr<global_object>& global, const string& str, const value& regexp) {
+    return value{to_regexp_object(global, regexp)->search(str)};
 }
 
 } // namespace mjs

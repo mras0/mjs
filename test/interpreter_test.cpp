@@ -1560,14 +1560,24 @@ m2.length;//$number 4
 m2.toString();//$string ',2,,'
 m2 instanceof Array;//$boolean true
 )");
+
+
+    // search
+    RUN_TEST_SPEC(R"(
+String.prototype.search.call(14242, 242); //$ number 2
+'123'.search(4); //$number -1
+'aabba'.search(/a*b/)//$number 0
+
+re = /x/g;
+re.lastIndex = 'hello';
+'yyyyyyyyx'.search(re); //$number 8
+re.lastIndex; //$string 'hello'
+)");
+
 #if 0
     // replace
     RUN_TEST_SPEC(R"(
 String.prototype.replace.length;//$number 1
-)");
-    // search
-    RUN_TEST_SPEC(R"(
-String.prototype.search.length;//$number 1
 )");
 #endif
 }

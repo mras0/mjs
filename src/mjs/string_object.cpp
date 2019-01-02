@@ -194,6 +194,9 @@ create_result make_string_object(global_object& global) {
         make_string_function("match", 1, [global = global.self_ptr()](const string& s, const std::vector<value>& args) {
             return string_match(global, s, get_arg(args, 0));
         });
+        make_string_function("search", 1, [global = global.self_ptr()](const string& s, const std::vector<value>& args) {
+            return string_search(global, s, get_arg(args, 0));
+        });
     }
 
     return {c, prototype};
