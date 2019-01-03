@@ -138,16 +138,23 @@ void test_type_conversion() {
 
 void test_number_to_string() {
     gc_heap h{1<<9};
-    REQUIRE_EQ(to_string(h, 0.005                    ), (string{h, "0.005"}));
-    REQUIRE_EQ(to_string(h, 0.000005                 ), (string{h, "0.000005"}));
-    REQUIRE_EQ(to_string(h, (0.000005+1e-10)         ), (string{h, "0.000005000100000000001"}));
-    REQUIRE_EQ(to_string(h, 0.0000005                ), (string{h, "5e-7"}));
-    REQUIRE_EQ(to_string(h, 1234.0                   ), (string{h, "1234"}));
-    REQUIRE_EQ(to_string(h, 1e20                     ), (string{h, "100000000000000000000"}));
-    REQUIRE_EQ(to_string(h, 1e21                     ), (string{h, "1e+21"}));
-// FIXME: Why doesn't this work on w/ g++ 8.2.0 on Linux?
-//    REQUIRE_EQ(to_string(h, 1.7976931348623157e+308  ), string{h, "1.7976931348623157e+308"});
-    REQUIRE_EQ(to_string(h, 5e-324                   ), (string{h, "5e-324"}));
+    REQUIRE_EQ(to_string(h, NAN                       ) , (string{h, "NaN"}));
+    REQUIRE_EQ(to_string(h, INFINITY                  ) , (string{h, "Infinity"}));
+    REQUIRE_EQ(to_string(h, -INFINITY                 ) , (string{h, "-Infinity"}));
+    REQUIRE_EQ(to_string(h, 0.0                       ) , (string{h, "0"}));
+    REQUIRE_EQ(to_string(h, -0.0                      ) , (string{h, "0"}));
+    REQUIRE_EQ(to_string(h, 42.0                      ) , (string{h, "42"}));
+    REQUIRE_EQ(to_string(h, -42.0                     ) , (string{h, "-42"}));
+    REQUIRE_EQ(to_string(h, 0.005                     ) , (string{h, "0.005"}));
+    REQUIRE_EQ(to_string(h, 0.000005                  ) , (string{h, "0.000005"}));
+    REQUIRE_EQ(to_string(h, (0.000005+1e-10)          ) , (string{h, "0.000005000100000000001"}));
+    REQUIRE_EQ(to_string(h, 0.0000005                 ) , (string{h, "5e-7"}));
+    REQUIRE_EQ(to_string(h, 1234.0                    ) , (string{h, "1234"}));
+    REQUIRE_EQ(to_string(h, 1e20                      ) , (string{h, "100000000000000000000"}));
+    REQUIRE_EQ(to_string(h, 1e21                      ) , (string{h, "1e+21"}));
+    REQUIRE_EQ(to_string(h, 1.7976931348623157e+308   ) , (string{h, "1.7976931348623157e+308"}));
+    REQUIRE_EQ(to_string(h, 5e-324                    ) , (string{h, "5e-324"}));
+    REQUIRE_EQ(to_string(h, 1000000000000000128.      ) , (string{h, "1000000000000000100"}));
 
     h.garbage_collect();
     assert(h.use_percentage() == 0);

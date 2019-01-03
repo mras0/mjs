@@ -61,7 +61,6 @@ std::wstring to_exponential(double x, int f) {
     assert(e_pos != std::wstring::npos && e_pos+2 < s.length() && (s[e_pos+1] == '+' || s[e_pos+1] == '-'));
     e_pos += 2;
 
-    wprintf(L"'%g' (f=%d) -> '%s'\n", x, f, s.data());
     // Remove leading zeros in exponent
     while (e_pos + 1 < s.length() && s[e_pos] == L'0') {
         s.erase(e_pos, 1);

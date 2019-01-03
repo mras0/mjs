@@ -212,17 +212,57 @@ uint16_t to_uint16(const value& v) {
     return to_uint16(to_number(v));
 }
 
-std::wstring do_format_double(double m, int k) {
-    assert(k >= 1);             // k is the number of decimal digits in the representation
-    int n;                      // n is the position of the decimal point in s
+namespace {
+
+struct ecvt_result {
+    int  k;     // number of decimal digits in s
+    int  n;     // position of decimal point in s
+    char s[18]; // NUL-terminated array of length k
+};
+
+ecvt_result do_ecvt(double m, int k) {
+    assert(k >= 1); // k is the number of decimal digits in the representation
+
+    ecvt_result res;
+    res.k = k;
+#if 1
+    char temp[32];
+    snprintf(temp, sizeof(temp), "%1.*e", k-1, m);
+    res.s[0] = temp[0];
+    if (k > 1) {
+        assert(temp[1] == '.');
+        std::memcpy(&res.s[1], &temp[2], k-1);
+    }
+    const char* exp = &temp[k+(k>1)+1];
+    assert(exp[-1] == 'e' && (exp[0] == '+' || exp[0] == '-'));
+    res.n = 0;
+    for (int i = 1; exp[i]; ++i) {
+        res.n = res.n*10 + exp[i] - '0';
+    }
+    if (exp[0] == '-') {
+        res.n = -res.n;
+    }
+    ++res.n; // Adjust for "1." format part
+#else
     int sign;                   // sign is set if the value is negative (never true since to_string handles that)
 #ifdef _MSC_VER
     char s[_CVTBUFSIZE + 1];    // s is the decimal representation of the number
-    _ecvt_s(s, m, k, &n, &sign);
+    _ecvt_s(s, m, k, &res.n, &sign);
 #else
-    const char* s = ecvt(m, k, &n, &sign);
+    const char* s = ecvt(m, k, &res.n, &sign);
 #endif
     assert(sign == 0);
+    assert((int)std::strlen(s) == k);
+    std::memcpy(res.s, s, k);
+#endif
+    res.s[k] = '\0';
+    return res;
+}
+
+} // unnamed namespace
+
+std::wstring do_format_double(double m, int k) {
+    auto [k_, n, s] = do_ecvt(m, k); (void)k_;
 
     std::wostringstream woss;
     if (k <= n && n <= 21) {
