@@ -1608,10 +1608,33 @@ try {
 (42).toLocaleString(); //$string '42'
 )");
 
+    // toFixed
+    RUN_TEST_SPEC(R"(
+Number.prototype.toFixed.length; //$number 1
+
+// ES3, 15.7.4.5
+try {
+    (123).toFixed(21);
+} catch (e) {
+    e.toString(); //$string 'RangeError: fractionDigits out of range in Number.toFixed()'
+}
+
+(NaN).toFixed(); //$string 'NaN'
+(0).toFixed(); //$string '0'
+(42).toFixed(); //$string '42'
+(-42).toFixed(); //$string '-42'
+
+(1000000000000000128).toString(); //$string '1000000000000000100'
+(1000000000000000128).toFixed(0); //$string '1000000000000000128'
+
+(123).toFixed(4.999); //$string '123.0000'
+
+)");
+
     //
     // RangeError
     //
-    // ES3, 15.7.4.5, 15.7.4.6, and 15.7.4.7
+    // ES3, 15.7.4.6, and 15.7.4.7
     //
 }
 
