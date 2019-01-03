@@ -17,6 +17,8 @@ add_library(mjs_lib STATIC
     mjs/lexer.h
     mjs/native_object.cpp
     mjs/native_object.h
+    mjs/number_object.cpp
+    mjs/number_object.h
     mjs/object.cpp
     mjs/object.h
     mjs/parser.cpp

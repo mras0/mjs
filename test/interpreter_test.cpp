@@ -369,16 +369,6 @@ count(make(4)); //$number 31
     RUN_TEST(L"'' + new Boolean(0)", value{string{h, "false"}});
     RUN_TEST(L"'' + new Boolean(1)", value{string{h, "true"}});
     RUN_TEST(L"Object(true).toString()", value{string{h, "true"}});
-    // Number
-    RUN_TEST(L"Number()", value{0.});
-    RUN_TEST(L"Number(42.42)", value{42.42});
-    RUN_TEST(L"Number.MIN_VALUE", value{5e-324});
-    RUN_TEST(L"Number('1.2')", value{1.2});
-    RUN_TEST(L"Number('1,2')", value{NAN});
-    RUN_TEST(L"new Number(42.42).toString()", value{string{h, "42.42"}});
-    RUN_TEST(L"''+new Number(60)", value{string{h, "60"}});
-    RUN_TEST(L"new Number(123).valueOf()", value{123.0});
-    RUN_TEST(L"Object(42).toString(10)", value{string{h, "42"}});
     // TODO: Math
     // TODO: Date
 
@@ -1167,11 +1157,6 @@ try {
     // TODO: Check if these are tested elsewhere (some probably are)
 
     //
-    // RangeError
-    //
-    // ES3, 15.4.2.2, 15.4.5.1, 15.7.4.5, 15.7.4.6, and 15.7.4.7
-
-    //
     // SyntaxError
     //
     // ES3, 15.1.2.1, 15.3.2.1, 15.10.2.5, 15.10.2.9, 15.10.2.15, 15.10.2.19, and 15.10.4.1
@@ -1181,7 +1166,7 @@ try {
     //
     // ES3, 8.6.2, 8.6.2.6, 9.9, 11.2.2, 11.2.3, 11.8.6, 11.8.7, 15.3.4.2, 15.3.4.3,
     // 15.3.4.4, 15.3.5.3, 15.4.4.2, 15.4.4.3, 15.5.4.2, 15.5.4.3, 15.6.4, 15.6.4.2,
-    // 15.6.4.3, 15.7.4, 15.7.4. 2, 15.7.4.4, 15.9.5, 15.9.5.9, 15.9.5.27, 15.10.4.1,
+    // 15.6.4.3, 15.9.5, 15.9.5.9, 15.9.5.27, 15.10.4.1,
     // and 15.10.6.
 
     //
@@ -1582,9 +1567,57 @@ String.prototype.replace.call(...)
 #endif
 }
 
+void test_number_object() {
+    gc_heap h{8192};
+
+    // Number
+    RUN_TEST(L"Number()", value{0.});
+    RUN_TEST(L"Number(42.42)", value{42.42});
+    RUN_TEST(L"Number.MIN_VALUE", value{5e-324});
+    RUN_TEST(L"Number('1.2')", value{1.2});
+    RUN_TEST(L"Number('1,2')", value{NAN});
+    RUN_TEST(L"new Number(42.42).toString()", value{string{h, "42.42"}});
+    RUN_TEST(L"''+new Number(60)", value{string{h, "60"}});
+    RUN_TEST(L"new Number(123).valueOf()", value{123.0});
+    RUN_TEST(L"Object(42).toString(10)", value{string{h, "42"}});
+
+    if (tested_version() < version::es3) {
+        RUN_TEST_SPEC(R"(
+var np = Number.prototype;
+np.toLocaleString || np.toFixed || np.toExponential || np.toPrecision; //$undefined
+)");
+        return;
+    }
+
+
+    RUN_TEST_SPEC(R"(
+// ES3, 15.7.4.2
+try {
+    Number.prototype.toString.call('test');
+} catch (e) {
+    e.toString(); //$string 'TypeError: String is not a Number'
+}
+
+// ES3, 15.7.4.4
+try {
+    Number.prototype.valueOf.call('test');
+} catch (e) {
+    e.toString(); //$string 'TypeError: String is not a Number'
+}
+
+(42).toLocaleString(); //$string '42'
+)");
+
+    //
+    // RangeError
+    //
+    // ES3, 15.7.4.5, 15.7.4.6, and 15.7.4.7
+    //
+}
+
 int main() {
     try {
-        //test_array_object(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
+        //test_number_object(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
 
         for (const auto ver: supported_versions) {
             tested_version(ver);
@@ -1597,6 +1630,7 @@ int main() {
             test_function_object();
             test_array_object();
             test_string_object();
+            test_number_object();
             test_global_functions();
             test_math_functions();
             test_date_functions();

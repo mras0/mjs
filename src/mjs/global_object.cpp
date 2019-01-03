@@ -7,6 +7,7 @@
 #include "regexp_object.h"
 #include "error_object.h"
 #include "string_object.h"
+#include "number_object.h"
 #include <sstream>
 #include <chrono>
 #include <algorithm>
@@ -110,61 +111,6 @@ create_result make_boolean_object(global_object& global) {
         return value{string{this_.object_value().heap(), this_.object_value()->internal_value().boolean_value() ? L"true" : L"false"}};
     }, 0);
 
-    put_native_function(global, prototype, global.common_string("valueOf"), [check_type](const value& this_, const std::vector<value>&){
-        check_type(this_);
-        return this_.object_value()->internal_value();
-    }, 0);
-
-    return { c, prototype };
-}
-
-//
-// Number
-//
-
-object_ptr new_number(const object_ptr& prototype,  double val) {
-    auto o = prototype.heap().make<object>(prototype->class_name(), prototype);
-    o->internal_value(value{val});
-    return o;
-}
-
-create_result make_number_object(global_object& global) {
-    auto& h = global.heap();
-    auto Number_str_ = global.common_string("Number");
-    auto prototype = h.make<object>(Number_str_, global.object_prototype());
-    prototype->internal_value(value{0.});
-
-    auto c = make_function(global, [](const value&, const std::vector<value>& args) {
-        return value{args.empty() ? 0.0 : to_number(args.front())};
-    }, Number_str_.unsafe_raw_get(), 1);
-    make_constructable(global, c, [prototype](const value&, const std::vector<value>& args) {
-        return value{new_number(prototype, args.empty() ? 0.0 : to_number(args.front()))};
-    });
-
-    c->put(string{h, "MAX_VALUE"}, value{1.7976931348623157e308}, global_object::default_attributes);
-    c->put(string{h, "MIN_VALUE"}, value{5e-324}, global_object::default_attributes);
-    c->put(string{h, "NaN"}, value{NAN}, global_object::default_attributes);
-    c->put(string{h, "NEGATIVE_INFINITY"}, value{-INFINITY}, global_object::default_attributes);
-    c->put(string{h, "POSITIVE_INFINITY"}, value{INFINITY}, global_object::default_attributes);
-
-    auto check_type = [global = global.self_ptr(), prototype](const value& this_) {
-        global->validate_type(this_, prototype, "Number");
-    };
-
-    put_native_function(global, prototype, global.common_string("toString"), [check_type](const value& this_, const std::vector<value>& args){
-        check_type(this_);
-        const int radix = args.empty() ? 10 : to_int32(args.front());
-        if (radix < 2 || radix > 36) {
-            std::wostringstream woss;
-            woss << "Invalid radix in Number.toString: " << to_string(this_.object_value().heap(), args.front());
-            THROW_RUNTIME_ERROR(woss.str());
-        }
-        if (radix != 10) {
-            NOT_IMPLEMENTED(radix);
-        }
-        auto o = this_.object_value();
-        return value{to_string(o.heap(), o->internal_value())};
-    }, 1);
     put_native_function(global, prototype, global.common_string("valueOf"), [check_type](const value& this_, const std::vector<value>&){
         check_type(this_);
         return this_.object_value()->internal_value();
