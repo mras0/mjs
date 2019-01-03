@@ -1608,7 +1608,7 @@ try {
 (42).toLocaleString(); //$string '42'
 )");
 
-    // toFixed
+    // toFixed(), ES3, 15.7.4.5
     RUN_TEST_SPEC(R"(
 Number.prototype.toFixed.length; //$number 1
 
@@ -1628,19 +1628,55 @@ try {
 (1000000000000000128).toFixed(0); //$string '1000000000000000128'
 
 (123).toFixed(4.999); //$string '123.0000'
-
 )");
 
-    //
-    // RangeError
-    //
-    // ES3, 15.7.4.6, and 15.7.4.7
-    //
+    // toExponential(), ES3, 15.7.4.6
+    RUN_TEST_SPEC(R"(
+Number.prototype.toExponential.length; //$number 1
+
+try {
+    (123).toExponential(-1);
+} catch (e) {
+    e.toString(); //$string 'RangeError: fractionDigits out of range in Number.toExponential()'
+}
+
+(NaN).toExponential(); //$string 'NaN'
+(-Infinity).toExponential(); //$string '-Infinity'
+(0).toExponential(20); //$string '0.00000000000000000000e+0'
+(100000).toExponential(); //$string '1e+5'
+(100001).toExponential(); //$string '1.00001e+5'
+(100000).toExponential(1); //$string '1.0e+5'
+(100001).toExponential(1); //$string '1.0e+5'
+(1234).toExponential(); //$string '1.234e+3'
+(1234).toExponential(1); //$string '1.2e+3'
+(1e10).toExponential(15); //$string '1.000000000000000e+10'
+(1.12345678e-22).toExponential(20); //$string '1.12345678000000011537e-22'
+)");
+
+
+#if 0
+    // toPrecision(), ES3, 15.7.4.7
+    RUN_TEST_SPEC(R"(
+Number.prototype.toPrecision.length; //$number 1
+
+try {
+    (123).toPrecision(0);
+} catch (e) {
+    e.toString(); //$string 'RangeError: precision out of range in Number.toPrecision()'
+}
+
+
+(NaN).toPrecision(1); //$string 'NaN'
+(-Infinity).toPrecision(1); //$string '-Infinity'
+(1000000000000000128).toPrecision(); //$string '1000000000000000100'
+(0).toPrecision(10); //$string '0.000000000'
+)");
+#endif
 }
 
 int main() {
     try {
-        //test_number_object(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
+//        test_number_object(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
 
         for (const auto ver: supported_versions) {
             tested_version(ver);
