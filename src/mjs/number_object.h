@@ -12,4 +12,3 @@ object_ptr new_number(const object_ptr& prototype, double val);
 } // namespace mjs
 
 #endif
-

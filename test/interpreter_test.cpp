@@ -1654,7 +1654,7 @@ try {
 )");
 
 
-#if 0
+#if 1
     // toPrecision(), ES3, 15.7.4.7
     RUN_TEST_SPEC(R"(
 Number.prototype.toPrecision.length; //$number 1
@@ -1670,13 +1670,21 @@ try {
 (-Infinity).toPrecision(1); //$string '-Infinity'
 (1000000000000000128).toPrecision(); //$string '1000000000000000100'
 (0).toPrecision(10); //$string '0.000000000'
+(1234).toPrecision(1); //$string '1e+3'
+(1234).toPrecision(2); //$string '1.2e+3'
+(1234).toPrecision(3); //$string '1.23e+3'
+(1234).toPrecision(4); //$string '1234'
+(1234).toPrecision(5); //$string '1234.0'
+(1234).toPrecision(6); //$string '1234.00'
+(-1234.22).toPrecision(6); //$string '-1234.22'
+(-1e-4).toPrecision(8); //$string '-0.00010000000'
 )");
 #endif
 }
 
 int main() {
     try {
-//        test_number_object(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
+        //test_number_object(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
 
         for (const auto ver: supported_versions) {
             tested_version(ver);

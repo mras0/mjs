@@ -19,6 +19,8 @@ add_library(mjs_lib STATIC
     mjs/native_object.h
     mjs/number_object.cpp
     mjs/number_object.h
+    mjs/number_to_string.cpp
+    mjs/number_to_string.h
     mjs/object.cpp
     mjs/object.h
     mjs/parser.cpp

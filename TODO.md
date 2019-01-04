@@ -21,9 +21,6 @@
     - Check that correct errors are thrown (search for EvalError/TypeError/etc. - also see ES3 §15.11.6)
  * Global object
     - ES3, 15.5.4.11: `String.prototype.replace`
-    - Number
-        - `toLocaleString`
-        - `toFixed`, `toExponential`, `toPrecision`
     - Date
         - mutators
         - time zone adjustments
