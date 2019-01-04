@@ -1,6 +1,5 @@
 * Lexer
     - Follow specification exactly when handling e.g. number literals..
-    - Missing stuff?
     - Add more test cases...
     - ES3 support:
         * Handling unicode format-control characters (§7.1)
@@ -24,7 +23,6 @@
     - Date
         - time zone adjustments
         - locale functions
-        - ES3 support
     - RegExp - multiline regexp
     - Make it possible to implement native (member) functions more easily. Perhaps create the ECMAScript function object only if requested?
     - Add test cases for directly relatable to clauses in the spec (e.g. `Boolean.prototype.constructor` exists and is correct)

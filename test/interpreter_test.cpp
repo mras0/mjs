@@ -534,8 +534,6 @@ Math.tan(0);            //$ number 0
 
 void test_date_functions() {
     // Timezones/locale not supported
-    // TODO: Test NaN Dates
-    // TODO: ES3: toDateString(), toTimeString(), toLocaleDateString(), toLocaleTimeString()
 
     RUN_TEST_SPEC(R"(
 typeof Date(); //$string 'string'
@@ -620,7 +618,34 @@ new Date(+d3).setMonth(9); //$number 970403696789
 new Date(+d3).setYear(99); //$number 915194096789
 new Date(+d3).setFullYear(1988); //$number 568038896789
 
+invalid = new Date(NaN);
+invalid.toString(); //$string 'Invalid Date'
+invalid.toLocaleString(); //$string 'Invalid Date'
+invalid.toGMTString(); //$string 'Invalid Date'
+invalid.toUTCString(); //$string 'Invalid Date'
+
 +d3; //$ number 946730096789
+)");
+
+    if (tested_version() < version::es3) {
+            RUN_TEST_SPEC(R"(
+        dp = Date.prototype; dp.toDateString||dp.toTimeString||dp.toLocaleDateString||dp.toLocaleTimeString;//$undefined
+        )");
+            return;
+    }
+
+    RUN_TEST_SPEC(R"(
+d = new Date(1546632840054);
+d.toDateString(); //$string 'Fri Jan 04 2019'
+d.toLocaleDateString(); //$string 'Fri Jan 04 2019'
+d.toTimeString(); //$string '20:14:00'
+d.toLocaleTimeString(); //$string '20:14:00'
+
+invalid = new Date(NaN);
+invalid.toDateString();       //$string 'Invalid Date'
+invalid.toLocaleDateString(); //$string 'Invalid Date'
+invalid.toTimeString();       //$string 'Invalid Date'
+invalid.toLocaleTimeString(); //$string 'Invalid Date'
 )");
 }
 

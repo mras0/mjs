@@ -154,6 +154,7 @@ struct date_helper {
         return date_helper::make_date(date_helper::make_day(year, month, day), date_helper::make_time(hours, minutes, seconds, ms));
     }
 
+    static constexpr const wchar_t* invalid_date_string = L"Invalid Date";
     static constexpr const wchar_t* time_format = L"%a %b %d %Y %H:%M:%S";
 
     static double parse(const std::wstring_view s) {
@@ -166,9 +167,26 @@ struct date_helper {
     }
 
     static string to_string(gc_heap& h, double t) {
+        if (!std::isfinite(t)) return string{h, invalid_date_string};
         const auto tm = tm_from_time(t);
         std::wostringstream woss;
         woss << std::put_time(&tm, time_format) << " UTC";
+        return string{h, woss.str()};
+    }
+
+    static string to_date_string(gc_heap& h, double t) {
+        if (!std::isfinite(t)) return string{h, invalid_date_string};
+        const auto tm = tm_from_time(t);
+        std::wostringstream woss;
+        woss << std::put_time(&tm, L"%a %b %d %Y");
+        return string{h, woss.str()};
+    }
+
+    static string to_time_string(gc_heap& h, double t) {
+        if (!std::isfinite(t)) return string{h, invalid_date_string};
+        const auto tm = tm_from_time(t);
+        std::wostringstream woss;
+        woss << std::put_time(&tm, L"%H:%M:%S");
         return string{h, woss.str()};
     }
 
@@ -392,6 +410,23 @@ create_result make_date_object(global_object& global) {
     copy_func(L"toString", L"toLocaleString");
     copy_func(L"toString", L"toUTCString");
     copy_func(L"toString", L"toGMTString");
+
+    if (global.language_version() >= version::es3) {
+        put_native_function(global, prototype, "toTimeString", [check_type](const value& this_, const std::vector<value>&) {
+            check_type(this_);
+            auto o = this_.object_value();
+            return value{date_helper::to_time_string(o.heap(), o->internal_value().number_value())};
+        }, 0);
+
+        put_native_function(global, prototype, "toDateString", [check_type](const value& this_, const std::vector<value>&) {
+            check_type(this_);
+            auto o = this_.object_value();
+            return value{date_helper::to_date_string(o.heap(), o->internal_value().number_value())};
+        }, 0);
+
+        copy_func(L"toTimeString", L"toLocaleTimeString");
+        copy_func(L"toDateString", L"toLocaleDateString");
+    }
 
     return { c, prototype };
 }

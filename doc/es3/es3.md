@@ -17,6 +17,7 @@ Wikipedia: "Added regular expressions, better string handling, new control state
     - And a bunch of new `FutureReservedWord`s
     - Identifiers can now contain various unicode characters
     - `RegularExpressionLiteral` (`RegExp` object created before evaluation start)
+    - Real unicode support is a lot of work
 - Parser changes:
     - Semi-colon insertion rules (between continue/break and identfier, between throw and expression - like return)
     - New `PrimaryExpresson`: `ArrayLiteral` (note: `[,,,]` is valid) and `ObjectLiteral`
@@ -59,4 +60,4 @@ Weird stuff/notes:
 - Implementation order..
 - `delete SyntaxError; x` makes the Node.js REPL exit (at least in
   version 6.10.3)
-
+- Overly complex additions to standard library (e.g. `Array.splice` has 54 steps, have mercy!)
