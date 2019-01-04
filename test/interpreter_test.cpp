@@ -534,8 +534,6 @@ Math.tan(0);            //$ number 0
 
 void test_date_functions() {
     // Timezones/locale not supported
-    // TODO: Test mutators
-    // TODO: Test to*String()
     // TODO: Test NaN Dates
 
     RUN_TEST_SPEC(R"(
@@ -590,9 +588,33 @@ Date.parse(d3.toString()); //$ number 946730096000
 Date.parse(d3.toGMTString()); //$ number 946730096000
 Date.parse(d3.toUTCString()); //$ number 946730096000
 Date.parse(d3.toLocaleString()); //$ number 946730096000
+d4 = new Date(d3);
++d4; //$number 946730096000
 
-d3.setTime(5678); d3.getTime() //$ number 5678
+d4=new Date(+d3); d4.setTime(5678); //$ number 5678
+d4.getTime(); //$ number 5678
 
+d4=new Date(+d3); d4.setMilliseconds(123); //$ number 946730096123
++d4; //$ number 946730096123
+d4=new Date(+d3); d4.setUTCMilliseconds(123); //$ number 946730096123
+
+new Date(+d3).setUTCSeconds(9); //$number 946730049789
+new Date(+d3).setUTCMinutes(9); //$number 946728596789
+new Date(+d3).setUTCHours(9); //number 946719296789 
+new Date(+d3).setUTCDate(9); //$number 947421296789
+new Date(+d3).setUTCMonth(9); //$number 970403696789
+new Date().setUTCYear; //$undefined
+new Date(+d3).setUTCFullYear(1988); //$number 568038896789
+
+new Date(+d3).setSeconds(9); //$number 946730049789
+new Date(+d3).setMinutes(9); //$number 946728596789
+new Date(+d3).setHours(9); //number 946719296789 
+new Date(+d3).setDate(9); //$number 947421296789
+new Date(+d3).setMonth(9); //$number 970403696789
+new Date(+d3).setYear(99); //$number 915194096789
+new Date(+d3).setFullYear(1988); //$number 568038896789
+
++d3; //$ number 946730096789
 )");
 }
 

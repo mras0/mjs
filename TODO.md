@@ -22,10 +22,9 @@
  * Global object
     - ES3, 15.5.4.11: `String.prototype.replace`
     - Date
-        - mutators
         - time zone adjustments
-        - to/from string
         - locale functions
+        - ES3 support
     - RegExp - multiline regexp
     - Make it possible to implement native (member) functions more easily. Perhaps create the ECMAScript function object only if requested?
     - Add test cases for directly relatable to clauses in the spec (e.g. `Boolean.prototype.constructor` exists and is correct)

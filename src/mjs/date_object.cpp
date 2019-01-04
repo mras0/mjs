@@ -5,6 +5,9 @@
 #include <cmath>
 #include <chrono>
 #include <iomanip>
+#include <cstring>
+
+#include <iostream> ///TEMP
 
 #ifndef _WIN32
 // TODO: Get rid of this stuff alltogether
@@ -14,6 +17,11 @@
 namespace mjs {
 
 namespace {
+
+struct date_time {
+    double year, month, day;
+    double h, m, s, ms;
+};
 
 // TODO: Optimize and use rules from 15.9.1 to elimiate c++ standard library calls
 struct date_helper {
@@ -168,9 +176,22 @@ struct date_helper {
         // TODO: subtract local time adjustment
         return t;
     }
+    
     static double local_time(double t) {
         // TODO: add local time adjustment
         return t;
+    }
+
+    static date_time date_time_from_time(double t) {
+        const auto tm = tm_from_time(t);
+        return {
+            static_cast<double>(tm.tm_year+1900), static_cast<double>(tm.tm_mon), static_cast<double>(tm.tm_mday),
+            static_cast<double>(tm.tm_hour), static_cast<double>(tm.tm_min), static_cast<double>(tm.tm_sec), static_cast<double>(ms_from_time(t))
+        };
+    }
+
+    static double time_from_date_time(const date_time& dt) {
+        return make_date(make_day(dt.year, dt.month, dt.day), make_time(dt.h, dt.m, dt.s, dt.ms));
     }
 };
 
@@ -218,7 +239,7 @@ create_result make_date_object(global_object& global) {
             auto v = to_primitive(args[0]);
             if (v.type() == value_type::string) {
                 // return Date.parse(v)
-                NOT_IMPLEMENTED("new Date(string)");
+                return value{new_date(date_helper::parse(v.string_value().view()))};
             }
             return value{new_date(to_number(v))};
         } else if (args.size() == 2) {
@@ -328,15 +349,34 @@ create_result make_date_object(global_object& global) {
         prototype->put(string{h, to}, prototype->get(from));
     };
 
+    auto make_simple_date_mutator = [&](const char* name, auto field) {
+        make_date_mutator(name, [field](double current, double arg) {
+            auto dt = date_helper::date_time_from_time(current);
+            dt.*field = arg;
+            return date_helper::time_from_date_time(dt);
+        });
+        const std::wstring from{name, name+std::strlen(name)};
+        assert(from.compare(0, 3, L"set") == 0);
+        copy_func(from.c_str(), (L"setUTC" + from.substr(3)).c_str());
+    };
+
     make_date_mutator("setTime", [](double, double arg) {
         return arg;
     });
 
+    make_simple_date_mutator("setMilliseconds", &date_time::ms);
+    make_simple_date_mutator("setSeconds", &date_time::s);
+    make_simple_date_mutator("setMinutes", &date_time::m);
+    make_simple_date_mutator("setHours", &date_time::h);
+    make_simple_date_mutator("setDate", &date_time::day);
+    make_simple_date_mutator("setMonth", &date_time::month);
+    make_simple_date_mutator("setFullYear", &date_time::year);
 
-
-    // setMilliseconds(ms)
-    // setUTCMilliseconds(ms)
-    // ...
+    make_date_mutator("setYear", [](double current, double arg) {
+        auto dt = date_helper::date_time_from_time(current);
+        dt.year = arg + 1900;
+        return date_helper::time_from_date_time(dt);
+    });
 
     put_native_function(global, prototype, "toString", [check_type](const value& this_, const std::vector<value>&) {
         check_type(this_);
