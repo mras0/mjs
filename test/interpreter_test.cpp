@@ -533,12 +533,15 @@ Math.tan(0);            //$ number 0
 }
 
 void test_date_functions() {
-    // TODO: Test local time
+    // Timezones/locale not supported
     // TODO: Test mutators
     // TODO: Test to*String()
     // TODO: Test NaN Dates
 
     RUN_TEST_SPEC(R"(
+typeof Date(); //$string 'string'
+typeof Date(2000,0,1); //$string 'string'
+
 new Date(1234).valueOf(); //$ number 1234
 new Date(1234).getTime(); //$ number 1234
 var t = Date.UTC(2000,0,1); t //$number 946684800000
@@ -547,6 +550,14 @@ d.valueOf(); //$ number 946684800000
 d.getTime(); //$ number 946684800000
 var t2 = Date.UTC(2000,0,1,12,34,56,7890); t2 //$ number 946730103890
 var d2 = new Date(t2);
+d2.getFullYear(); //$ number 2000
+d2.getMonth(); //$ number 0
+d2.getDate(); //$ number 1
+d2.getDay(); //$ number 6
+d2.getHours(); //$ number 12
+d2.getMinutes(); //$ number 35
+d2.getSeconds(); //$ number 3
+d2.getMilliseconds(); //$ number 890
 d2.getUTCFullYear(); //$ number 2000
 d2.getUTCMonth(); //$ number 0
 d2.getUTCDate(); //$ number 1
@@ -555,6 +566,8 @@ d2.getUTCHours(); //$ number 12
 d2.getUTCMinutes(); //$ number 35
 d2.getUTCSeconds(); //$ number 3
 d2.getUTCMilliseconds(); //$ number 890
+
+d2.getTimezoneOffset();//$number 0
 
 var t3 = Date.UTC(2000,0,1,12,34,56,789); t3 //$ number 946730096789
 var d3 = new Date(t3);
@@ -567,9 +580,18 @@ d3.getUTCMinutes(); //$ number 34
 d3.getUTCSeconds(); //$ number 56
 d3.getUTCMilliseconds(); //$ number 789
 
-d3.setTime(5678); d3.getTime() //$ number 5678
+d3.toString(); //$string 'Sat Jan 01 2000 12:34:56 UTC'
 
-//TODO: Use getTimezoneOffset() to create a local time 
+Date.parse('dsds'); //$number NaN
+
++d3; //$ number 946730096789
+d3.valueOf(); //$ number 946730096789
+Date.parse(d3.toString()); //$ number 946730096000
+Date.parse(d3.toGMTString()); //$ number 946730096000
+Date.parse(d3.toUTCString()); //$ number 946730096000
+Date.parse(d3.toLocaleString()); //$ number 946730096000
+
+d3.setTime(5678); d3.getTime() //$ number 5678
 
 )");
 }
@@ -1690,7 +1712,7 @@ try {
 
 int main() {
     try {
-        //test_string_object(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
+        //test_date_functions(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
 
         for (const auto ver: supported_versions) {
             tested_version(ver);

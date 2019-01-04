@@ -1,6 +1,8 @@
 add_library(mjs_lib STATIC
     mjs/array_object.cpp
     mjs/array_object.h
+    mjs/date_object.cpp
+    mjs/date_object.h
     mjs/error_object.cpp
     mjs/error_object.h
     mjs/function_object.cpp
