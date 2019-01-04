@@ -86,23 +86,16 @@ public:
     value exec(const string& str) {
         const bool global = (flags_ & regexp_flag::global) != regexp_flag::none;
 
-        auto flags = std::regex_constants::ECMAScript;
-        if ((flags_ & regexp_flag::ignore_case) != regexp_flag::none) flags |= std::regex_constants::icase;
-        // TODO: Not implemented in MSVC yet
-        //if ((flags_ & regexp_flag::multiline) != regexp_flag::none) flags |= std::regex_constants::multiline;
-
-
         const int32_t start_index = global ? static_cast<int32_t>(to_integer(last_index_.get_value(heap()))) : 0;
         last_index_ = value_representation{value{0.0}};
         if (start_index < 0 || static_cast<size_t>(start_index) > str.view().length()) {
             return value::null;
         }
 
-        std::wregex regex{std::wstring{source_.dereference(heap()).view()}, flags};
         const wchar_t* const str_beg = str.view().data();
         const wchar_t* const str_end = str_beg + str.view().length();
         std::wcmatch match;
-        if (!std::regex_search(str_beg + start_index, str_end, match, regex)) {
+        if (!std::regex_search(str_beg + start_index, str_end, match, get_regex())) {
             return value::null;
         }
 
@@ -123,11 +116,10 @@ public:
     }
 
     double search(const string& str) const {
-        std::wregex regex{std::wstring{source_.dereference(heap()).view()}, std::regex_constants::ECMAScript};
         std::wcmatch match;
         const wchar_t* const str_beg = str.view().data();
         const wchar_t* const str_end = str_beg + str.view().length();
-        if (!std::regex_search(str_beg, str_end, match, regex)) {
+        if (!std::regex_search(str_beg, str_end, match, get_regex())) {
             return -1;
         }
         return static_cast<double>(match[0].first - str_beg);
@@ -139,6 +131,14 @@ private:
     gc_heap_ptr_untracked<gc_string>        source_;
     value_representation                    last_index_;
     regexp_flag                             flags_;
+
+    std::wregex get_regex() const {
+        auto options = std::regex_constants::ECMAScript;
+        if ((flags_ & regexp_flag::ignore_case) != regexp_flag::none) options |= std::regex_constants::icase;
+        // TODO: Not implemented in MSVC yet
+        //if ((flags_ & regexp_flag::multiline) != regexp_flag::none) options |= std::regex_constants::multiline;
+        return std::wregex{std::wstring{source_.dereference(heap()).view()}, options};
+    }
 
     value get_source() const {
         return value{source_.track(heap())};

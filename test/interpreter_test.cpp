@@ -1544,6 +1544,9 @@ m2=String.prototype.match.call(123,/2|/g);
 m2.length;//$number 4
 m2.toString();//$string ',2,,'
 m2 instanceof Array;//$boolean true
+
+String.prototype.match.call('abAcdAa',/a/g).toString();//$string 'a,a'
+String.prototype.match.call('abAcdAa',/a/gi).toString();//$string 'a,A,A,a'
 )");
 
 
@@ -1557,6 +1560,9 @@ re = /x/g;
 re.lastIndex = 'hello';
 'yyyyyyyyx'.search(re); //$number 8
 re.lastIndex; //$string 'hello'
+
+'AAA'.search(/a/); //$number -1
+'AAA'.search(/a/i); //$number 0
 )");
 
 #if 0
@@ -1684,7 +1690,7 @@ try {
 
 int main() {
     try {
-        //test_number_object(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
+        //test_string_object(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
 
         for (const auto ver: supported_versions) {
             tested_version(ver);
