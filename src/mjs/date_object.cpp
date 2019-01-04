@@ -339,7 +339,7 @@ create_result make_date_object(global_object& global) {
         put_native_function(global, prototype, name, [f, check_type](const value& this_, const std::vector<value>& args) {
             check_type(this_);
             auto& obj = *this_.object_value();
-            const value v{f(obj.internal_value().number_value(), !args.empty() ? to_number(args[0]) : NAN)};
+            const value v{f(obj.internal_value().number_value(), !args.empty() ? to_number(args[0]) : NAN, args)};
             obj.internal_value(v);
             return v;
         }, 0);
@@ -349,10 +349,15 @@ create_result make_date_object(global_object& global) {
         prototype->put(string{h, to}, prototype->get(from));
     };
 
-    auto make_simple_date_mutator = [&](const char* name, auto field) {
-        make_date_mutator(name, [field](double current, double arg) {
+    using field_ptr = double date_time::*;
+
+    auto make_simple_date_mutator = [&](const char* name, field_ptr field0, field_ptr field1 = nullptr, field_ptr field2 = nullptr, field_ptr field3 = nullptr) {
+        make_date_mutator(name, [field0, field1, field2, field3](double current, double arg, const std::vector<value>& args) {
             auto dt = date_helper::date_time_from_time(current);
-            dt.*field = arg;
+            dt.*field0 = arg;
+            if (field1 && args.size() > 1) dt.*field1 = to_number(args[1]);
+            if (field2 && args.size() > 2) dt.*field2 = to_number(args[2]);
+            if (field3 && args.size() > 3) dt.*field3 = to_number(args[3]);
             return date_helper::time_from_date_time(dt);
         });
         const std::wstring from{name, name+std::strlen(name)};
@@ -360,19 +365,19 @@ create_result make_date_object(global_object& global) {
         copy_func(from.c_str(), (L"setUTC" + from.substr(3)).c_str());
     };
 
-    make_date_mutator("setTime", [](double, double arg) {
+    make_date_mutator("setTime", [](double, double arg, const std::vector<value>&) {
         return arg;
     });
 
     make_simple_date_mutator("setMilliseconds", &date_time::ms);
-    make_simple_date_mutator("setSeconds", &date_time::s);
-    make_simple_date_mutator("setMinutes", &date_time::m);
-    make_simple_date_mutator("setHours", &date_time::h);
+    make_simple_date_mutator("setSeconds", &date_time::s, &date_time::ms);
+    make_simple_date_mutator("setMinutes", &date_time::m, &date_time::s, &date_time::ms);
+    make_simple_date_mutator("setHours", &date_time::h, &date_time::m, &date_time::s, &date_time::ms);
     make_simple_date_mutator("setDate", &date_time::day);
-    make_simple_date_mutator("setMonth", &date_time::month);
-    make_simple_date_mutator("setFullYear", &date_time::year);
+    make_simple_date_mutator("setMonth", &date_time::month, &date_time::day);
+    make_simple_date_mutator("setFullYear", &date_time::year, &date_time::month, &date_time::day);
 
-    make_date_mutator("setYear", [](double current, double arg) {
+    make_date_mutator("setYear", [](double current, double arg, const std::vector<value>&) {
         auto dt = date_helper::date_time_from_time(current);
         dt.year = arg + 1900;
         return date_helper::time_from_date_time(dt);

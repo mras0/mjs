@@ -535,6 +535,7 @@ Math.tan(0);            //$ number 0
 void test_date_functions() {
     // Timezones/locale not supported
     // TODO: Test NaN Dates
+    // TODO: ES3: toDateString(), toTimeString(), toLocaleDateString(), toLocaleTimeString()
 
     RUN_TEST_SPEC(R"(
 typeof Date(); //$string 'string'
@@ -599,12 +600,17 @@ d4=new Date(+d3); d4.setMilliseconds(123); //$ number 946730096123
 d4=new Date(+d3); d4.setUTCMilliseconds(123); //$ number 946730096123
 
 new Date(+d3).setUTCSeconds(9); //$number 946730049789
+new Date(+d3).setUTCSeconds(9,123); //$number 946730049123
 new Date(+d3).setUTCMinutes(9); //$number 946728596789
+new Date(+d3).setUTCMinutes(1,2,3); //$number 946728062003
 new Date(+d3).setUTCHours(9); //number 946719296789 
+new Date(+d3).setUTCHours(23,22,21,9999); //number 946768950999 
 new Date(+d3).setUTCDate(9); //$number 947421296789
 new Date(+d3).setUTCMonth(9); //$number 970403696789
+new Date(+d3).setUTCMonth(0,31); //$number 949322096789
 new Date().setUTCYear; //$undefined
 new Date(+d3).setUTCFullYear(1988); //$number 568038896789
+new Date(+d3).setUTCFullYear(2019,0,4); //$number 1546605296789
 
 new Date(+d3).setSeconds(9); //$number 946730049789
 new Date(+d3).setMinutes(9); //$number 946728596789
