@@ -37,7 +37,20 @@ int interpret_file(const std::shared_ptr<mjs::source_file>& source) {
     return to_int32(i.eval_program());
 }
 
+#ifdef _WIN32
+#include <fcntl.h>
+#include <io.h>
+void stream_init() {
+    _setmode(_fileno(stdin), _O_U16TEXT);
+    _setmode(_fileno(stdout), _O_U16TEXT);
+    _setmode(_fileno(stderr), _O_U16TEXT);
+}
+#else
+void stream_init() {}
+#endif
+
 int main(int argc, char* argv[]) {
+    stream_init();
     try {
         const auto ver = mjs::default_version;
         if (argc > 1) {
