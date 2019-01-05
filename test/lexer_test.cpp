@@ -213,12 +213,21 @@ void test_unicode_escape_sequence_in_identifier() {
     }
 }
 
+void test_format_control_characters() {
+    if (tested_version() == version::es1) {
+        check_lex_fails(L"1\xAD"); // Soft-hypen
+    } else {
+        REQUIRE_EQ(strip_format_control_characters(L"te\xADst\x600zz"), L"testzz");
+    }
+}
+
 int main() {
     try {
         for (const auto v: { version::es1, version::es3 }) {
             tested_version(v);
             basic_tests();
             test_unicode_escape_sequence_in_identifier();
+            test_format_control_characters();
             if (v > version::es1) {
                 test_regexp_literals();
             }

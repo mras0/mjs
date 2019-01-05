@@ -5,6 +5,7 @@
 #include <cstring>
 #include <tuple>
 #include <climits>
+#include <algorithm>
 
 namespace mjs {
 
@@ -88,6 +89,11 @@ constexpr bool is_identifier_part_v3(int ch) {
     default:
         return false;
     }
+}
+
+constexpr bool is_form_control(uint32_t ch) {
+    // Slight optimization: No form control characters until soft-hypen (0xAD)
+    return ch >= 0xAD && classify(ch) == unicode::classification::format;
 }
 
 std::tuple<token_type, int> get_punctuation(std::wstring_view s, version v) {
@@ -457,6 +463,13 @@ unsigned get_hex_value4(const wchar_t* s) {
     return get_hex_value(s[0])<<12 | get_hex_value(s[1])<<8 | get_hex_value(s[2])<<4 | get_hex_value(s[3]);
 }
 
+std::wstring strip_format_control_characters(const std::wstring_view& s) {
+    std::wstring res;
+    res.reserve(s.size());
+    std::copy_if(s.begin(), s.end(), std::back_inserter(res), [](auto ch) { return !is_form_control(ch); });
+    return res;
+}
+
 lexer::lexer(const std::wstring_view& text, version ver) : text_(text), version_(ver) {
     next_token();
 }
@@ -501,6 +514,9 @@ void lexer::next_token() {
         case unicode::classification::id_start:
             std::tie(current_token_, token_end) = get_identifier(text_, text_pos_, version_);
             break;
+        case unicode::classification::format:
+            assert(version_ == version::es1 && "Use strip_format_control_characters to remove format control chars.");
+            [[fallthrough]];
         default:
             std::ostringstream oss;
             oss << "Unhandled character in " << __FUNCTION__ << ": " << ch << " 0x" << std::hex << (int)ch << "\n";

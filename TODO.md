@@ -1,7 +1,6 @@
 * Lexer
     - Follow specification exactly when handling e.g. number literals..
     - Add more test cases...
-    - Handling unicode format-control characters (§7.1)
     - Proper UTF-16 support
 * Parser
     - Test `source_extend` logic (could probably be more precise for expressions/statements)

@@ -271,6 +271,9 @@ private:
 
 std::wstring cpp_quote(const std::wstring_view& s);
 
+// Remove Unicode Format-Control Characters (ES3, 7.1)
+std::wstring strip_format_control_characters(const std::wstring_view& s);
+
 } // namespace mjs
 
 #endif

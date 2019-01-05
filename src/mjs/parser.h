@@ -29,12 +29,22 @@ struct source_position {
 std::pair<source_position, source_position> extend_to_positions(const std::wstring_view& t, uint32_t start, uint32_t end);
 
 
-struct source_file {
-    explicit source_file(const std::wstring_view& filename, const std::wstring_view& text) : filename(filename), text(text) {
+class source_file {
+public:
+    explicit source_file(const std::wstring_view& filename, const std::wstring_view& text, version ver)
+        : ver_(ver)
+        , filename_(filename)
+        , text_(ver >= version::es3 ? strip_format_control_characters(text) : text) {
     }
 
-    std::wstring filename;
-    std::wstring text;
+    version language_version() const { return ver_; }
+    std::wstring_view filename() const { return filename_; }
+    std::wstring_view text() const { return text_; }
+
+private:
+    version ver_;
+    std::wstring filename_;
+    std::wstring text_;
 };
 
 struct source_extend {
@@ -43,7 +53,7 @@ struct source_extend {
     uint32_t end;
 
     std::wstring_view source_view() const {
-        return std::wstring_view(file->text.c_str() + start, end - start);
+        return std::wstring_view(file->text().data() + start, end - start);
     }
 
     bool operator==(const source_extend& rhs) const {
@@ -56,11 +66,12 @@ struct source_extend {
 
     template<typename CharT>
     friend std::basic_ostream<CharT>& operator<<(std::basic_ostream<CharT>& os, const source_extend& extend) {
-        auto [start_pos, end_pos] = extend_to_positions(extend.file->text, extend.start, extend.end);
+        auto [start_pos, end_pos] = extend_to_positions(extend.file->text(), extend.start, extend.end);
         if constexpr (sizeof(CharT) == 1) {
-            os << std::string(extend.file->filename.begin(), extend.file->filename.end());
+            const auto fn = extend.file->filename();
+            os << std::string(fn.begin(), fn.end());
         } else {
-            os << extend.file->filename;
+            os << extend.file->filename();
         }
         return os << ":" << start_pos << "-" << end_pos;
     }
@@ -910,7 +921,7 @@ auto accept(const statement& s, Visitor& v) {
 // Parser
 //
 
-std::unique_ptr<block_statement> parse(const std::shared_ptr<source_file>& source, version ver);
+std::unique_ptr<block_statement> parse(const std::shared_ptr<source_file>& source);
 
 } // namespace mjs
 

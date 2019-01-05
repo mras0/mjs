@@ -16,9 +16,9 @@ using namespace mjs;
 
 template<typename ExceptionType = eval_exception>
 std::string expect_exception(const std::wstring_view& text) {
-    decltype(parse(nullptr, tested_version())) bs;
+    decltype(parse(nullptr)) bs;
     try {
-        bs = parse(std::make_shared<source_file>(L"test", text), tested_version());
+        bs = parse(std::make_shared<source_file>(L"test", text, tested_version()));
     } catch (const std::exception& e) {
         std::wcout << "Parse failed for \"" << text << "\": " << e.what() <<  "\n";
         throw;

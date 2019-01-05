@@ -21,35 +21,46 @@ using namespace mjs;
 
 struct parse_failure {};
 
+auto make_source(const std::wstring_view& text) {
+    return std::make_shared<source_file>(L"test", text, tested_version());
+}
+
 auto make_source(const char* text) {
-    return std::make_shared<source_file>(L"test", std::wstring(text, text+std::strlen(text)));
+    return make_source(std::wstring(text, text+std::strlen(text)));
 }
 
-auto parse_text(const char* text) {
-    return parse(make_source(text), tested_version());
+template<typename T>
+auto parse_text(T&& text) {
+    return parse(make_source(std::forward<T>(text)));
 }
 
-
-auto parse_one_statement(const char* text) {
+template<typename CharT>
+auto parse_one_statement(const CharT* text) {
     auto bs = parse_text(text);
     REQUIRE_EQ(bs->l().size(), 1U);
     return std::move(const_cast<statement_ptr&>(bs->l().front()));
 }
 
-
-void test_parse_fails(const char* text) {
+void test_parse_fails(const std::wstring_view text) {
     try {
-        parse_text(text);
+        auto res = parse_text(text);
+        std::wcout << "Parsed:\n" << *res << "\n";
     } catch ([[maybe_unused]] const std::exception& e) {
         //std::wcerr << "\n'" << text << "' ---->\n" << e.what() << "\n\n";
         return;
     }
-    std::ostringstream oss;
-    oss << "Unexpected parse success for '" << text << "' parser_version " << tested_version();
-    throw std::runtime_error(oss.str());
+    std::wostringstream woss;
+    woss << "Unexpected parse success for '" << cpp_quote(text) << "' parser_version " << tested_version();
+    auto s = woss.str();
+    throw std::runtime_error(std::string(s.begin(),s.end()));
 }
 
-std::unique_ptr<expression_statement> parse_expression(const char* text) {
+void test_parse_fails(const char* text) {
+    test_parse_fails(std::wstring{text, text+std::strlen(text)});
+}
+
+template<typename CharT>
+std::unique_ptr<expression_statement> parse_expression(const CharT* text) {
     try {
         auto s = parse_one_statement(text);
         REQUIRE_EQ(s->type(), statement_type::expression);
@@ -309,23 +320,34 @@ void test_regexp_literal() {
     REQUIRE_EQ(rle.flags(), L"g");
 }
 
+void test_form_control_characters() {
+    const wchar_t* const text = L"t\x200cq12\xADst\xFEFFww;";
+    if (tested_version() == version::es1) {
+        test_parse_fails(text);
+        return;
+    }
+    auto s = parse_one_statement(text);
+    REQUIRE_EQ(s->type(), statement_type::expression);
+    const auto& e = static_cast<const expression_statement&>(*s).e();
+    REQUIRE_EQ(e.type(), expression_type::identifier);
+    REQUIRE_EQ(static_cast<const identifier_expression&>(e).id(), L"tq12stww");
+}
 
 int main() {
     try {
         for (const auto ver: supported_versions) {
             tested_version(ver);
             test_semicolon_insertion();
+            test_form_control_characters();
+            if (ver > version::es1) {
+                test_array_literal();
+                test_object_literal();
+                test_labelled_statements();
+                test_regexp_literal();
+            }
         }
 
         test_es1_fails_with_new_constructs();
-
-        for (const auto ver: { version::es3 }) {
-            tested_version(ver);
-            test_array_literal();
-            test_object_literal();
-            test_labelled_statements();
-            test_regexp_literal();
-        }
 
     } catch (const std::runtime_error& e) {
         std::wcerr << e.what() << "\n";

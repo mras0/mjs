@@ -170,7 +170,7 @@ private:
 #endif
             if (last_result_) {
                 std::wostringstream oss;
-                oss << source_->filename << " failed: " << last_result_.type << " " << debug_string(last_result_.result) << " at " << s.extend << "\n" << s.extend.source_view();
+                oss << source_->filename() << " failed: " << last_result_.type << " " << debug_string(last_result_.result) << " at " << s.extend << "\n" << s.extend.source_view();
                 THROW_RUNTIME_ERROR(oss.str());
             }
             if (last_result_.result != specs_[index_].expected) {
@@ -192,7 +192,7 @@ void run_test_spec(const std::string_view& source_text, const std::string_view& 
 
     {
         std::vector<test_spec> specs;
-        auto file = std::make_shared<source_file>(std::wstring(name.begin(), name.end()), std::wstring(source_text.begin(), source_text.end()));
+        auto file = std::make_shared<source_file>(std::wstring(name.begin(), name.end()), std::wstring(source_text.begin(), source_text.end()), tested_version());
 
         for (size_t pos = 0, next_pos; pos < source_text.length(); pos = next_pos + 1) {
             size_t delim_pos = source_text.find(delim, pos);
@@ -215,7 +215,7 @@ void run_test_spec(const std::string_view& source_text, const std::string_view& 
             throw std::runtime_error("Invalid test spec." + std::string(name) + ": No specs found");
         }
 
-        auto bs = parse(file, tested_version());
+        auto bs = parse(file);
         const auto index = test_spec_runner::run(heap, specs, *bs);
         if (index != specs.size()) {
             throw std::runtime_error("Invalid test spec." + std::string(name) + ": Only " + std::to_string(index) + " of " + std::to_string(specs.size()) + " specs ran");

@@ -238,7 +238,7 @@ public:
             } else if (args.front().type() != value_type::string) {
                 return args.front();
             }
-            auto bs = parse(std::make_shared<source_file>(L"eval", args.front().string_value().view()), global_->language_version());
+            auto bs = parse(std::make_shared<source_file>(L"eval", args.front().string_value().view(), global_->language_version()));
             auto c = eval(*bs);
             if (!c) {
                 return c.result;
@@ -268,7 +268,7 @@ public:
                 body = to_string(heap_, args.back()).view();
             }
 
-            auto bs = parse(std::make_shared<source_file>(L"Function definition", L"function anonymous(" + p + L") {\n" + body + L"\n}"), global_->language_version());
+            auto bs = parse(std::make_shared<source_file>(L"Function definition", L"function anonymous(" + p + L") {\n" + body + L"\n}", global_->language_version()));
             if (bs->l().size() != 1 || bs->l().front()->type() != statement_type::function_definition) {
                 NOT_IMPLEMENTED("Invalid function definition: " << bs->extend().source_view());
             }
