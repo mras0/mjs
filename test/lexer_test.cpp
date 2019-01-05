@@ -195,11 +195,30 @@ void check_es3_keywords() {
     check_reserved_words(es3_reserved_words);
 }
 
+void test_unicode_escape_sequence_in_identifier() {
+    check_lex_fails(LR"(\u0069\u0066)"); // Must not spell 'if' like this
+    check_lex_fails(LR"(\u0069\u0000)");
+    check_lex_fails(LR"(\u0069\u00)");
+    check_lex_fails(LR"(\u0069\u0)");
+    check_lex_fails(LR"(\u0069\u)");
+    check_lex_fails(LR"(\u0069\)");
+    check_lex_fails(LR"(\u0069\x66)");
+
+    const auto uid = LR"(\u0073X\u0031d)";
+    if (tested_version() == version::es1) {
+        check_lex_fails(uid);
+    } else {
+        SIMPLE_TEST(LR"(\u0069)", ID("i"));
+        SIMPLE_TEST(uid, ID("sX1d"));
+    }
+}
+
 int main() {
     try {
         for (const auto v: { version::es1, version::es3 }) {
             tested_version(v);
             basic_tests();
+            test_unicode_escape_sequence_in_identifier();
             if (v > version::es1) {
                 test_regexp_literals();
             }

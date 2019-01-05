@@ -38,6 +38,125 @@ void cpp_quote_escape(std::wstring& r, char16_t c) {
     }
 }
 
+constexpr bool is_whitespace(int ch, version v) {
+    if (ch == 0x09 || ch == 0x0B || ch == 0x0C || ch == 0x20) return true;
+    return v != version::es1 && ch == /*<NBSP>*/ 0xA0; // TODO: Support <USP> i.e. other unicode space separators (§7.2)
+}
+
+constexpr bool is_line_terminator(int ch, version v) {
+    if (ch == 0x0A || ch == 0x0D) return true;
+    return v != version::es1 && (ch == /*<LS>*/ 0x2028 || ch == /*<PS>*/ 0x2029);
+}
+
+constexpr bool is_identifier_start(int ch, version v) {
+    return ch == '_' || ch == '$' || (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (v >= version::es3 && ch == '\\');
+}
+
+constexpr bool is_digit(int ch) {
+    return ch >= '0' && ch <= '9';
+}
+
+constexpr bool is_identifier_part(int ch, version v) {
+    return is_identifier_start(ch, v) || is_digit(ch);
+}
+
+std::tuple<token_type, int> get_punctuation(std::wstring_view s, version v) {
+    assert(!s.empty());
+
+#define CHECK_PUNCTUATORS(name, str, ver) if (v >= version::ver && s.length() >= sizeof(str)-1 && s.compare(0, sizeof(str)-1, L##str) == 0) return std::pair<token_type, int>{token_type::name, static_cast<int>(sizeof(str)-1)};
+    MJS_PUNCTUATORS(CHECK_PUNCTUATORS)
+#undef CHECK_PUNCTUATORS
+
+        std::ostringstream oss;
+    auto qs = cpp_quote(s.substr(0, s.length() < 4 ? s.length() : 4));
+    oss << "Unhandled character(s) in " << __FUNCTION__ << ": " << std::string(qs.begin(), qs.end()) << "\n";
+    throw std::runtime_error(oss.str());
+}
+
+std::pair<token, size_t> skip_comment(const std::wstring_view& text, size_t pos, version v) {
+    assert(pos < text.size());
+    assert(text[pos] == '/' || text[pos] == '*');
+    const bool is_single_line = text[pos++] == '/';
+    if (is_single_line) {
+        for (; pos < text.size(); ++pos) {
+            if (is_line_terminator(text[pos], v)) {
+                // Don't consume line terminator
+                break;
+            }
+        }
+        return {token{token_type::whitespace}, pos};
+    } else {
+        for (bool last_was_asterisk = false, line_terminator_seen = false; pos < text.size(); ++pos) {
+            if (text[pos] == '/' && last_was_asterisk) {
+                return {token{line_terminator_seen ? token_type::line_terminator : token_type::whitespace}, ++pos};
+            }
+            last_was_asterisk = text[pos] == '*';
+            if (is_line_terminator(text[pos], v)) {
+                line_terminator_seen = true;
+            }
+        }
+        throw std::runtime_error("Unterminated multi-line comment");
+    }
+}
+
+// Returns decimal value of 'ch' or UINT_MAX on error
+unsigned try_get_decimal_value(int ch) {
+    return is_digit(ch) ? ch - '0' : UINT_MAX;
+}
+
+std::pair<wchar_t, size_t> get_octal_escape_sequence(const std::wstring_view& text, size_t pos) {
+    auto value = try_get_decimal_value(text[pos]);
+    assert(value < 8);
+    const size_t max_len = value < 4 ? 3 : 2;
+    size_t len = 1;
+    for (; len < max_len && pos+len < text.size(); ++len) {
+        const auto this_digit = try_get_decimal_value(text[pos+len]);
+        if (this_digit > 7) {
+            break;
+        }
+        value = value*8 + this_digit;
+    }
+    return { static_cast<wchar_t>(value), len };
+}
+
+bool replace_unicode_escape_sequences(std::wstring& id, version ver) {
+    assert(ver >= version::es3);
+    auto idx = id.find_first_of(L'\\');
+    if (idx == std::wstring::npos) {
+        return false;
+    }
+
+    std::wstring res;
+
+    constexpr const char* const default_error_message = "Illegal unicode escape sequence in identfier";
+
+    std::wstring::size_type last = 0;
+    while (idx != std::string::npos) {
+        assert(id[idx] == '\\');
+        if (idx != last) {
+            res += id.substr(last, idx - last);
+        }
+
+        last = idx + 6;
+        if (last > id.length() || (id[idx+1] != 'u' && id[idx+1] != 'U')) {
+            throw std::runtime_error(default_error_message);
+        }
+
+        const auto ch = static_cast<char16_t>(get_hex_value4(&id[idx+2]));
+        if (!is_identifier_part(ch, ver)) {
+            throw std::runtime_error(default_error_message);
+        }
+        res += ch;
+
+        idx = id.find_first_of(L'\\', idx + 1);
+    }
+
+    res += id.substr(last);
+
+    id = res;
+    return true;
+}
+
 } // unnamed namespace
 
 std::wstring cpp_quote(const std::wstring_view& s) {
@@ -125,71 +244,6 @@ std::wostream& operator<<(std::wostream& os, token_type t) {
     return os << oss.str().c_str();
 }
 
-constexpr bool is_whitespace(int ch, version v) {
-    if (ch == 0x09 || ch == 0x0B || ch == 0x0C || ch == 0x20) return true;
-    return v != version::es1 && ch == /*<NBSP>*/ 0xA0; // TODO: Support <USP> i.e. other unicode space separators (§7.2)
-}
-
-constexpr bool is_line_terminator(int ch, version v) {
-    if (ch == 0x0A || ch == 0x0D) return true;
-    return v != version::es1 && (ch == /*<LS>*/ 0x2028 || ch == /*<PS>*/ 0x2029);
-}
-
-constexpr bool is_identifier_start(int ch, version) {
-    return ch == '_' || ch == '$' || (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z');
-}
-
-constexpr bool is_digit(int ch) {
-    return ch >= '0' && ch <= '9';
-}
-
-constexpr bool is_identifier_part(int ch, version v) {
-    return is_identifier_start(ch, v) || is_digit(ch);
-}
-
-std::tuple<token_type, int> get_punctuation(std::wstring_view s, version v) {
-    assert(!s.empty());
-
-#define CHECK_PUNCTUATORS(name, str, ver) if (v >= version::ver && s.length() >= sizeof(str)-1 && s.compare(0, sizeof(str)-1, L##str) == 0) return std::pair<token_type, int>{token_type::name, static_cast<int>(sizeof(str)-1)};
-    MJS_PUNCTUATORS(CHECK_PUNCTUATORS)
-#undef CHECK_PUNCTUATORS
-
-    std::ostringstream oss;
-    auto qs = cpp_quote(s.substr(0, s.length() < 4 ? s.length() : 4));
-    oss << "Unhandled character(s) in " << __FUNCTION__ << ": " << std::string(qs.begin(), qs.end()) << "\n";
-    throw std::runtime_error(oss.str());   
-}
-
-std::pair<token, size_t> skip_comment(const std::wstring_view& text, size_t pos, version v) {
-    assert(pos < text.size());
-    assert(text[pos] == '/' || text[pos] == '*');
-    const bool is_single_line = text[pos++] == '/';
-    if (is_single_line) {
-        for (; pos < text.size(); ++pos) {
-            if (is_line_terminator(text[pos], v)) {
-                // Don't consume line terminator
-                break;
-            }
-        }
-        return {token{token_type::whitespace}, pos};
-    } else {
-        for (bool last_was_asterisk = false, line_terminator_seen = false; pos < text.size(); ++pos) {
-            if (text[pos] == '/' && last_was_asterisk) {
-                return {token{line_terminator_seen ? token_type::line_terminator : token_type::whitespace}, ++pos};
-            }
-            last_was_asterisk = text[pos] == '*';
-            if (is_line_terminator(text[pos], v)) {
-                line_terminator_seen = true;
-            }
-        }
-        throw std::runtime_error("Unterminated multi-line comment");
-    }
-}
-
-lexer::lexer(const std::wstring_view& text, version ver) : text_(text), version_(ver) {
-    next_token();
-}
-
 unsigned get_hex_value(int ch) {
     if (is_digit(ch)) return ch - '0';
     if (ch >= 'A' && ch <= 'F') return ch - 'A' + 10;
@@ -205,191 +259,183 @@ unsigned get_hex_value4(const wchar_t* s) {
     return get_hex_value(s[0])<<12 | get_hex_value(s[1])<<8 | get_hex_value(s[2])<<4 | get_hex_value(s[3]);
 }
 
-// Returns decimal value of 'ch' or UINT_MAX on error
-unsigned try_get_decimal_value(int ch) {
-    return is_digit(ch) ? ch - '0' : UINT_MAX;
-}
-
-std::pair<wchar_t, size_t> get_octal_escape_sequence(const std::wstring_view& text, size_t pos) {
-    auto value = try_get_decimal_value(text[pos]);
-    assert(value < 8);
-    const size_t max_len = value < 4 ? 3 : 2;
-    size_t len = 1;
-    for (; len < max_len && pos+len < text.size(); ++len) {
-        const auto this_digit = try_get_decimal_value(text[pos+len]);
-        if (this_digit > 7) {
-            break;
-        }
-        value = value*8 + this_digit;
-    }
-    return { static_cast<wchar_t>(value), len };
+lexer::lexer(const std::wstring_view& text, version ver) : text_(text), version_(ver) {
+    next_token();
 }
 
 void lexer::next_token() {
-    if (text_pos_ < text_.size()) {
-        const int ch = text_[text_pos_];
-        size_t token_end = text_pos_ + 1;
-        std::wstring token_text;
-        if (ch == '\''  || ch == '\"') {
-            bool escape = false;
-            std::wstring s;
-            for ( ;; ++token_end) {
-                if (token_end >= text_.size()) {
-                    throw std::runtime_error("Unterminated string");
-                }
-                const auto qch = text_[token_end];
-                if (is_line_terminator(qch, version_)) {
-                    throw std::runtime_error("Line terminator in string");
-                }
-                if (escape) {
-                    escape = !escape;
-                    switch (qch) {
-                    case '\'': s.push_back('\''); break;
-                    case '\"': s.push_back('\"'); break;
-                    case '\\': s.push_back('\\'); break;
-                    case 'b': s.push_back('\b'); break;
-                    case 'f': s.push_back('\f'); break;
-                    case 'n': s.push_back('\n'); break;
-                    case 'r': s.push_back('\r'); break;
-                    case 't': s.push_back('\t'); break;
-                    case 'v':
-                        // '\v' only support in ES3 onwards
-                        if (version_ == version::es1) {
-                            goto invalid_escape_sequence;
-                        }
-                        s.push_back('\v');
-                        break;
-                        // HexEscapeSeqeunce
-                    case 'x': case 'X':
-                        ++token_end;
-                        if (token_end + 2 >= text_.size()) {
-                            throw std::runtime_error("Invalid hex escape sequence");
-                        }
-                        s.push_back(static_cast<wchar_t>(get_hex_value2(&text_[token_end])));
-                        token_end += 1; // Incremented in loop
-                        break;
-                        // OctalEscapeSequence
-                    case '0': case '1': case '2': case '3':
-                    case '4': case '5': case '6': case '7':
-                        {
-                            const auto [och, len] =  get_octal_escape_sequence(text_, token_end);
-                            token_end += len-1; // Incremented in loop
-                            s.push_back(static_cast<wchar_t>(och));
-                            break;
-                        }
-                        break;
-                        // UnicodeEscapeSequence
-                    case 'u': case 'U':
-                        ++token_end;
-                        if (token_end + 4 >= text_.size()) {
-                            throw std::runtime_error("Invalid unicode escape sequence");
-                        }
-                        s.push_back(static_cast<wchar_t>(get_hex_value4(&text_[token_end])));
-                        token_end += 3; // Incremented in loop
-                        break;
-                    default:
-                    invalid_escape_sequence:
-                        std::ostringstream oss;
-                        oss << "Unhandled escape sequence: \\" << (char)qch;
-                        throw std::runtime_error(oss.str());
-                    }
-                } else if (qch == '\\') {
-                    escape = true;
-                } else if (qch == ch) {
-                    ++token_end;
-                    break;
-                } else {
-                    s.push_back(qch);
-                }
-            }
-            current_token_ = token{token_type::string_literal, std::move(s)};
-        } else if (is_whitespace(ch, version_)) {
-            while (token_end < text_.size() && is_whitespace(text_[token_end], version_)) {
-                ++token_end;
-            }
-            current_token_  = token{token_type::whitespace};
-        } else if (is_line_terminator(ch, version_)) {
-            while (token_end < text_.size() && is_line_terminator(text_[token_end], version_)) {
-                ++token_end;
-            }
-            current_token_  = token{token_type::line_terminator};
-        } else if (is_identifier_start(ch, version_)) {
-            while (token_end < text_.size() && is_identifier_part(text_[token_end], version_)) {
-                ++token_end;
-            }
-            auto id = std::wstring{text_.begin() + text_pos_, text_.begin() + token_end};
-            if (0) {}
-#define X(rw, ver) else if (id == L ## #rw) { if (version::ver > version_) { std::ostringstream oss; oss << #rw << " is not available until " << version::ver; throw std::runtime_error(oss.str()); }  current_token_ = token{token_type::rw ## _}; }
-            MJS_RESERVED_WORDS(X)
-#undef X
-            else current_token_  = token{token_type::identifier, id};
-        } else if (is_digit(ch) || (ch == '.' && token_end < text_.size() && is_digit(text_[token_end]))) {
-            if (ch == '0' && !(token_end < text_.size() && text_[token_end] == '.')) {
-                double v = 0;
-                if (token_end < text_.size() && tolower(text_[token_end]) == 'x') {
-                    ++token_end;
-                    for (; token_end < text_.size(); ++token_end) {
-                        const auto ch2 = text_[token_end];
-                        if (!isdigit(ch2) && !isalpha(ch2)) break;
-                        v = v * 16 + get_hex_value(ch2);
-                    }
-                } else {
-                    for (; token_end < text_.size(); ++token_end) {
-                        const auto ch2 = text_[token_end];
-                        if (!isdigit(ch2)) break;
-                        if (ch2 > '7') throw std::runtime_error("Invalid octal digit: " + std::string(1, (char)ch));
-                        v = v * 8 + ch2 - '0';
-                    }
-                }
-                current_token_  = token{v};
-            } else {
-                bool ndot = ch == '.';
-                bool ne = false, last_was_e = false;
-                bool es = false;
-                for (; token_end < text_.size(); ++token_end) {
-                    const int ch2 = text_[token_end];
-                    if (is_digit(ch2)) {
-                        last_was_e = false;
-                    } else if (ch2 == '.' && !ndot) {
-                        last_was_e = false;
-                        ndot = true;
-                    } else if ((ch2 == 'e' || ch2 == 'E') && !ne) {
-                        last_was_e = true;
-                        ne = true;
-                    } else if (!es && last_was_e && (ch2 == '+' || ch2 == '-')) {
-                        es = true;
-                        last_was_e = false;
-                    } else {
-                        break;
-                    }
-                }
+    if (text_pos_ == text_.size()) {
+        current_token_ = eof_token;
+        return;
+    }
+    assert(text_pos_ < text_.size());
 
-                std::string s{text_.begin() + text_pos_, text_.begin() + token_end};
-                size_t len;
-                const double v = std::stod(s, &len);
-                if (len != s.length()) {
-                    throw std::runtime_error("Invalid string literal " + s);
+    const int ch = text_[text_pos_];
+    size_t token_end = text_pos_ + 1;
+    std::wstring token_text;
+    if (ch == '\''  || ch == '\"') {
+        bool escape = false;
+        std::wstring s;
+        for ( ;; ++token_end) {
+            if (token_end >= text_.size()) {
+                throw std::runtime_error("Unterminated string");
+            }
+            const auto qch = text_[token_end];
+            if (is_line_terminator(qch, version_)) {
+                throw std::runtime_error("Line terminator in string");
+            }
+            if (escape) {
+                escape = !escape;
+                switch (qch) {
+                case '\'': s.push_back('\''); break;
+                case '\"': s.push_back('\"'); break;
+                case '\\': s.push_back('\\'); break;
+                case 'b': s.push_back('\b'); break;
+                case 'f': s.push_back('\f'); break;
+                case 'n': s.push_back('\n'); break;
+                case 'r': s.push_back('\r'); break;
+                case 't': s.push_back('\t'); break;
+                case 'v':
+                    // '\v' only support in ES3 onwards
+                    if (version_ == version::es1) {
+                        goto invalid_escape_sequence;
+                    }
+                    s.push_back('\v');
+                    break;
+                    // HexEscapeSeqeunce
+                case 'x': case 'X':
+                    ++token_end;
+                    if (token_end + 2 >= text_.size()) {
+                        throw std::runtime_error("Invalid hex escape sequence");
+                    }
+                    s.push_back(static_cast<wchar_t>(get_hex_value2(&text_[token_end])));
+                    token_end += 1; // Incremented in loop
+                    break;
+                    // OctalEscapeSequence
+                case '0': case '1': case '2': case '3':
+                case '4': case '5': case '6': case '7':
+                    {
+                        const auto [och, len] =  get_octal_escape_sequence(text_, token_end);
+                        token_end += len-1; // Incremented in loop
+                        s.push_back(static_cast<wchar_t>(och));
+                        break;
+                    }
+                    break;
+                    // UnicodeEscapeSequence
+                case 'u': case 'U':
+                    ++token_end;
+                    if (token_end + 4 >= text_.size()) {
+                        throw std::runtime_error("Invalid unicode escape sequence");
+                    }
+                    s.push_back(static_cast<wchar_t>(get_hex_value4(&text_[token_end])));
+                    token_end += 3; // Incremented in loop
+                    break;
+                default:
+                invalid_escape_sequence:
+                    std::ostringstream oss;
+                    oss << "Unhandled escape sequence: \\" << (char)qch;
+                    throw std::runtime_error(oss.str());
                 }
-                current_token_  = token{v};
-            }
-        } else if (std::strchr("!%&()*+,-./:;<=>?[]^{|}~", ch)) {
-            if (ch == '/' && token_end < text_.size() && (text_[token_end] == '/' || text_[token_end] == '*')) {
-                std::tie(current_token_, token_end)  = skip_comment(text_, token_end, version_);
+            } else if (qch == '\\') {
+                escape = true;
+            } else if (qch == ch) {
+                ++token_end;
+                break;
             } else {
-                auto [tok, len] = get_punctuation(std::wstring_view{&text_[text_pos_], text_.size() - text_pos_}, version_);
-                token_end = text_pos_ + len;
-                current_token_ = token{tok};
+                s.push_back(qch);
             }
-        } else {
-            std::ostringstream oss;
-            oss << "Unhandled character in " << __FUNCTION__ << ": " << ch << " 0x" << std::hex << (int)ch << "\n";
-            throw std::runtime_error(oss.str());
+        }
+        current_token_ = token{token_type::string_literal, std::move(s)};
+    } else if (is_whitespace(ch, version_)) {
+        while (token_end < text_.size() && is_whitespace(text_[token_end], version_)) {
+            ++token_end;
+        }
+        current_token_  = token{token_type::whitespace};
+    } else if (is_line_terminator(ch, version_)) {
+        while (token_end < text_.size() && is_line_terminator(text_[token_end], version_)) {
+            ++token_end;
+        }
+        current_token_  = token{token_type::line_terminator};
+    } else if (is_identifier_start(ch, version_)) {
+        while (token_end < text_.size() && is_identifier_part(text_[token_end], version_)) {
+            ++token_end;
+        }
+        auto id = std::wstring{text_.begin() + text_pos_, text_.begin() + token_end};
+        const bool escape_sequence_used = version_ >= version::es3 && replace_unicode_escape_sequences(id, version_);
+        if (0) {}
+#define X(rw, ver) else if (id == L ## #rw) { if (version::ver > version_) { std::ostringstream oss; oss << #rw << " is not available until " << version::ver; throw std::runtime_error(oss.str()); }  current_token_ = token{token_type::rw ## _}; }
+        MJS_RESERVED_WORDS(X)
+#undef X
+        else current_token_  = token{token_type::identifier, id};
+
+        if (version_ >= version::es3 && escape_sequence_used && current_token_.type() != token_type::identifier) {
+            throw std::runtime_error("Unicode escape sequence used in keyword");
         }
 
-        text_pos_ += token_end - text_pos_;
+    } else if (is_digit(ch) || (ch == '.' && token_end < text_.size() && is_digit(text_[token_end]))) {
+        if (ch == '0' && !(token_end < text_.size() && text_[token_end] == '.')) {
+            double v = 0;
+            if (token_end < text_.size() && tolower(text_[token_end]) == 'x') {
+                ++token_end;
+                for (; token_end < text_.size(); ++token_end) {
+                    const auto ch2 = text_[token_end];
+                    if (!isdigit(ch2) && !isalpha(ch2)) break;
+                    v = v * 16 + get_hex_value(ch2);
+                }
+            } else {
+                for (; token_end < text_.size(); ++token_end) {
+                    const auto ch2 = text_[token_end];
+                    if (!isdigit(ch2)) break;
+                    if (ch2 > '7') throw std::runtime_error("Invalid octal digit: " + std::string(1, (char)ch));
+                    v = v * 8 + ch2 - '0';
+                }
+            }
+            current_token_  = token{v};
+        } else {
+            bool ndot = ch == '.';
+            bool ne = false, last_was_e = false;
+            bool es = false;
+            for (; token_end < text_.size(); ++token_end) {
+                const int ch2 = text_[token_end];
+                if (is_digit(ch2)) {
+                    last_was_e = false;
+                } else if (ch2 == '.' && !ndot) {
+                    last_was_e = false;
+                    ndot = true;
+                } else if ((ch2 == 'e' || ch2 == 'E') && !ne) {
+                    last_was_e = true;
+                    ne = true;
+                } else if (!es && last_was_e && (ch2 == '+' || ch2 == '-')) {
+                    es = true;
+                    last_was_e = false;
+                } else {
+                    break;
+                }
+            }
+
+            std::string s{text_.begin() + text_pos_, text_.begin() + token_end};
+            size_t len;
+            const double v = std::stod(s, &len);
+            if (len != s.length()) {
+                throw std::runtime_error("Invalid string literal " + s);
+            }
+            current_token_  = token{v};
+        }
+    } else if (std::strchr("!%&()*+,-./:;<=>?[]^{|}~", ch)) {
+        if (ch == '/' && token_end < text_.size() && (text_[token_end] == '/' || text_[token_end] == '*')) {
+            std::tie(current_token_, token_end)  = skip_comment(text_, token_end, version_);
+        } else {
+            auto [tok, len] = get_punctuation(std::wstring_view{&text_[text_pos_], text_.size() - text_pos_}, version_);
+            token_end = text_pos_ + len;
+            current_token_ = token{tok};
+        }
     } else {
-        current_token_ = eof_token;
+        std::ostringstream oss;
+        oss << "Unhandled character in " << __FUNCTION__ << ": " << ch << " 0x" << std::hex << (int)ch << "\n";
+        throw std::runtime_error(oss.str());
     }
+
+    text_pos_ += token_end - text_pos_;
 }
 
 std::wstring_view lexer::get_regex_literal() {
