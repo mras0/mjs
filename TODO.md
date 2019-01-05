@@ -1,10 +1,8 @@
 * Lexer
     - Follow specification exactly when handling e.g. number literals..
     - Add more test cases...
-    - ES3 support:
-        * Handling unicode format-control characters (§7.1)
-        * Handling unicode space separator characters (§7.2)
-        * Handling unicode characters in identifiers (§7.6)
+    - Handling unicode format-control characters (§7.1)
+    - Proper UTF-16 support
 * Parser
     - Test `source_extend` logic (could probably be more precise for expressions/statements)
     - More tests...

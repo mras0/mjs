@@ -15,7 +15,7 @@ std::vector<token> lex(const std::wstring_view& s) {
         }
         return ts;
     } catch (...) {
-        std::wcerr << "Error while processing " << s << "\n";
+        std::wcerr << "Error while processing \"" << cpp_quote(s) << "\"\n";
         std::wcerr << "Lexer version: " << tested_version() << "\n";
         throw;
     }
@@ -50,8 +50,7 @@ void basic_tests() {
     SIMPLE_TEST(L"\x09\x0b\x0c\x20 ab", WS, ID("ab"));
     if (tested_version() > version::es1) {
         // <NBSP> + <USP> are considered whitespace in ES3+
-        SIMPLE_TEST(L"\xA0", WS);
-        // TODO: Check other unicode space characters (e.g. \u2000)
+        SIMPLE_TEST(L"\xA0\x1680\x2000", WS);
     }
     // Line terminators
     SIMPLE_TEST(L"\012x\015", NL, ID("x"), NL);
@@ -210,6 +209,7 @@ void test_unicode_escape_sequence_in_identifier() {
     } else {
         SIMPLE_TEST(LR"(\u0069)", ID("i"));
         SIMPLE_TEST(uid, ID("sX1d"));
+        SIMPLE_TEST(L"\\u1234\x7533", ID("\x1234\x7533"));
     }
 }
 

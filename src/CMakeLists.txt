@@ -36,6 +36,7 @@ add_library(mjs_lib STATIC
     mjs/string.h
     mjs/string_object.cpp
     mjs/string_object.h
+    mjs/unicode_data.h
     mjs/value.cpp
     mjs/value.h
     mjs/value_representation.cpp
