@@ -234,6 +234,139 @@ gc_heap_ptr<regexp_object> to_regexp_object(const gc_heap_ptr<global_object>& gl
     return regexp_object::make(global, to_string(h, regexp), string{h, ""});
 }
 
+string do_get_replacement_string(const string& str, const object_ptr& match, const value& replace_value) {
+    if (replace_value.type() == value_type::string) {
+        const auto rep_str = replace_value.string_value();
+        if (rep_str.view().find_first_of(L'$') == std::wstring_view::npos) {
+            // Fast and easy
+            return rep_str;
+        }
+
+        std::wstring res;
+        const auto r = rep_str.view();
+        for (uint32_t i = 0, l = static_cast<uint32_t>(r.length()); i < l;) {
+            if (r[i] != L'$') {
+                res += r[i];
+                ++i;
+                continue;
+            }
+            ++i;
+            if (i >= l) {
+                NOT_IMPLEMENTED("$ at end of string");
+            }
+            if (r[i] == '$') {
+                res += L'$';
+                ++i;
+            } else if (r[i] == L'&') {
+                // The matched substring
+                res += match->get(L"0").string_value().view();
+                ++i;
+            } else if (r[i] == L'`') {
+                //The portion of string that precedes the matched substring.
+                ++i;
+                res += str.view().substr(0, to_uint32(match->get(L"index")));
+            } else if (r[i] == L'\'') {
+                //The portion of string that follows the matched substring.
+                ++i;
+                res += str.view().substr(to_uint32(match->get(L"index")) + match->get(L"0").string_value().view().length());
+            } else if (isdigit(r[i])) {
+                uint32_t idx = r[i]-L'0';
+                ++i;
+                if (i < l && isdigit(r[i])) {
+                    idx = idx*10+r[i]-L'0';
+                    ++i;
+                }
+                if (!idx) {
+                    NOT_IMPLEMENTED("$0 used");
+                }
+                auto cval = match->get(index_string(idx));
+                if (cval.type() == value_type::string) {
+                    res += cval.string_value().view();
+                } else {
+                    // Using empty string
+                }
+            } else {
+                NOT_IMPLEMENTED("Invalid replacement characters");
+            }
+        }
+
+        return string{match.heap(), res};
+    }
+
+    std::vector<value> args;
+    args.push_back(match->get(L"0"));
+    const auto m = to_uint32(match->get(L"length"));
+    for (uint32_t i = 1; i < m; ++i) {
+        args.push_back(match->get(index_string(i)));
+    }
+    args.push_back(match->get(L"index"));
+    args.push_back(value{str});
+
+    return to_string(match.heap(), call_function(replace_value, value::undefined, args));
+}
+
+string do_replace(const string& str, const value& match_val, const value& replace_value) {
+    if (match_val.type() == value_type::null) {
+        return str;
+    }
+    assert(match_val.type() == value_type::object);
+    const auto match           = match_val.object_value();
+    const auto s               = std::wstring{str.view()};
+    const auto match_index_val = match->get(L"index");
+    const auto match_str       = match->get(L"0").string_value();
+    const auto match_index     = static_cast<uint32_t>(match_index_val.number_value());
+    const auto match_length    = static_cast<uint32_t>(match_str.view().length());
+
+    auto& h = match.heap();
+
+    std::wstring res;
+    res = s.substr(0, match_index);
+    res += do_get_replacement_string(str, match, replace_value).view();
+    res += s.substr(match_index + match_length);
+    return string{h, res};
+}
+
+string do_global_replace(const string& str, const gc_heap_ptr<regexp_object>& re, const value& replace_value) {
+    auto& h = re.heap();
+    const auto s = std::wstring{str.view()};
+
+    uint32_t last_index = 0;
+    re->last_index(last_index);
+
+    std::wstring res;
+    for (uint32_t i=0;; ++i) {
+        auto match = re->exec(str);
+        if (match.type() == value_type::null) {
+            break;
+        }
+        assert(match.type() == value_type::object);
+        const auto& match_object = match.object_value();
+        const auto match_index = static_cast<uint32_t>(match_object->get(L"index").number_value());
+
+        res += str.view().substr(last_index, match_index-last_index);
+        res += do_get_replacement_string(str, match_object, replace_value).view();
+
+        const uint32_t new_last_index = static_cast<uint32_t>(re->last_index());
+        if (last_index == re->last_index()) {
+            // Empty match
+            last_index = new_last_index + 1;
+            re->last_index(last_index);
+        } else {
+            last_index = new_last_index;
+        }
+    }
+
+    if (!last_index) {
+        return str;
+    }
+
+    if (last_index < s.length()) {
+        res += s.substr(last_index);
+    }
+
+    return string{h, res};
+}
+
 } // unnamed namespace
 
 value string_match(const gc_heap_ptr<global_object>& global, const string& str, const value& regexp) {
@@ -253,8 +386,8 @@ value string_match(const gc_heap_ptr<global_object>& global, const string& str, 
             break;
         }
         assert(match.type() == value_type::object);
-        const auto& matcho_object = match.object_value();
-        res->put(string{h, index_string(i)}, matcho_object->get(L"0"));
+        const auto& match_object = match.object_value();
+        res->put(string{h, index_string(i)}, match_object->get(L"0"));
         if (last_index_before == re->last_index()) {
             // Empty match
             re->last_index(static_cast<uint32_t>(last_index_before + 1));
@@ -266,5 +399,39 @@ value string_match(const gc_heap_ptr<global_object>& global, const string& str, 
 value string_search(const gc_heap_ptr<global_object>& global, const string& str, const value& regexp) {
     return value{to_regexp_object(global, regexp)->search(str)};
 }
+
+value string_replace(const gc_heap_ptr<global_object>& global, const string& str, const value& search_value, const value& replace_value) {
+    auto& h = global.heap();
+
+    value replace_val = replace_value;
+    if (replace_val.type() != value_type::object || !replace_val.object_value().has_type<function_object>()) {
+        replace_val = value{to_string(h, replace_val)};
+    }
+
+    if (search_value.type() == value_type::object) {
+        auto o = search_value.object_value();
+        if (o.has_type<regexp_object>()) {
+            gc_heap_ptr<regexp_object> re{o};
+            if ((re->flags() & regexp_flag::global) == regexp_flag::none) {
+                auto match = re->exec(str);
+                return value{do_replace(str, match, replace_val)};
+            }
+            return value{do_global_replace(str, re, replace_val)};
+        }
+    }
+
+    auto search_string = to_string(h, search_value);
+    auto idx = str.view().find(search_string.view());
+    if (idx == std::wstring_view::npos) {
+        return value{str};
+    }
+    // Fake up a match object
+    auto match = make_array(global, 0);
+    match->put(string{h, L"0"}, value{search_string});
+    match->put(global->common_string("index"), value{static_cast<double>(idx)});
+
+    return value{do_replace(str, value{match}, replace_val)};
+}
+
 
 } // namespace mjs

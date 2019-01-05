@@ -179,6 +179,19 @@ private:
         }
     }
 
+    void do_debug_print_extra(std::wostream& os, int indent_incr, int max_nest, int indent) const override {
+        native_object::do_debug_print_extra(os, indent_incr, max_nest, indent);
+
+        const auto indent_string = std::wstring(indent, ' ');
+        for (uint32_t i = 0; i < length_; ++i) {
+            if (index_present(i)) {
+                os << indent_string << i << ": ";
+                mjs::debug_print(os, get_at(i), indent_incr, 1, indent + indent_incr);
+                os << "\n";
+            }
+        }
+    }
+
     explicit array_object(const gc_heap_ptr<global_object>& global, const string& class_name, const object_ptr& prototype, uint32_t length) : native_object{class_name, prototype}, global_(global), length_(0) {
         DEFINE_NATIVE_PROPERTY(array_object, length);
         resize(length);

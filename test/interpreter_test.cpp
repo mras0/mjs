@@ -1640,12 +1640,27 @@ re.lastIndex; //$string 'hello'
 'AAA'.search(/a/i); //$number 0
 )");
 
-#if 0
     // replace
     RUN_TEST_SPEC(R"(
-String.prototype.replace.call(...)
+String.prototype.replace.call(1122332211,'22','test'); //$string '11test332211'
+'abc'.replace('d','e');//$string 'abc'
+'123321'.replace(3); //$string '12undefined321'
+'aabbaabbaa'.replace(/aa/,123);//$string '123bbaabbaa'
+s='xyyxyxx'.replace(/(.)(.)/,function(){return Array.prototype.join.call(arguments)+':';}); s;//$string 'xy,x,y,0,xyyxyxx:yxyxx'
+s='xyyxyxx'.replace('(.)(.)',function(){return Array.prototype.join.call(arguments)+':';}); s;//$string 'xyyxyxx'
+'abc'.replace(/x/g,'');//$string 'abc'
+'abxc'.replace(/x/g,'');//$string 'abc'
+'aabbaabbaa'.replace(/aa/g,123);//$string '123bb123bb123'
+s='xyyxyxx'.replace(/(..)/g,function(){return Array.prototype.join.call(arguments)+':';});   s;//$string 'xy,xy,0,xyyxyxx:yx,yx,2,xyyxyxx:yx,yx,4,xyyxyxx:x'
+s='xyyxyxx'.replace(/(.)(.)/g,function(){return Array.prototype.join.call(arguments)+':';}); s;//$string 'xy,x,y,0,xyyxyxx:yx,y,x,2,xyyxyxx:yx,y,x,4,xyyxyxx:x'
+'abc'.replace(/(.)/,'$1;');//$string 'a;bc'
+'abc'.replace(/(b)/,'-$&-');//$string 'a-b-c'
+'abc'.replace(/(.)/g,'$1;');//$string 'a;b;c;'
+'xyyxyxx'.replace(/(x)/g,'-$$$1-');//$string '-$x-yy-$x-y-$x--$x-'
+"$1,$2".replace(/(\$(\d))/g,  "$$1-$1$2"); //$string '$1-$11,$1-$22'
+'a a b b c c'.replace(/(b)/, "X$'Y$&Z$`W"); //$string 'a a X b c cYbZa a W b c c'
+'a a b b c c'.replace(/(b)/g, "X$'Y$&Z$`W"); //$string 'a a X b c cYbZa a W X c cYbZa a b W c c'
 )");
-#endif
 }
 
 void test_number_object() {
@@ -1765,7 +1780,7 @@ try {
 
 int main() {
     try {
-        //test_date_functions(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
+        //test_string_object(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
 
         for (const auto ver: supported_versions) {
             tested_version(ver);

@@ -19,7 +19,6 @@
     - Escape analysis
     - Check that correct errors are thrown (search for EvalError/TypeError/etc. - also see ES3 §15.11.6)
  * Global object
-    - ES3, 15.5.4.11: `String.prototype.replace`
     - Date
         - time zone adjustments
         - locale functions

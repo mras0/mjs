@@ -50,16 +50,17 @@ void object::debug_print(std::wostream& os, int indent_incr, int max_nest, int i
         os << "\n";
     };
     os << "{\n";
-    for (auto& p: properties_.dereference(heap_)) {
-        const auto key = p.key.dereference(heap_).view();
-        print_prop(key, p.value.get_value(heap_), key == L"constructor");
-    }
     print_prop("[[Class]]", class_name(), true);
     print_prop("[[Prototype]]", prototype_ ? value{prototype_.track(heap())} : value::null, true);
     auto val = internal_value();
     if (val.type() != value_type::undefined) {
         print_prop("[[Value]]", val, true);
     }
+    for (auto& p: properties_.dereference(heap_)) {
+        const auto key = p.key.dereference(heap_).view();
+        print_prop(key, p.value.get_value(heap_), key == L"constructor");
+    }
+    do_debug_print_extra(os, indent_incr, max_nest, indent+indent_incr);
     os << std::wstring(indent, ' ') << "}";
 }
 

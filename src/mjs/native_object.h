@@ -104,6 +104,8 @@ protected:
     }
 
     void fixup();
+
+    void do_debug_print_extra(std::wostream& os, int indent_incr, int max_nest, int indent) const override;
 };
 
 } // namespace mjs

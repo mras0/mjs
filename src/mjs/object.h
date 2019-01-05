@@ -77,13 +77,16 @@ public:
 
     std::vector<string> property_names() const;
 
-    virtual void debug_print(std::wostream& os, int indent_incr, int max_nest = INT_MAX, int indent = 0) const;
+    void debug_print(std::wostream& os, int indent_incr, int max_nest = INT_MAX, int indent = 0) const;
 
 protected:
     explicit object(const string& class_name, const object_ptr& prototype);
     object(object&& o) = default;
     void fixup();
     virtual void add_property_names(std::vector<string>& names) const;
+    virtual void do_debug_print_extra(std::wostream& os, int indent_incr, int max_nest, int indent) const {
+        (void)os; (void)indent_incr; (void)max_nest; (void)indent;
+    }
 
 private:
     struct property {

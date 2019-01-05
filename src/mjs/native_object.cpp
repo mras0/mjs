@@ -73,5 +73,14 @@ native_object::native_object_property::native_object_property(const char* name, 
     strcpy(this->name, name);
 }
 
+void native_object::do_debug_print_extra(std::wostream& os, int indent_incr, int max_nest, int indent) const {
+    const auto indent_string = std::wstring(indent, ' ');
+    for (const auto& p: native_properties_.dereference(heap())) {
+        os << indent_string << p.name << ": ";
+        mjs::debug_print(os, p.get(*this), indent_incr, 1, indent + indent_incr);
+        os << "\n";
+    }
+    object::do_debug_print_extra(os, indent_incr, max_nest, indent);
+}
 
 } // namespace mjs
