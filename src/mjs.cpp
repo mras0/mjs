@@ -41,9 +41,11 @@ int interpret_file(const std::shared_ptr<mjs::source_file>& source) {
 #include <fcntl.h>
 #include <io.h>
 void stream_init() {
-    _setmode(_fileno(stdin), _O_U16TEXT);
-    _setmode(_fileno(stdout), _O_U16TEXT);
-    _setmode(_fileno(stderr), _O_U16TEXT);
+    if (_isatty(_fileno(stdout))) {
+        _setmode(_fileno(stdin), _O_U16TEXT);
+        _setmode(_fileno(stdout), _O_U16TEXT);
+        _setmode(_fileno(stderr), _O_U16TEXT);
+    }
 }
 #else
 void stream_init() {}
@@ -52,7 +54,20 @@ void stream_init() {}
 int main(int argc, char* argv[]) {
     stream_init();
     try {
-        const auto ver = mjs::default_version;
+        auto ver = mjs::default_version;
+        if (argc > 1 && !std::strncmp(argv[1], "-es", 3)) {
+            std::istringstream iss{&argv[1][3]};
+            int v;
+            if (!(iss >> v) || iss.rdbuf()->in_avail() || (v != 1 && v != 3)) {
+                throw std::runtime_error(std::string("Invalid version argument: ") + argv[1]);
+            }
+            if (v == 1) ver = mjs::version::es1;
+            else if (v == 3) ver = mjs::version::es3;
+            else assert(false);
+            --argc;
+            ++argv;
+        }
+
         if (argc > 1) {
             return interpret_file(read_ascii_file(ver, argv[1]));
         }
