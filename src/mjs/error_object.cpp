@@ -7,20 +7,22 @@ namespace mjs {
 
 constexpr const char* type_string(native_error_type e) {
     switch (e) {
-    case mjs::native_error_type::generic:
+    case native_error_type::generic:
         return "Error";
-    case mjs::native_error_type::eval:
+    case native_error_type::eval:
         return "EvalError";
-    case mjs::native_error_type::range:
+    case native_error_type::range:
         return "RangeError";
-    case mjs::native_error_type::reference:
+    case native_error_type::reference:
         return "ReferenceError";
-    case mjs::native_error_type::syntax:
+    case native_error_type::syntax:
         return "SyntaxError";
-    case mjs::native_error_type::type:
+    case native_error_type::type:
         return "TypeError";
-    case mjs::native_error_type::uri:
+    case native_error_type::uri:
         return "URIError";
+    case native_error_type::assertion:
+        return "AssertionError";
     default:
         assert(false);
         throw std::runtime_error("Invalid error type " + std::to_string(static_cast<int>(e)));

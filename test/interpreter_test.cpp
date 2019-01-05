@@ -1778,9 +1778,37 @@ try {
 #endif
 }
 
+void test_console() {
+    RUN_TEST_SPEC(R"(
+console.assert(1);
+console.assert(true);//$undefined
+)");
+    if (tested_version() >= version::es3) {
+        RUN_TEST_SPEC(R"(
+try {
+    console.assert(0);
+} catch (e) {
+    e.toString(); //$string 'AssertionError: 0 == true'
+}
+
+try {
+    console.assert(0,1,2);
+} catch (e) {
+    e.toString(); //$string 'AssertionError: 1 2'
+}
+)");
+    } else {
+        try {
+            RUN_TEST(L"console.assert(0)", value::undefined);
+            REQUIRE(!"Should have thrown");
+        } catch (const std::exception&) {
+        }
+    }
+}
+
 int main() {
     try {
-        //test_string_object(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
+        //test_console(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
 
         for (const auto ver: supported_versions) {
             tested_version(ver);
@@ -1801,6 +1829,7 @@ int main() {
             test_error_object();
             test_long_object_chain();
             test_eval_exception();
+            test_console();
         }
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';

@@ -317,6 +317,25 @@ create_result make_console_object(global_object& global) {
     auto& h = global.heap();
     auto console = global.make_object();
 
+    put_native_function(global, console, "assert", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
+        const auto val = !args.empty() ? args.front() : value::undefined;
+        if (to_boolean(val)) {
+            return value::undefined;
+        }
+        std::wostringstream woss;
+        if (args.size() > 1) {
+            auto&h = global.heap();
+            for (size_t i = 1; i < args.size(); ++i) {
+                if (i > 1) woss << " ";
+                woss << to_string(h, args[i]).view();
+            }
+        } else {
+            debug_print(woss, val, 4);
+            woss << " == true";
+        }
+        throw native_error_exception{native_error_type::assertion, global->stack_trace(), woss.str()};
+    }, 1);
+
     using timer_clock = std::chrono::steady_clock;
 
     auto timers = std::make_shared<std::unordered_map<std::wstring, timer_clock::time_point>>();

@@ -6,7 +6,7 @@
 namespace mjs {
 
 enum class native_error_type {
-    generic, eval, range, reference, syntax, type, uri
+    generic, eval, range, reference, syntax, type, uri, assertion
 };
 
 create_result make_error_object(global_object& global);
