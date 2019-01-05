@@ -167,37 +167,129 @@ double parse_int(std::wstring_view s, int radix) {
     return sign * value;
 }
 
-double parse_float(std::wstring_view s) {
+value parse_float(const gc_heap_ptr<global_object>&, const std::wstring_view s) {
     std::wistringstream wiss{std::wstring{ltrim(s)}};
     double val;
-    return wiss >> val ? val : NAN;
+    return value{wiss >> val ? val : NAN};
 }
 
-std::wstring escape(std::wstring_view s) {
+namespace {
+
+void put_hex_byte(std::wstring& res, int val) {
+    constexpr const char* const hexchars = "0123456789ABCDEF";
+    res.push_back(hexchars[(val>>4)&0xf]);
+    res.push_back(hexchars[val&0xf]);
+}
+
+void put_percent_hex_byte(std::wstring& res, int val) {
+    res.push_back('%');
+    put_hex_byte(res, val);
+}
+
+class encoder_exception : public std::exception {
+public:
+    explicit encoder_exception() {}
+
+    const char* what() const noexcept override {
+        return "Encoding error";
+    }
+};
+
+struct escape_encoder {
+    void operator()(std::wstring& res, int ch) const {
+        if (ch > 255) {
+            res.push_back('%');
+            res.push_back('u');
+            put_hex_byte(res, ch>>8);
+            put_hex_byte(res, ch);
+        } else {
+            put_percent_hex_byte(res, ch);
+        }
+    }
+};
+
+struct uri_encoder {
+    void operator()(std::wstring& res, int ch) const {
+        assert(ch >= 0);
+        if (ch <= 0x7F) {
+            // One byte
+            put_percent_hex_byte(res, ch);
+            return;
+        } else if (ch <= 0x7FF) {
+            // Two byte
+            put_percent_hex_byte(res, 0b11000000 | (ch >> 6));
+            put_percent_hex_byte(res, 0b10000000 | (ch & 0x3f));
+            return;
+        } else if (ch <= 0xD7FF || (ch >= 0xE000 && ch <= 0xFFFF)) {
+            // Three byte
+            put_percent_hex_byte(res, 0b11100000 | (ch >> 12));
+            put_percent_hex_byte(res, 0b10000000 | ((ch >> 6) & 0x3f));
+            put_percent_hex_byte(res, 0b10000000 | (ch & 0x3f));
+            return;
+        } else if (ch <= 0xDBFF) {
+            // Surrogate pair
+        } else if (ch <= 0xDFFF) {
+            throw encoder_exception{};
+        }
+        std::wostringstream woss;
+        woss << "Not implemented in uri_encoder: 0x" << std::hex << ch << " '" << static_cast<wchar_t>(ch) << "'";
+        NOT_IMPLEMENTED(woss.str());
+    }
+};
+
+template<typename Pred, typename Encoder = uri_encoder>
+std::wstring encode_inner(const std::wstring_view s, Pred pred, Encoder enc = Encoder{}) {
     std::wstring res;
     for (uint16_t ch: s) {
-        if ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '@' || ch == '*' || ch == '_' || ch == '+' || ch == '-' || ch == '.' || ch == '/') {
+        if (pred(ch)) {
             res.push_back(ch);
         } else {
-            const char* hexchars = "0123456789abcdef";
-            if (ch > 255) {
-                res.push_back('%');
-                res.push_back('u');
-                res.push_back(hexchars[(ch>>12)&0xf]);
-                res.push_back(hexchars[(ch>>8)&0xf]);
-                res.push_back(hexchars[(ch>>4)&0xf]);
-                res.push_back(hexchars[ch&0xf]);
-            } else {
-                res.push_back('%');
-                res.push_back(hexchars[(ch>>4)&0xf]);
-                res.push_back(hexchars[ch&0xf]);
-            }
+            enc(res, ch);
         }
     }
     return res;
 }
 
-std::wstring unescape(std::wstring_view s) {
+[[noreturn]] void throw_uri_error(const gc_heap_ptr<global_object>& global) {
+    throw native_error_exception{native_error_type::uri, global->stack_trace(), L"URI malformed"};
+}
+
+template<typename Pred>
+value encode_uri_helper(const gc_heap_ptr<global_object>& global, const std::wstring_view s, Pred pred) {
+    try {
+        return value{string{global.heap(), encode_inner(s, pred)}};
+    } catch (const encoder_exception&) {
+        throw_uri_error(global);
+    }
+}
+
+
+constexpr bool is_alpha_or_digit(int ch) {
+    return (ch >= 'A' && ch <= 'Z')
+        || (ch >= 'a' && ch <= 'z')
+        || (ch >= '0' && ch <= '9');
+}
+
+template<typename CharT, size_t Size>
+constexpr bool is_in_list(int ch, CharT (&str)[Size]) {
+    return std::find(str, str + Size - 1, static_cast<CharT>(ch)) != str + Size - 1;
+}
+
+constexpr bool is_uri_unescaped(int ch) {
+    return is_alpha_or_digit(ch) || is_in_list(ch, "-_.!~*'()");
+}
+
+constexpr bool is_uri_reserved(int ch) {
+    return is_in_list(ch, ";/?:@&=+$,");
+}
+
+} // unnamed namespace
+
+value escape(const gc_heap_ptr<global_object>& global, const std::wstring_view s) {
+    return value{string{global.heap(), encode_inner(s, [](int ch) { return is_alpha_or_digit(ch) || is_in_list(ch, "@*_+-./"); }, escape_encoder{})}};
+}
+
+value unescape(const gc_heap_ptr<global_object>& global, const std::wstring_view s) {
     std::wstring res;
     for (size_t i = 0; i < s.length(); ++i) {
         if (s[i] != '%') {
@@ -216,7 +308,67 @@ std::wstring unescape(std::wstring_view s) {
             i += 1;
         }
     }
-    return res;
+    return value{string{global.heap(), res}};
+}
+
+value encode_uri(const gc_heap_ptr<global_object>& global, const std::wstring_view s) {
+    return encode_uri_helper(global, s, [](int ch) { return is_uri_unescaped(ch) || is_uri_reserved(ch) || ch == '#'; } );
+}
+
+value encode_uri_component(const gc_heap_ptr<global_object>& global, const std::wstring_view s) {
+    return encode_uri_helper(global, s, &is_uri_unescaped);
+}
+
+value decode_uri(const gc_heap_ptr<global_object>& global, const std::wstring_view s) {
+    std::wstring res;
+    for (size_t i = 0; i < s.length();) {
+        if (s[i] != '%') {
+            res += s[i];
+            ++i;
+            continue;
+        }
+        auto get_byte = [&] () {
+            assert(s[i] == '%');
+            ++i;
+            if (i + 2 > s.length()) {
+                throw_uri_error(global);
+            }
+            i += 2;
+            return static_cast<uint8_t>(get_hex_value2(&s[i-2]));
+        };
+        auto get_continuation_byte = [&] () {
+            auto b = get_byte();
+            if ((b & 0b11000000) != 0b10000000) {
+                throw_uri_error(global);
+            }
+            return static_cast<uint8_t>(b & 0x3f);
+        };
+
+        const auto first = get_byte();
+        if (!(first & 0x80)) {
+            // One byte
+            res.push_back(first);
+         } else if ((first & 0b11100000) == 0b11000000) {
+            // Two byte
+            char16_t c = first & 0x1f;
+            c = (c << 6) | get_continuation_byte();
+            res.push_back(c);
+        } else if ((first & 0b11110000) == 0b11100000) {
+            char16_t c = first & 0xf;
+            c = (c << 6) | get_continuation_byte();
+            c = (c << 6) | get_continuation_byte();
+            res.push_back(c);
+        } else {
+            std::wostringstream woss;
+            woss << "Unsupported: " << "0x" << std::hex << first;
+            NOT_IMPLEMENTED(woss.str());
+        }
+    }
+    return value{string{global.heap(), res}};
+}
+
+value decode_uri_component(const gc_heap_ptr<global_object>& global, const std::wstring_view s) {
+    return decode_uri(global, s);
 }
 
 struct duration_printer {
@@ -599,23 +751,12 @@ private:
         put(string{heap(), "NaN"}, value{NAN}, default_attributes);
         put(string{heap(), "Infinity"}, value{INFINITY}, default_attributes);
         // Note: eval is added by the interpreter
+
         put_native_function(*this, self, "parseInt", [&h=heap()](const value&, const std::vector<value>& args) {
             const auto input = to_string(h, get_arg(args, 0));
             int radix = to_int32(get_arg(args, 1));
             return value{parse_int(input.view(), radix)};
         }, 2);
-        put_native_function(*this, self, "parseFloat", [&h=heap()](const value&, const std::vector<value>& args) {
-            const auto input = to_string(h, get_arg(args, 0));
-            return value{parse_float(input.view())};
-        }, 1);
-        put_native_function(*this, self, "escape", [&h=heap()](const value&, const std::vector<value>& args) {
-            const auto input = to_string(h, get_arg(args, 0));
-            return value{string{h, escape(input.view())}};
-        }, 1);
-        put_native_function(*this, self, "unescape", [&h=heap()](const value&, const std::vector<value>& args) {
-            const auto input = to_string(h, get_arg(args, 0));
-            return value{string{h, unescape(input.view())}};
-        }, 1);
         put_native_function(*this, self, "isNaN", [](const value&, const std::vector<value>& args) {
             return value(std::isnan(to_number(args.empty() ? value::undefined : args.front())));
         }, 1);
@@ -630,6 +771,24 @@ private:
             std::wcout << "\n";
             return value::undefined;
         }, 1);
+
+        auto put_string_function = [&](const char* name, auto f) {
+            put_native_function(*this, self, name, [self, f](const value&, const std::vector<value>& args) {
+                const auto input = to_string(self.heap(), get_arg(args, 0));
+                return f(self, input.view());
+            }, 1);
+        };
+
+        put_string_function("parseFloat", &parse_float);
+        put_string_function("escape", &escape);
+        put_string_function("unescape", &unescape);
+
+        if (version_ >= version::es3) {
+            put_string_function("encodeURI", &encode_uri);
+            put_string_function("encodeURIComponent", &encode_uri_component);
+            put_string_function("decodeURI", &decode_uri);
+            put_string_function("decodeURIComponent", &decode_uri_component);
+        }
 
         // Add this class as the global object
         put(common_string("global"), value{self}, property_attribute::dont_delete | property_attribute::read_only);

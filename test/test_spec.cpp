@@ -30,6 +30,27 @@ std::string_view trim(const std::string_view& s) {
     return s.substr(pos, len);
 }
 
+char16_t get_escape_sequence(std::istream& in) {
+    char16_t n = 0;
+    for (int i = 0; i < 4; ++i) {
+        if (!in.rdbuf()->in_avail()) {
+            NOT_IMPLEMENTED("Unterminated unicode escape sequence");
+        }
+        int ch = in.get();
+        if (ch >= '0' && ch <= '9') {
+            ch -= '0';
+        } else if (ch >= 'A' && ch <= 'F') {
+            ch -= 'A' - 10;
+        } else if (ch >= 'a' && ch <= 'f') {
+            ch -= 'a' - 10;
+        } else {
+            NOT_IMPLEMENTED("Invalid hexdigit");
+        }
+        n = n*16+static_cast<char16_t>(ch);
+    }
+    return n;
+}
+
 value parse_value(gc_heap& h, const std::string& s) {
     std::istringstream iss{s};
     std::string type;
@@ -77,6 +98,7 @@ value parse_value(gc_heap& h, const std::string& s) {
                     case '\\': [[fallthrough]];
                     case '\'': res.push_back(ch); break;
                     case 'n': res.push_back('\n'); break;
+                    case 'u': res.push_back(get_escape_sequence(iss)); break;
                     default:
                         NOT_IMPLEMENTED("Unhandled escape sequence \\" << (char)ch);
                     }

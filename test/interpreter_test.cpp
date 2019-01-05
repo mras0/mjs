@@ -462,11 +462,13 @@ escape('42') //$ string '42'
 escape('(hel lo)') //$ string '%28hel%20lo%29'
 escape('\u1234') //$ string '%u1234'
 escape('\u0029') //$ string '%29'
+escape('\u00FF') //$ string '%FF'
 
 unescape('') //$ string ''
 unescape('test') //$ string 'test'
 unescape('%28%29') //$ string '()'
 unescape('%u1234').charCodeAt(0) //$ number 4660
+unescape('%FF').charCodeAt(0) //$ number 255
 
 )");
 
@@ -482,6 +484,61 @@ isFinite(-Infinity) //$ boolean false
 isFinite(42) //$ boolean true
 isFinite(Number.MAX_VALUE) //$ boolean true
 )");
+
+    // ES3, 15.1.3, URI Handling Functions
+
+    if (tested_version() < version::es3) {
+        RUN_TEST(L"global.decodeURI || global.decodeURIComponent || global.encodeURI || global.encodeURIComponent", value::undefined);
+        return;
+    }
+
+
+    // Tests adapted from https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/encodeURI
+    RUN_TEST_SPEC(R"x(
+encodeURI(); //$string 'undefined'
+encodeURIComponent(); //$string 'undefined'
+
+var set1 = ";,/?:@&=+$#"; // Reserved Characters
+var set2 = "-_.!~*'()";   // Unreserved Marks
+var set3 = "ABC abc 123"; // Alphanumeric Characters + Space
+
+encodeURI(set1); //$string ';,/?:@&=+$#'
+encodeURI(set2); //$string '-_.!~*\'()'
+encodeURI(set3); //$string 'ABC%20abc%20123'
+encodeURI('ABC\x80\u0800\ud7ff\ue000\u1234EF'); //$string 'ABC%C2%80%E0%A0%80%ED%9F%BF%EE%80%80%E1%88%B4EF'
+encodeURI('\ud7ff'); //$string '%ED%9F%BF'
+
+encodeURIComponent(set1); //$string '%3B%2C%2F%3F%3A%40%26%3D%2B%24%23'
+encodeURIComponent(set2); //$string '-_.!~*\'()'
+encodeURIComponent(set3); //$string 'ABC%20abc%20123'
+encodeURIComponent('ABC\x7F\xAD\u1234EF'); //$string 'ABC%7F%C2%AD%E1%88%B4EF'
+
+try { encodeURI('\udc00'); } catch (e) { e.toString(); } //$ string 'URIError: URI malformed'
+try { encodeURIComponent('\udc00'); } catch (e) { e.toString(); } //$ string 'URIError: URI malformed'
+
+decodeURI(); //$string 'undefined'
+decodeURIComponent(); //$string 'undefined'
+
+decodeURI(set1); //$string ';,/?:@&=+$#'
+decodeURI(set2); //$string '-_.!~*\'()'
+decodeURI(set3); //$string 'ABC abc 123'
+
+decodeURI('ABC%7f'); //$string 'ABC\u007f'
+decodeURI('%E0%A0%80'); //$string '\u0800'
+decodeURI('%ED%9F%BF'); //$string '\ud7ff'
+decodeURI('%EE%80%80'); //$string '\ue000'
+decodeURI('ABC%C2%80'); //$string 'ABC\u0080'
+
+decodeURI('ABC%C2%80%E0%A0%80%ED%9F%BF%EE%80%80%E1%88%B4EF'); //$string 'ABC\u0080\u0800\ud7ff\ue000\u1234EF'
+decodeURIComponent('%3B%2C%2F%3F%3A%40%26%3D%2B%24%23'); //$string ';,/?:@&=+$#'
+decodeURIComponent(set2); //$string '-_.!~*\'()'
+decodeURIComponent('ABC%20abc%20123'); //$string 'ABC abc 123'
+decodeURIComponent('ABC%7F%C2%AD%E1%88%B4EF'); //$string 'ABC\u007F\u00ad\u1234EF'
+
+try { decodeURI('%E0%A4%A'); } catch (e) { e.toString(); } //$ string 'URIError: URI malformed'
+try { decodeURIComponent('%E0%A4%A'); } catch (e) { e.toString(); } //$ string 'URIError: URI malformed'
+)x");
+
 }
 
 void test_math_functions() {
@@ -1227,28 +1284,6 @@ try {
 }
 
 )");
-
-
-    // TODO: Check if these are tested elsewhere (some probably are)
-
-    //
-    // SyntaxError
-    //
-    // ES3, 15.1.2.1, 15.3.2.1, 15.10.2.5, 15.10.2.9, 15.10.2.15, 15.10.2.19, and 15.10.4.1
-
-    //
-    // TypeError
-    //
-    // ES3, 8.6.2, 8.6.2.6, 9.9, 11.2.2, 11.2.3, 11.8.6, 11.8.7, 15.3.4.2, 15.3.4.3,
-    // 15.3.4.4, 15.3.5.3, 15.4.4.2, 15.4.4.3, 15.5.4.2, 15.5.4.3, 15.6.4, 15.6.4.2,
-    // 15.6.4.3, 15.9.5, 15.9.5.9, 15.9.5.27, 15.10.4.1,
-    // and 15.10.6.
-
-    //
-    // URIError
-    //
-    // ES3, 15.1.3
-
 }
 
 void test_array_object() {
@@ -1806,9 +1841,24 @@ try {
     }
 }
 
+// TODO: Check if these are tested elsewhere (some probably are)
+
+//
+// SyntaxError
+//
+// ES3, 15.1.2.1, 15.3.2.1, 15.10.2.5, 15.10.2.9, 15.10.2.15, 15.10.2.19, and 15.10.4.1
+
+//
+// TypeError
+//
+// ES3, 8.6.2, 8.6.2.6, 9.9, 11.2.2, 11.2.3, 11.8.6, 11.8.7, 15.3.4.2, 15.3.4.3,
+// 15.3.4.4, 15.3.5.3, 15.4.4.2, 15.4.4.3, 15.5.4.2, 15.5.4.3, 15.6.4, 15.6.4.2,
+// 15.6.4.3, 15.9.5, 15.9.5.9, 15.9.5.27, 15.10.4.1,
+// and 15.10.6.
+
 int main() {
     try {
-        //test_console(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
+        //test_global_functions(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
 
         for (const auto ver: supported_versions) {
             tested_version(ver);
