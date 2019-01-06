@@ -1241,23 +1241,18 @@ delete SyntaxError;
 'SyntaxError' in global; //$boolean false
 )");
 
-    //
-    // EvalError
-    //
-    // ES3, 15.1.2.1
-    //
-    // Use is optional, see ES3, 16:
-    //
-    // An implementation is not required to detect EvalError.
-    // If it chooses not to detect EvalError, the implementation must allow eval
-    // to be used indirectly and/or allow assignments to eval.
-
     RUN_TEST_SPEC(R"(
 x = eval;
 x(60); //$number 60
 eval=42;
 eval;//$number 42
 )");
+
+    if (tested_version() >= version::es3) {
+        RUN_TEST_SPEC(R"(
+try { eval("*"); } catch(e) { e.toString(); } //$string 'SyntaxError: Invalid argument to eval'
+)");
+    }
 
     //
     // ReferenceError
@@ -1846,7 +1841,7 @@ try {
 //
 // SyntaxError
 //
-// ES3, 15.1.2.1, 15.3.2.1, 15.10.2.5, 15.10.2.9, 15.10.2.15, 15.10.2.19, and 15.10.4.1
+// ES3, 15.3.2.1, 15.10.2.5, 15.10.2.9, 15.10.2.15, 15.10.2.19, and 15.10.4.1
 
 //
 // TypeError

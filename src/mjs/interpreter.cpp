@@ -238,7 +238,13 @@ public:
             } else if (args.front().type() != value_type::string) {
                 return args.front();
             }
-            auto bs = parse(std::make_shared<source_file>(L"eval", args.front().string_value().view(), global_->language_version()));
+            std::unique_ptr<block_statement> bs;
+            try {
+                bs = parse(std::make_shared<source_file>(L"eval", args.front().string_value().view(), global_->language_version()));
+            } catch (const std::exception&) {
+                throw native_error_exception{native_error_type::syntax, stack_trace(), L"Invalid argument to eval"};
+            }
+
             auto c = eval(*bs);
             if (!c) {
                 return c.result;
