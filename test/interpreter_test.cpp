@@ -398,6 +398,17 @@ evil(12, 34);
     if (tested_version() >= version::es5) {
         RUN_TEST(L"debugger", value::undefined);
     }
+
+    RUN_TEST_SPEC(R"(
+// 11.8.5 Order of evaluation is left to right
+function X(n){this.n=n;}
+function xval(){s+=this.n;return this.n;};
+X.prototype.valueOf=xval;
+s=''; new X(0) < new X(1); s; //$string '01'
+s=''; new X(2) <= new X(3); s; //$string '23'
+s=''; new X(8) >= new X(9); s; //$string '89'
+s=''; new X(10) > new X(11); s; //$string '1011'
+)");
 }
 
 void test_global_functions() {  
