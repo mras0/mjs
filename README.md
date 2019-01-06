@@ -14,6 +14,8 @@ programs were actually tested.
 Most ES1 and ES3 features should be implemented (to some
 degree...), but conformance is always work in progress.
 
+Work on supporting ES5(.1) is slowly under way.
+
 See the [TODO](TODO.md) file some of the known pain points.
 
 ## Building
@@ -30,6 +32,8 @@ To run the tests build the `check` target.
 
 The interpreter is built in the `src` directory. It accepts a Javascript
 file on the command line or starts in REPL mode if no argument is given.
+The ECMAScript version can be chosen by supplying it as a command line
+argument (e.g. `mjs -es1`).
 
 These steps should work for most people:
 
@@ -49,6 +53,8 @@ what's available so far:
   garbage collector was implemented
 * [Supporting ECMAScript 3rd Edition](doc/es3/es3.md) on the work done
   to support ES3 (very incomplete)
+* [Supporting ECMAScript 5th Edition](doc/es5/es5.md) on the work done
+  to support ES5 (very incomplete)
 
 ## Support
 

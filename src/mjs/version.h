@@ -8,12 +8,13 @@ namespace mjs {
 enum class version {
     es1,
     es3,
+    es5,
 
     future,
 };
 
-constexpr version default_version = version::es3;
-constexpr version supported_versions[] = { version::es1, version::es3 };
+constexpr version default_version = version::es5;
+constexpr version supported_versions[] = { version::es1, version::es3, version::es5 };
 
 
 template<typename CharT>

@@ -58,11 +58,12 @@ int main(int argc, char* argv[]) {
         if (argc > 1 && !std::strncmp(argv[1], "-es", 3)) {
             std::istringstream iss{&argv[1][3]};
             int v;
-            if (!(iss >> v) || iss.rdbuf()->in_avail() || (v != 1 && v != 3)) {
+            if (!(iss >> v) || iss.rdbuf()->in_avail() || (v != 1 && v != 3 && v != 5)) {
                 throw std::runtime_error(std::string("Invalid version argument: ") + argv[1]);
             }
             if (v == 1) ver = mjs::version::es1;
             else if (v == 3) ver = mjs::version::es3;
+            else if (v == 5) ver = mjs::version::es5;
             else assert(false);
             --argc;
             ++argv;
