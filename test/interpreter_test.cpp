@@ -424,7 +424,6 @@ parseInt(42); //$ number 42
 parseInt('10', 2); //$ number 2
 parseInt('123'); //$ number 123
 parseInt(' \t123', 10); //$ number 123
-parseInt(' 0123'); //$ number 83
 parseInt(' 123', 8); //$ number 83
 parseInt(' 0x123'); //$ number 291
 parseInt(' 123', 16); //$ number 291
@@ -432,6 +431,8 @@ parseInt(' 123', 37); //$ number NaN
 parseInt(' 123', 1); //$ number NaN
 parseInt(' x', 1); //$ number NaN
 )");
+    // Octal numbers (when radix == 0) are mandatory in ES1, implemention-defined in ES3 and disallowed in ES5+
+    RUN_TEST(L"parseInt(' \\t\\r 0123')", value{tested_version() >= version::es5 ? 123. : 83.});
 
     // parseFloat
     RUN_TEST_SPEC(R"(
@@ -1976,7 +1977,7 @@ try {
 
 int main() {
     try {
-        //eval_tests(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
+        //test_global_functions(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
 
         for (const auto ver: supported_versions) {
             tested_version(ver);

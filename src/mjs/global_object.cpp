@@ -116,12 +116,12 @@ create_result make_boolean_object(global_object& global) {
 
 std::wstring_view ltrim(std::wstring_view s) {
     size_t start_pos = 0;
-    while (start_pos < s.length() && isblank(s[start_pos]))
+    while (start_pos < s.length() && isspace(s[start_pos]))
         ++start_pos;
     return s.substr(start_pos);
 }
 
-double parse_int(std::wstring_view s, int radix) {
+double parse_int(std::wstring_view s, int radix, version ver) {
     s = ltrim(s);
     int sign = 1;
     if (!s.empty() && (s[0] == '+' || s[0] == '-')) {
@@ -145,13 +145,14 @@ double parse_int(std::wstring_view s, int radix) {
                 radix = 16;
                 s = s.substr(2);
             } else {
-                radix = 8;
+                radix = ver >= version::es5 ? 10 : 8;
             }
         }
     }
 
     double value = NAN;
 
+    assert(radix >= 2 && radix <= 36);
     for (size_t i = 0; i < s.length(); ++i) {
         if (!isdigit(s[i]) && !isalpha(s[i])) {
             break;
@@ -762,10 +763,10 @@ private:
 
         // Note: eval is added by the interpreter
 
-        put_native_function(*this, self, "parseInt", [&h=heap()](const value&, const std::vector<value>& args) {
+        put_native_function(*this, self, "parseInt", [&h=heap(), ver=version_](const value&, const std::vector<value>& args) {
             const auto input = to_string(h, get_arg(args, 0));
             int radix = to_int32(get_arg(args, 1));
-            return value{parse_int(input.view(), radix)};
+            return value{parse_int(input.view(), radix, ver)};
         }, 2);
         put_native_function(*this, self, "isNaN", [](const value&, const std::vector<value>& args) {
             return value(std::isnan(to_number(args.empty() ? value::undefined : args.front())));
