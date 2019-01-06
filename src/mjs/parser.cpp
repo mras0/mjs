@@ -263,6 +263,9 @@ private:
         }
     }
 
+    std::wstring get_identifier_name(const char* func, int line);
+    expression_ptr parse_identifier_name(const char* func, int line);
+
     expression_ptr parse_primary_expression() {
         // PrimaryExpression :
         //  this
@@ -308,14 +311,13 @@ private:
                 expression_ptr p;
                 {
                     RECORD_EXPRESSION_START;
-                    if (auto i = accept(token_type::identifier)) {
-                        p = make_expression<identifier_expression>(i.text());
-                    } else if (auto sl = accept(token_type::string_literal)) {
+                    if (auto sl = accept(token_type::string_literal)) {
                         p = make_expression<literal_expression>(sl);
                     } else if (auto nl = accept(token_type::numeric_literal)) {
                         p = make_expression<literal_expression>(nl);
                     } else {
-                        UNHANDLED();
+                        p = parse_identifier_name(__func__, __LINE__);
+                        assert(p);
                     }
                 }
                 EXPECT(token_type::colon);
@@ -444,7 +446,7 @@ private:
         //  PrimaryExpression
         //  FunctionExpression
         //  MemberExpression [ Expression ]
-        //  MemberExpression . Identifier
+        //  MemberExpression . Identifier (IdentifierName in ES5+)
         //  new MemberExpression Arguments
 
         expression_ptr me{};
@@ -470,7 +472,7 @@ private:
                 EXPECT(token_type::rbracket);
                 me = make_expression<binary_expression>(token_type::lbracket, std::move(me), std::move(e));
             } else if (accept(token_type::dot)) {
-                me = make_expression<binary_expression>(token_type::dot, std::move(me), make_expression<literal_expression>(token{token_type::string_literal, EXPECT(token_type::identifier).text()}));
+                me = make_expression<binary_expression>(token_type::dot, std::move(me), make_expression<literal_expression>(token{token_type::string_literal, get_identifier_name(__func__, __LINE__)}));
             } else {
                 return me;
             }
@@ -478,17 +480,6 @@ private:
     }
 
     expression_ptr parse_left_hand_side_expression() {
-        // LeftHandSideExpression :
-        //  NewExpression
-        //    MemberExpression
-        //    new NewExpression
-        //  CallExpression
-        //    MemberExpression Arguments
-        //    CallExpression Arguments
-        //    CallExpression [ Expression ]
-        //    CallExpression . Identifier
-
-
         // LeftHandSideExpression :
         //  NewExpression
         //  CallExpression
@@ -501,12 +492,12 @@ private:
         //  MemberExpression Arguments
         //  CallExpression Arguments
         //  CallExpression [ Expression ]
-        //  CallExpression . Identifier
+        //  CallExpression . Identifier (IdentifierName in ES5+)
 
         // MemberExpression:
         //   PrimaryExpression
         //   MemberExpression [ Expression ]
-        //   MemberExpression .  Identifier
+        //   MemberExpression .  Identifier (IdentifierName in ES5+)
         //   new MemberExpression Arguments
 
         auto m = parse_member_expression();
@@ -518,7 +509,7 @@ private:
                 EXPECT(token_type::rbracket);
                 m = make_expression<binary_expression>(token_type::lbracket, std::move(m), std::move(e));
             } else if (accept(token_type::dot)) {
-                m = make_expression<binary_expression>(token_type::dot, std::move(m), make_expression<literal_expression>(token{token_type::string_literal, EXPECT(token_type::identifier).text()}));
+                m = make_expression<binary_expression>(token_type::dot, std::move(m), make_expression<literal_expression>(token{token_type::string_literal, get_identifier_name(__func__, __LINE__)}));
             } else {
                 return m;
             }
@@ -743,6 +734,36 @@ private:
         throw std::runtime_error(oss.str());
     }
 };
+
+std::wstring parser::get_identifier_name(const char* func, int line) {
+    if (auto id = accept(token_type::identifier)) {
+        return id.text();
+    } else if (version_ >= version::es5) {
+        // In ES5+ IdentifierName is used in various grammars
+        // This means reserved words can be used as identifiers in certain contexts (e.g. Left-Hand-Side and Object Initialiser Expressions)
+        switch (const auto t = current_token_type()) {
+#define CASE_RESERVED_WORD(tt, v) case token_type::tt##_:
+            MJS_RESERVED_WORDS(CASE_RESERVED_WORD);
+#undef CASE_RESERVED_WORD
+            {
+                get_token(); // Advance to next token
+                std::wostringstream woss;
+                woss << t;
+                return woss.str();
+            }
+        default:
+            break;
+        }
+    }
+
+    std::ostringstream oss;
+    oss << "Expected identifier name in " << func << " line " << line << " got " << lexer_.current_token();
+    throw std::runtime_error(oss.str());
+}
+
+expression_ptr parser::parse_identifier_name(const char* func, int line) {
+    return make_expression<identifier_expression>(get_identifier_name(func, line));
+}
 
 std::unique_ptr<block_statement> parse(const std::shared_ptr<source_file>& source) {
     return parser{source}.parse();

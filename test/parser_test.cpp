@@ -281,6 +281,7 @@ void test_object_literal() {
     if (tested_version() == version::es3) {
         test_parse_fails("({33:66,})"); // Trailing comma not allowed until ES5
         test_parse_fails("{if:2})"); // Rserved words not allowed as property name until ES5
+        test_parse_fails("global.for"); // Rserved words not allowed as property name until ES5
     } else {
         const auto& [bs, e] = parse_object_literal("({33:66,})");
         (void)bs;
@@ -291,7 +292,8 @@ void test_object_literal() {
         REQUIRE_EQ(CHECK_EXPR_TYPE(p0, literal).t(), token{33.0});
         REQUIRE_EQ(CHECK_EXPR_TYPE(v0, literal).t(), token{66.0});
 
-        //RUN_TEST(L"({if:2}).if", value{2.0}); // Rserved words not allowed as property name until ES5
+        RUN_TEST(L"({if:2}).if", value{2.0}); // Reserved words can be used as property names
+        RUN_TEST(L"global.for", value::undefined);
     }
 
     test_parse_fails("({test})"); // No shorthand property name syntax until ES2015
