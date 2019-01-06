@@ -714,6 +714,10 @@ private:
                 finally_ = parse_block();
             }
             return make_statement<try_statement>(std::move(block), std::move(catch_), catch_id, std::move(finally_));
+        } else if (/*version_ >= version::es5 && */accept(token_type::debugger_)) {
+            auto s = make_statement<debugger_statement>();;
+            EXPECT_SEMICOLON_ALLOW_INSERTION();
+            return s;
         } else {
             auto e = parse_expression();
             if (version_ >= version::es3 && accept(token_type::colon)) {

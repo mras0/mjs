@@ -394,6 +394,10 @@ function evil(x, y) {
 }
 evil(12, 34);
 )");
+
+    if (tested_version() >= version::es5) {
+        RUN_TEST(L"debugger", value::undefined);
+    }
 }
 
 void test_global_functions() {  
@@ -1972,7 +1976,7 @@ try {
 
 int main() {
     try {
-        //test_global_functions(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
+        //eval_tests(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
 
         for (const auto ver: supported_versions) {
             tested_version(ver);

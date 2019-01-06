@@ -152,9 +152,7 @@ x++; x //$ number 2
     }
 }
 
-void test_es1_fails_with_new_constructs() {
-    tested_version(version::es1);
-
+void test_fails_with_es3_constructors() {
     test_parse_fails("1===2");
     test_parse_fails("1!==2");
     test_parse_fails("[1]");
@@ -173,6 +171,10 @@ void test_es1_fails_with_new_constructs() {
     test_parse_fails("a = function x() {}");
     test_parse_fails("a = function() {}");
     test_parse_fails("a = /4/;");
+}
+
+void test_fails_with_es5_constructors() {
+    test_parse_fails("debugger;");
 }
 
 template<typename T>
@@ -353,6 +355,11 @@ void test_form_control_characters() {
     REQUIRE_EQ(static_cast<const identifier_expression&>(e).id(), L"tq12stww");
 }
 
+void test_debugger_statement() {
+    auto s = parse_one_statement("debugger;");
+    REQUIRE_EQ(s->type(), statement_type::debugger);
+}
+
 int main() {
     try {
         for (const auto ver: supported_versions) {
@@ -365,12 +372,20 @@ int main() {
                 test_labelled_statements();
                 test_regexp_literal();
             }
+            if (ver > version::es3) {
+                test_debugger_statement();
+            }
+            if (ver < version::es3) {
+                test_fails_with_es3_constructors();
+            }
+            if (ver < version::es5) {
+                test_fails_with_es5_constructors();
+            }
         }
-
-        test_es1_fails_with_new_constructs();
 
     } catch (const std::runtime_error& e) {
         std::wcerr << e.what() << "\n";
+        std::wcerr << "Tested version: " << tested_version() << "\n";
         return 1;
     }
 }

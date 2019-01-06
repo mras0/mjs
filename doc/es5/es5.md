@@ -3,7 +3,6 @@
 Annex D, E and F contain lists of the necessary changes.
 
 ## TODO
-- 12.15: `debugger` statement
 - Annex C Strict Mode
 - Annex D 11.8.2, 11.8.3, 11.8.5: Check order in ES1/ES3 vs. ES5
 - Annex D 11.2.3: Check order
@@ -32,6 +31,7 @@ Annex D, E and F contain lists of the necessary changes.
 ## Done:
 - 11.1.5: Object Initialiser: Allow trailing comma and reserved words as keys
 - Annex E: 15.1.1 `NaN`, `Infinity` and `undefined` are now read-only properties of the global object
+- 12.15: `debugger` statement
 
 ## Notes:
 - 7.1 Form Control Characters changed from ES1 -> ES3 -> ES5

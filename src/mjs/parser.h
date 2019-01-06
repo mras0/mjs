@@ -124,6 +124,7 @@ protected:
 enum class statement_type {
     block,
     variable,
+    debugger,
     empty,
     expression,
     if_,
@@ -526,6 +527,20 @@ private:
     }
 };
 
+
+class debugger_statement : public statement {
+public:
+    explicit debugger_statement(const source_extend& extend) : statement(extend) {
+    }
+
+    statement_type type() const override { return statement_type::debugger; }
+
+private:
+    void print(std::wostream& os) const override {
+        os << "debugger_statement{}";
+    }
+};
+
 class expression_statement : public statement {
 public:
     explicit expression_statement(const source_extend& extend, expression_ptr&& e) : statement(extend), e_(std::move(e)) {
@@ -896,6 +911,7 @@ auto accept(const statement& s, Visitor& v) {
     switch (s.type()) {
     case statement_type::block:                 return v(static_cast<const block_statement&>(s));
     case statement_type::variable:              return v(static_cast<const variable_statement&>(s));
+    case statement_type::debugger:              return v(static_cast<const debugger_statement&>(s));
     case statement_type::empty:                 return v(static_cast<const empty_statement&>(s));
     case statement_type::expression:            return v(static_cast<const expression_statement&>(s));
     case statement_type::if_:                   return v(static_cast<const if_statement&>(s));

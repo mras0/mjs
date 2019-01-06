@@ -37,13 +37,13 @@ namespace mjs {
     X(switch,       es3)        \
     X(throw,        es3)        \
     X(try,          es3)        \
+    X(debugger,     es5)        \
     X(abstract,     future)     \
     X(boolean,      future)     \
     X(byte,         future)     \
     X(char,         future)     \
     X(class,        future)     \
     X(const,        future)     \
-    X(debugger,     future)     \
     X(double,       future)     \
     X(enum,         future)     \
     X(export,       future)     \
@@ -55,6 +55,7 @@ namespace mjs {
     X(import,       future)     \
     X(int,          future)     \
     X(interface,    future)     \
+    X(let,          future)     \
     X(long,         future)     \
     X(native,       future)     \
     X(package,      future)     \
@@ -67,7 +68,8 @@ namespace mjs {
     X(synchronized, future)     \
     X(throws,       future)     \
     X(transient,    future)     \
-    X(volatile,     future)
+    X(volatile,     future)     \
+    X(yield,        future)
 
 
 // Must be kept sorted in order of descending length

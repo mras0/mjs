@@ -147,6 +147,10 @@ public:
         os_ << ';';
     }
 
+    void operator()(const debugger_statement&) {
+        os_ << "debugger;";
+    }
+
     void operator()(const empty_statement&) {
         os_ << ';';
     }

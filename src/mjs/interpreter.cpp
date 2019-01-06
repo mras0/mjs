@@ -52,6 +52,8 @@ public:
         }
     }
 
+    void operator()(const debugger_statement&) {}
+
     void operator()(const empty_statement&) {}
 
     void operator()(const expression_statement&){}
@@ -796,6 +798,10 @@ public:
                 active_scope_->put(string{heap_, d.id()}, init_val);
             }
         }
+        return completion{};
+    }
+
+    completion operator()(const debugger_statement&) {
         return completion{};
     }
 
