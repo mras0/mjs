@@ -305,17 +305,25 @@ public:
     }
 
     value eval(const expression& e) {
+        try {
 #ifdef MJS_GC_STRESS_TEST
-        // Typical causes of crashes when the stress test is enabled:
-        //  - `some_ptr->func(eval(...))`: `some_ptr->` can be evaluated before `eval(...)`
-        //  - holding pointers to GC objects past calls to eval (be aware of indirect calls like calling a user provided sorting predicate)
-        //    Note that `this` is counted for native function implementations (!) see Array.sort for an example
-        auto res = accept(e, *this);
-        heap_.garbage_collect();
-        return res;
+            // Typical causes of crashes when the stress test is enabled:
+            //  - `some_ptr->func(eval(...))`: `some_ptr->` can be evaluated before `eval(...)`
+            //  - holding pointers to GC objects past calls to eval (be aware of indirect calls like calling a user provided sorting predicate)
+            //    Note that `this` is counted for native function implementations (!) see Array.sort for an example
+            auto res = accept(e, *this);
+            heap_.garbage_collect();
+            return res;
 #else
-        return accept(e, *this);
+            return accept(e, *this);
 #endif
+        } catch (const to_primitive_failed_error& e) {
+            throw native_error_exception{native_error_type::type, stack_trace(), e.what()};
+        } catch (const not_callable_exception& e) {
+            std::wostringstream woss;
+            woss << e.type() << " is not a function";
+            throw native_error_exception{native_error_type::type, stack_trace(), woss.str()};
+        }
     }
 
     completion eval(const statement& s) {
@@ -685,14 +693,16 @@ public:
             return value{reference{global_->to_object(l), to_string(heap_, r)}};
         } else if (e.op() == token_type::in_) {
             if (r.type() != value_type::object) {
-                // TODO: Throw TypeError exception
-                NOT_IMPLEMENTED(to_string(heap_, r));
+                std::wostringstream woss;
+                woss << r.type() << " is not an object";
+                throw native_error_exception{native_error_type::type, stack_trace(), woss.str()};
             }
             return value{r.object_value()->has_property(to_string(heap_, l).view())};
         } else if (e.op() == token_type::instanceof_) {
             if (r.type() != value_type::object || r.object_value()->prototype().get() != global_->function_prototype().get()) {
-                // TODO: Throw TypeError exception
-                NOT_IMPLEMENTED(to_string(heap_, r));
+                std::wostringstream woss;
+                woss << r.type() << " is not an object";
+                throw native_error_exception{native_error_type::type, stack_trace(), woss.str()};
             }
             // ES3, 15.3.5.3 [[HasInstance]] (only implemented for Function objects)
             if (l.type() != value_type::object) {

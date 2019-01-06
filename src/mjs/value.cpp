@@ -135,7 +135,7 @@ value to_primitive(const value& v, value_type hint) {
         return res;
     }
 
-    throw std::runtime_error("default_value() not implemented");
+    throw to_primitive_failed_error{};
 }
 
 bool to_boolean(const value& v) {

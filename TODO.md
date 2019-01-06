@@ -14,7 +14,7 @@
     - Optimize nested functions (they only need to be processed once (?))
     - AST optimizations (constant propagation etc.)
     - Escape analysis
-    - Check that correct errors are thrown (search for EvalError/TypeError/etc. - also see ES3 §15.11.6)
+    - Make it easier/possible to directly throw the correct error types (i.e. remove need to `to_primitive_failed_error` and `not_callable_exception`)
  * Global object
     - Date
         - time zone adjustments

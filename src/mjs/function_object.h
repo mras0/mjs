@@ -120,10 +120,14 @@ void put_native_function(global_object& global, const object_ptr& obj, const cha
 
 class not_callable_exception : public std::exception {
 public:
-    explicit not_callable_exception() {}
+    explicit not_callable_exception(value_type type = value_type::object) : type_{type} {}
     const char* what() const noexcept override {
         return "Not callable";
     }
+
+    value_type type() const { return type_; }
+private:
+    value_type type_;
 };
 
 value call_function(const value& v, const value& this_, const std::vector<value>& args);

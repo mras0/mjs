@@ -144,11 +144,14 @@ native_error_exception::native_error_exception(native_error_type type, const std
     , stack_trace_{stack_trace} {
 }
 
+native_error_exception::native_error_exception(native_error_type type, const std::wstring_view& stack_trace, const std::string_view& msg)
+    : native_error_exception{type, stack_trace, std::wstring{msg.begin(), msg.end()}} {
+}
+
 object_ptr native_error_exception::make_error_object(const gc_heap_ptr<global_object>& global) const {
     auto& h = global.heap();
     return h.make<error_object>(type_, global->common_string(type_string(type_)), global->error_prototype(), value{string{h, msg_}}, string{h, stack_trace_});
 }
-
 
 [[noreturn]] void rethrow_error(const object_ptr& error) {
     assert(error.has_type<error_object>());

@@ -19,6 +19,7 @@ public:
 class native_error_exception : public eval_exception {
 public:
     explicit native_error_exception(native_error_type type, const std::wstring_view& stack_trace, const std::wstring_view& msg);
+    explicit native_error_exception(native_error_type type, const std::wstring_view& stack_trace, const std::string_view& msg);
 
     object_ptr make_error_object(const gc_heap_ptr<global_object>& global) const;
 private:

@@ -92,6 +92,12 @@ inline bool operator!=(const value& l, const value& r) {
 }
 
 // §9 Type Conversions
+class to_primitive_failed_error : public std::exception {
+public:
+    explicit to_primitive_failed_error() {}
+    const char* what() const noexcept override { return "Cannot convert object to primitive value"; }
+};
+
 value to_primitive(const value& v, value_type hint = value_type::undefined);
 bool to_boolean(const value& v);
 double to_number(const value& v);

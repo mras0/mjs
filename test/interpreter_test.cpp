@@ -991,6 +991,20 @@ global.hasOwnProperty('parseInt'); //$boolean true
 global.propertyIsEnumerable('parseInt'); //$boolean false
 
         )");
+
+    RUN_TEST_SPEC(R"(
+// ES3, 8.6.2.6
+function C() {}
+C.prototype.toString = function() { return this; }
+C.prototype.valueOf = function() { return this; }
+try { +(new C()); } catch (e) { e.toString(); } //$string 'TypeError: Cannot convert object to primitive value'
+try { ''+(new C()); } catch (e) { e.toString(); } //$string 'TypeError: Cannot convert object to primitive value'
+
+// ES3, 9.9
+try { (undefined).toString(); } catch (e) { e.toString(); } //$string 'TypeError: Cannot convert undefined to object'
+try { (null).toString(); } catch (e) { e.toString(); } //$string 'TypeError: Cannot convert null to object'
+
+)");
 }
 
 void test_function_object() {
@@ -1058,9 +1072,14 @@ try { ('h').call(); } catch (e) {
 )");
 
     RUN_TEST_SPEC(R"(
+// ES3, 15.3.2.1
 try {new Function('a;b','return a+b');} catch (e) { e.toString(); } //$string 'SyntaxError: Invalid argument to function constructor'
 try {new Function('a,b','*a');} catch (e) { e.toString(); } //$string 'SyntaxError: Invalid argument to function constructor'
 
+// ES3, 11.2.2, 11.2.3
+try {new 42;} catch (e) { e.toString(); } //$string 'TypeError: 42 is not an object'
+try {({})();} catch (e) { e.toString(); } //$string 'TypeError: object is not a function'
+try {42();} catch (e) { e.toString(); } //$string 'TypeError: 42 is not a function'
 )");
 }
 
@@ -1254,6 +1273,11 @@ SyntaxError = 42;
 SyntaxError; //$number 42
 delete SyntaxError;
 'SyntaxError' in global; //$boolean false
+
+// ES3, 11.8.6, 11.8.7
+try { [] instanceof 42; } catch (e) { e.toString(); } //$string 'TypeError: number is not an object'
+try { [] in 'x'; } catch (e) { e.toString(); } //$string 'TypeError: string is not an object'
+
 )");
 
     RUN_TEST_SPEC(R"(
@@ -1856,7 +1880,7 @@ try {
 //
 // TypeError
 //
-// ES3, 8.6.2, 8.6.2.6, 9.9, 11.2.2, 11.2.3, 11.8.6, 11.8.7, 15.3.4.2, 15.3.4.3,
+// ES3, 15.3.4.2, 15.3.4.3,
 // 15.3.4.4, 15.3.5.3, 15.4.4.2, 15.4.4.3, 15.5.4.2, 15.5.4.3, 15.6.4, 15.6.4.2,
 // 15.6.4.3, 15.9.5, 15.9.5.9, 15.9.5.27
 
@@ -1886,7 +1910,7 @@ int main() {
             test_console();
         }
     } catch (const std::exception& e) {
-        std::cerr << e.what() << '\n';
+        std::cerr << "Unexpected exception: " << e.what() << '\n';
         std::cerr << "Version tested: " << tested_version() << "\n";
         return 1;
     }

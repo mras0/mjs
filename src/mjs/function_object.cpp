@@ -118,7 +118,7 @@ function_object& get_function_object(const value& v) {
             return static_cast<function_object&>(*o);
         }
     }
-    throw not_callable_exception{};
+    throw not_callable_exception{v.type()};
 }
 
 value call_function(const value& v, const value& this_, const std::vector<value>& args) {
