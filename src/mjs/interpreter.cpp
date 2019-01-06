@@ -441,6 +441,7 @@ public:
 
     value operator()(const call_expression& e) {
         auto member = eval(e.member());
+        // 11.2.3 The order of these two steps are actually reversed prior to ES5, but it's unlikely to be observable
         auto mval = get_value(member);
         auto args = eval_argument_list(e.arguments());
         if (mval.type() != value_type::object) {

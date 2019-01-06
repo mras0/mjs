@@ -1297,6 +1297,10 @@ e('toString'); //$string 'TypeError: Object is not a RegExp'
 e('exec'); //$string 'TypeError: Object is not a RegExp'
 e('test'); //$string 'TypeError: Object is not a RegExp'
 )");
+
+    // From ES5 RegExp.prototype is a RegExp object
+    gc_heap h{8192};
+    RUN_TEST(L"RegExp.prototype.source", tested_version() >= version::es5 ? value{string{h,"(?:)"}} : value::undefined);
 }
 
 void test_error_object() {
@@ -1977,7 +1981,7 @@ try {
 
 int main() {
     try {
-        //test_global_functions(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
+        //test_regexp_object(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
 
         for (const auto ver: supported_versions) {
             tested_version(ver);

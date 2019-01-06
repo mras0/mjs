@@ -4,11 +4,9 @@ Annex D, E and F contain lists of the necessary changes.
 
 ## TODO
 - Annex C Strict Mode
-- Annex D 11.8.2, 11.8.3, 11.8.5: Check order in ES1/ES3 vs. ES5
-- Annex D 11.2.3: Check order
+- Annex D 11.8.2, 11.8.3, 11.8.5: Order of calls to `ToPrimitive` in comparisons
 - Annex D 12.4: Exception object
 - Annex D: 13: Scope rules for FunctionExpression
-- Annex D: 15.10.6: `RegExp.prototype` should be a `RegExp` object
 - Annex E: 7.1: Handling of format control characters
 - Annex E: 7.2: `<BOM>` is white space
 - Annex E: 7.8.5: Changes to handling of RegExp literals
@@ -32,6 +30,8 @@ Annex D, E and F contain lists of the necessary changes.
 - Annex E: 15.1.1 `NaN`, `Infinity` and `undefined` are now read-only properties of the global object
 - 12.15: `debugger` statement
 - Annex E: 15.1.2.2: `parseInt` must not treat a leading 0 as an octal constant
+- Annex D 11.2.3: Order of evaluation of member vs. arguments in function call
+- Annex D: 15.10.6: `RegExp.prototype` should be a `RegExp` object
 
 ## Notes:
 - 7.1 Form Control Characters changed from ES1 -> ES3 -> ES5
