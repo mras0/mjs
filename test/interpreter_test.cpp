@@ -356,22 +356,6 @@ count(make(4)); //$number 31
     RUN_TEST(L"function  f ( x   ,\ny )  { return x + y;  }; f.toString()", value{string{h, "function f( x   ,\ny )  { return x + y;  }"}});
     RUN_TEST(L"a=parseInt;a.toString()", value{string{h, "function parseInt() { [native code] }"}});
 
-    // Boolean
-    RUN_TEST(L"Boolean()", value{false});
-    RUN_TEST(L"Boolean(true)", value{true});
-    RUN_TEST(L"Boolean(42)", value{true});
-    RUN_TEST(L"Boolean(0)", value{false});
-    RUN_TEST(L"Boolean('')", value{false});
-    RUN_TEST(L"Boolean('x')", value{true});
-    RUN_TEST(L"new Boolean('x').valueOf()", value{true});
-    RUN_TEST(L"0 + new Boolean()", value{0.});
-    RUN_TEST(L"0 + new Boolean(1)", value{1.});
-    RUN_TEST(L"'' + new Boolean(0)", value{string{h, "false"}});
-    RUN_TEST(L"'' + new Boolean(1)", value{string{h, "true"}});
-    RUN_TEST(L"Object(true).toString()", value{string{h, "true"}});
-    // TODO: Math
-    // TODO: Date
-
     // wat
     RUN_TEST(L"!!('')", value{false});
     RUN_TEST(L"\"\" == false", value{true});
@@ -589,7 +573,7 @@ Math.tan(0);            //$ number 0
     // TODO: Test many of the functions more thouroughly, they are (probably) not following the specification in corner cases
 }
 
-void test_date_functions() {
+void test_date_object() {
     // Timezones/locale not supported
 
     RUN_TEST_SPEC(R"(
@@ -703,6 +687,19 @@ invalid.toDateString();       //$string 'Invalid Date'
 invalid.toLocaleDateString(); //$string 'Invalid Date'
 invalid.toTimeString();       //$string 'Invalid Date'
 invalid.toLocaleTimeString(); //$string 'Invalid Date'
+)");
+
+    // ES3, 15.9.5, 15.9.5.9, 15.9.5.27
+    RUN_TEST_SPEC(R"(
+function e(func) { try { Date.prototype[func].call({}); } catch (e) { return e.toString(); } };
+e('toString'); //$string 'TypeError: Object is not a Date'
+e('getTime'); //$string 'TypeError: Object is not a Date'
+e('setTime'); //$string 'TypeError: Object is not a Date'
+e('toDateString'); //$string 'TypeError: Object is not a Date'
+e('getFullYear'); //$string 'TypeError: Object is not a Date'
+e('setDate'); //$string 'TypeError: Object is not a Date'
+
+
 )");
 }
 
@@ -1080,6 +1077,33 @@ try {new Function('a,b','*a');} catch (e) { e.toString(); } //$string 'SyntaxErr
 try {new 42;} catch (e) { e.toString(); } //$string 'TypeError: 42 is not an object'
 try {({})();} catch (e) { e.toString(); } //$string 'TypeError: object is not a function'
 try {42();} catch (e) { e.toString(); } //$string 'TypeError: 42 is not a function'
+
+// ES3, 15.3.4.2
+try { Function.prototype.toString.call(42); } catch (e) { e.toString(); } //$string 'TypeError: Number is not a function'
+
+// ES3, 15.3.4.3
+o = {}
+o.apply = Function.prototype.apply;
+try { o.apply(); } catch (e) { e.toString(); } //$string 'TypeError: Object is not a function'
+
+
+function g(a,b) { return '('+a+';'+b+')'; }
+function f() { return g.apply(null, arguments); }
+f(1,2); //$string '(1;2)'
+
+try { Object.prototype.toString.apply(null, {}); } catch (e) { e.toString(); } //$string 'TypeError: Object is not an (arguments) array'
+
+// ES3, 15.3.4.4
+o = {}
+o.call = Function.prototype.call;
+try { o.call(); } catch (e) { e.toString(); } //$string 'TypeError: Object is not a function'
+
+// ES3, 15.3.5.3
+function f() {}
+fi = new f();
+fi instanceof f; //$boolean true
+f.prototype = undefined;
+try { fi instanceof f; } catch (e) { e.toString(); } //$string 'TypeError: Function has non-object prototype of type undefined in instanceof check'
 )");
 }
 
@@ -1228,12 +1252,31 @@ r.lastIndex;        //$number 8
     //
     // SyntaxError
     //
-    // ES3, 15.10.2.5, 15.10.2.9, 15.10.2.15, 15.10.2.19, and 15.10.4.1
+    // ES3, 15.10.2.5, 15.10.2.9, 15.10.2.15, 15.10.2.19
     //
-    // TypeError
-    //
-    // ES3, 15.10.4.1, and 15.10.6.
-    //
+
+    RUN_TEST_SPEC(R"(
+// ES3, 15.10.3.1
+r =  /xyz/g;
+RegExp(r) === r; //$boolean true
+RegExp(r,undefined) === r; //$boolean true
+new RegExp(r) === r; //$boolean false
+
+// ES3, 15.10.4.1
+re = new RegExp(/ab/gi, undefined);
+re.source;//$string 'ab'
+re.global;//$boolean true
+re.ignoreCase;//$boolean true
+try { RegExp(/ab/,'gi'); } catch (e) { e.toString(); } //$string 'TypeError: Invalid flags argument to RegExp constructor'
+try { new RegExp(/ab/,'gi'); } catch (e) { e.toString(); } //$string 'TypeError: Invalid flags argument to RegExp constructor'
+try { new RegExp('123','x'); } catch (e) { e.toString(); } //$string 'SyntaxError: Invalid flag \'x\' given to RegExp constructor'
+try { new RegExp('123','gig'); } catch (e) { e.toString(); } //$string 'SyntaxError: Duplicate flag \'g\' given to RegExp constructor'
+// ES3, 15.10.6
+function e(func) { try { RegExp.prototype[func].call({}); } catch (e) { return e.toString(); } };
+e('toString'); //$string 'TypeError: Object is not a RegExp'
+e('exec'); //$string 'TypeError: Object is not a RegExp'
+e('test'); //$string 'TypeError: Object is not a RegExp'
+)");
 }
 
 void test_error_object() {
@@ -1241,8 +1284,6 @@ void test_error_object() {
         expect_exception<eval_exception>(L"new Error();");
         return;
     }
-
-    // TODO: Check that all the correct exception types are thrown (ES3, 15.11.6)
 
     RUN_TEST_SPEC(R"(
 Error.prototype.constructor.length; //$number 1
@@ -1398,6 +1439,7 @@ a.length; //$number 42
         return;
     }
 
+    // ES3, 15.4.4.2, 15.4.4.3
     RUN_TEST_SPEC(R"(
 function f() { this.length=2; this[0]='x'; this[1]='y'; }
 f.prototype.toString = Array.prototype.toString;
@@ -1409,6 +1451,7 @@ function t(x) { this.x = x; }
 t.prototype.toLocaleString = function() { return this.x; };
 [new t(42)].toLocaleString(); //$string '42'
 a=[new t(1), new t(2), undefined, new t(3), null]; a[null]=new t(4); a.toLocaleString(); //$string '1,2,,3,'
+try { Array.prototype.toLocaleString.call({}); } catch (e) { e.toString(); } //$string 'TypeError: Object is not an array'
 )");
 
     RUN_TEST_SPEC(R"(
@@ -1730,6 +1773,43 @@ s='xyyxyxx'.replace(/(.)(.)/g,function(){return Array.prototype.join.call(argume
 'a a b b c c'.replace(/(b)/, "X$'Y$&Z$`W"); //$string 'a a X b c cYbZa a W b c c'
 'a a b b c c'.replace(/(b)/g, "X$'Y$&Z$`W"); //$string 'a a X b c cYbZa a W X c cYbZa a b W c c'
 )");
+
+    // ES3, 15.5.4.2, 15.5.4.3
+    RUN_TEST_SPEC(R"(
+try { String.prototype.toString.call(42); } catch (e) { e.toString(); } //$string 'TypeError: Number is not a String'
+try { String.prototype.valueOf.call({}); } catch (e) { e.toString(); } //$string 'TypeError: Object is not a String'
+)");
+}
+
+void test_boolean_object() {
+    gc_heap h{256};
+
+    //
+    // Boolean
+    //
+    // ES3, 15.6.4
+    RUN_TEST(L"Boolean()", value{false});
+    RUN_TEST(L"Boolean(true)", value{true});
+    RUN_TEST(L"Boolean(42)", value{true});
+    RUN_TEST(L"Boolean(0)", value{false});
+    RUN_TEST(L"Boolean('')", value{false});
+    RUN_TEST(L"Boolean('x')", value{true});
+    RUN_TEST(L"new Boolean('x').valueOf()", value{true});
+    RUN_TEST(L"0 + new Boolean()", value{0.});
+    RUN_TEST(L"0 + new Boolean(1)", value{1.});
+    RUN_TEST(L"'' + new Boolean(0)", value{string{h, "false"}});
+    RUN_TEST(L"'' + new Boolean(1)", value{string{h, "true"}});
+    RUN_TEST(L"Object(true).toString()", value{string{h, "true"}});
+
+    if (tested_version() < version::es3) {
+        return;
+    }
+
+    // ES3, 15.6.4.2, 15.6.4.3
+    RUN_TEST_SPEC(R"(
+try { Boolean.prototype.toString.call(42); } catch (e) { e.toString(); } //$string 'TypeError: Number is not a Boolean'
+try { Boolean.prototype.valueOf.call({}); } catch (e) { e.toString(); } //$string 'TypeError: Object is not a Boolean'
+)");
 }
 
 void test_number_object() {
@@ -1875,18 +1955,9 @@ try {
     }
 }
 
-// TODO: Check if these are tested elsewhere (some probably are)
-
-//
-// TypeError
-//
-// ES3, 15.3.4.2, 15.3.4.3,
-// 15.3.4.4, 15.3.5.3, 15.4.4.2, 15.4.4.3, 15.5.4.2, 15.5.4.3, 15.6.4, 15.6.4.2,
-// 15.6.4.3, 15.9.5, 15.9.5.9, 15.9.5.27
-
 int main() {
     try {
-        //test_global_functions(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
+        //test_regexp_object(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
 
         for (const auto ver: supported_versions) {
             tested_version(ver);
@@ -1899,10 +1970,11 @@ int main() {
             test_function_object();
             test_array_object();
             test_string_object();
+            test_boolean_object();
             test_number_object();
             test_global_functions();
             test_math_functions();
-            test_date_functions();
+            test_date_object();
             test_regexp_object();
             test_error_object();
             test_long_object_chain();

@@ -843,17 +843,36 @@ void global_object::validate_object(const value& v) const {
 }
 
 void global_object::validate_type(const value& v, const object_ptr& expected_prototype, const char* expected_type) const {
-    if (v.type() == value_type::object && v.object_value()->prototype().get() == expected_prototype.get()) {
-        return;
-    }
     std::wostringstream woss;
     if (v.type() == value_type::object) {
+        auto oval = v.object_value();
+        assert(oval);
+        auto p = oval->prototype();
+        if (p && p.get() == expected_prototype.get()) {
+            return;
+        }
         woss << v.object_value()->class_name();
     } else {
         mjs::debug_print(woss, v, 2, 1);
     }
     woss << " is not a" << (strchr("aeiou", expected_type[0]) ? "n" : "") << " " << expected_type;
     throw native_error_exception(native_error_type::type, stack_trace(), woss.str());
+}
+
+class arguments_array_object : public object {
+public:
+    friend gc_type_info_registration<arguments_array_object>;
+private:
+    explicit arguments_array_object(const string& class_name, const object_ptr& prototype) : object{class_name, prototype} {
+    }
+};
+
+object_ptr global_object::make_arguments_array() {
+    return heap().make<arguments_array_object>(common_string("Arguments"), object_prototype());
+}
+
+bool global_object::is_arguments_array(const object_ptr& o) {
+    return o.has_type<arguments_array_object>();
 }
 
 } // namespace mjs

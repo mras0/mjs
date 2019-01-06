@@ -2,6 +2,7 @@
 #include "function_object.h"
 #include "array_object.h"
 #include "native_object.h"
+#include "error_object.h"
 #include <sstream>
 #include <regex>
 
@@ -22,47 +23,54 @@ constexpr inline regexp_flag operator&(regexp_flag l, regexp_flag r) {
     return static_cast<regexp_flag>(static_cast<int>(l) & static_cast<int>(r));
 }
 
-regexp_flag parse_regexp_flags(const std::wstring_view& s) {
+regexp_flag char_to_flag(int ch) {
+    switch (ch) {
+    case 'g': return regexp_flag::global;
+    case 'i': return regexp_flag::ignore_case;
+    case 'm': return regexp_flag::multiline;
+    default:  return regexp_flag::none;
+    }
+}
+
+
+regexp_flag parse_regexp_flags(global_object& global, const string& s) {
     auto f = regexp_flag::none;
-    for (const auto ch: s) {
-        if (ch == 'g' && (f & regexp_flag::global) == regexp_flag::none) {
-            f = f | regexp_flag::global;
-        } else if (ch == 'i' && (f & regexp_flag::ignore_case) == regexp_flag::none) {
-            f = f | regexp_flag::ignore_case;
-        } else if (ch == 'm' && (f & regexp_flag::multiline) == regexp_flag::none) {
-            f = f | regexp_flag::multiline;
-        } else {
-            NOT_IMPLEMENTED("throw SyntaxError");
+    for (const auto ch: s.view()) {
+        const regexp_flag here = char_to_flag(ch);
+        if (here == regexp_flag::none || (f & here) != regexp_flag::none) {
+            std::wostringstream woss;
+            woss << (here == regexp_flag::none ? "Invalid" : "Duplicate") << " flag '" << static_cast<wchar_t>(ch) << "' given to RegExp constructor";
+            throw native_error_exception{native_error_type::syntax, global.stack_trace(), woss.str()};
         }
+        f = f | here;
     }
     return f;
 }
+
+namespace {
+std::wstring flags_string(regexp_flag flags) {
+    std::wstring res;
+    if ((flags & regexp_flag::global) != regexp_flag::none)      res.push_back('g');
+    if ((flags & regexp_flag::ignore_case) != regexp_flag::none) res.push_back('i');
+    if ((flags & regexp_flag::multiline) != regexp_flag::none)   res.push_back('m');
+    return res;
+}
+} // unnamed namespace
 
 // TODO: Could optimize by not creating a new regex object each time,
 //       but need to be careful about not using too much (non-GC) memory.
 class regexp_object : public native_object {
 public:
-    static gc_heap_ptr<regexp_object> make(const gc_heap_ptr<global_object>& global, const string& pattern, const string& flags) {
-        // TODO: ES3, 15.10.4.1
-        // - "If pattern is an object R whose [[Class]] property is "RegExp" and flags is undefined , then return R unchanged."
-        // - ..
-        return global.heap().make<regexp_object>(global, pattern.view().empty() ? string{global.heap(), "(?:)"} : pattern, parse_regexp_flags(flags.view()));
-    }
-
-    static gc_heap_ptr<regexp_object> check_type(const value& v) {
-        // TODO: See ES3, 15.10.6 on thowing TypeError
-        if (v.type() != value_type::object) {
-            NOT_IMPLEMENTED("throw TypeError");
-        }
-        auto o = v.object_value();
-        if (!o.has_type<regexp_object>()) {
-            NOT_IMPLEMENTED("throw TypeError");
-        }
-        return gc_heap_ptr<regexp_object>{o};
+    static gc_heap_ptr<regexp_object> make(const gc_heap_ptr<global_object>& global, const string& pattern, regexp_flag flags) {
+        return global.heap().make<regexp_object>(global, pattern.view().empty() ? string{global.heap(), "(?:)"} : pattern, flags);
     }
 
     regexp_flag flags() const {
         return flags_;
+    }
+
+    string source() const {
+        return source_.track(heap());
     }
 
     double last_index() const {
@@ -76,10 +84,7 @@ public:
 
     string to_string() const {
         std::wostringstream woss;
-        woss << "/" << source_.track(heap()) << "/";
-        if ((flags_ & regexp_flag::global) != regexp_flag::none) woss << "g";
-        if ((flags_ & regexp_flag::ignore_case) != regexp_flag::none) woss << "i";
-        if ((flags_ & regexp_flag::multiline) != regexp_flag::none) woss << "m";
+        woss << "/" << source_.track(heap()) << "/" << flags_string(flags_);
         return string{heap(), woss.str()};
     }
 
@@ -188,28 +193,83 @@ private:
 static_assert(!gc_type_info_registration<regexp_object>::needs_destroy);
 static_assert(gc_type_info_registration<regexp_object>::needs_fixup);
 
+namespace {
+
+gc_heap_ptr<regexp_object> cast_to_regexp(const value& v) {
+    if (v.type() != value_type::object) {
+        return nullptr;
+    }
+    auto o = v.object_value();
+    if (!o.has_type<regexp_object>()) {
+        return nullptr;
+    }
+    return gc_heap_ptr<regexp_object>{o};
+}
+
+gc_heap_ptr<regexp_object> check_type(const gc_heap_ptr<global_object>& global, const value& v) {
+    if (auto r = cast_to_regexp(v)) {
+        return r;
+    }
+    std::wostringstream woss;
+    if (v.type() == value_type::object) {
+        woss << v.object_value()->class_name();
+    } else {
+        debug_print(woss, v, 4);
+    }
+    woss << " is not a RegExp";
+    throw native_error_exception{native_error_type::type, global->stack_trace(), woss.str()};
+}
+
+} // unnamed namespace
+
 create_result make_regexp_object(global_object& global) {
     auto prototype = global.make_object();
     auto regexp_str = global.common_string("RegExp");
-    auto constructor = make_function(global, [global_ = global.self_ptr()](const value&, const std::vector<value>& args) {
-        // TODO: ES3, 15.10.3.1, almost same as 15.10.4.1 -- hence the same function...
-        auto& h = global_.heap();
-        auto p = args.size() > 0 && args[0].type() != value_type::undefined? to_string(h, args[0]) : string{h, ""};
-        auto f = args.size() > 1 && args[1].type() != value_type::undefined? to_string(h, args[1]) : string{h, ""};
-        return value{regexp_object::make(global_, p, f)};
-    }, regexp_str.unsafe_raw_get(), 2);
-    constructor->default_construct_function();
 
-    put_native_function(global, prototype, "toString", [](const value& this_, const std::vector<value>&) {
-        return value{regexp_object::check_type(this_)->to_string()};
+    auto construct_regexp = [global_ = global.self_ptr()](const value&, const std::vector<value>& args) {
+        auto& h = global_.heap();
+
+        string pattern{h, ""};
+        regexp_flag flags{};
+        if (!args.empty()) {
+            const bool has_flags_argument = args.size() > 1 && args[1].type() != value_type::undefined;
+
+            if (auto r = cast_to_regexp(args[0])) {
+                if (has_flags_argument) {
+                    throw native_error_exception{native_error_type::type, global_->stack_trace(), L"Invalid flags argument to RegExp constructor"};
+                }
+                pattern = r->source();
+                flags = r->flags();
+            } else {
+                if (args[0].type() != value_type::undefined) {
+                    pattern = to_string(h, args[0]);
+                }
+                if (has_flags_argument) {
+                    flags = parse_regexp_flags(*global_, to_string(h, args[1]));
+                }
+            }
+        }
+
+        return value{regexp_object::make(global_, pattern, flags)};
+    };
+
+    auto constructor = make_function(global, [construct_regexp](const value& this_, const std::vector<value>& args) {
+        // ES3, 15.10.3.1 if pattern is a RegExp and flags is undefined, return it unchanged
+        if (args.size() >= 1 && cast_to_regexp(args[0]) && (args.size() == 1 || args[1].type() == value_type::undefined)) {
+            return args[0];
+        }
+        return construct_regexp(this_, args);
+    }, regexp_str.unsafe_raw_get(), 2);
+    constructor->construct_function(construct_regexp);
+
+    put_native_function(global, prototype, "toString", [global = global.self_ptr()](const value& this_, const std::vector<value>&) {
+        return value{check_type(global, this_)->to_string()};
     }, 0);
-    put_native_function(global, prototype, "exec", [](const value& this_, const std::vector<value>& args) {
-        auto ro = regexp_object::check_type(this_);
-        return ro->exec(to_string(ro.heap(), !args.empty()?args[0]:value::undefined));
+    put_native_function(global, prototype, "exec", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+        return check_type(global, this_)->exec(to_string(global.heap(), !args.empty()?args[0]:value::undefined));
     }, 0);
-    put_native_function(global, prototype, "test", [](const value& this_, const std::vector<value>& args) {
-        auto ro = regexp_object::check_type(this_);
-        return value{ro->exec(to_string(ro.heap(), !args.empty()?args[0]:value::undefined)) != value::null};
+    put_native_function(global, prototype, "test", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+        return value{check_type(global, this_)->exec(to_string(global.heap(), !args.empty()?args[0]:value::undefined)) != value::null};
     }, 0);
 
     prototype->put(global.common_string("constructor"), value{constructor}, global_object::prototype_attributes);
@@ -218,7 +278,7 @@ create_result make_regexp_object(global_object& global) {
 }
 
 object_ptr make_regexp(const gc_heap_ptr<global_object>& global, const string& pattern, const string& flags) {
-    return regexp_object::make(global, pattern, flags);
+    return regexp_object::make(global, pattern, parse_regexp_flags(*global, flags));
 }
 
 namespace {
@@ -231,7 +291,7 @@ gc_heap_ptr<regexp_object> to_regexp_object(const gc_heap_ptr<global_object>& gl
         }
     }
     auto& h = global.heap();
-    return regexp_object::make(global, to_string(h, regexp), string{h, ""});
+    return regexp_object::make(global, to_string(h, regexp), regexp_flag::none);
 }
 
 string do_get_replacement_string(const string& str, const object_ptr& match, const value& replace_value) {

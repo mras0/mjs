@@ -280,8 +280,6 @@ create_result make_date_object(global_object& global) {
         return value{date_helper::time_clip(date_helper::time_from_args(args))};
     }, 7);
 
-    // TODO: Date.parse(string)
-
     auto check_type = [global = global.self_ptr(), prototype](const value& this_) {
         global->validate_type(this_, prototype, "Date");
     };

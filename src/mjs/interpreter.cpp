@@ -186,7 +186,7 @@ private:
         }
 
         // Arguments array
-        auto as = global.make_object();
+        auto as = global.make_arguments_array();
         arguments_ = as;
         as->put(global.common_string("length"), value{static_cast<double>(args.size())}, property_attribute::dont_enum);
         for (uint32_t i = 0; i < args.size(); ++i) {
@@ -710,8 +710,9 @@ public:
             }
             auto o = r.object_value()->get(L"prototype");
             if (o.type() != value_type::object) {
-                // TODO: Throw TypeError exception
-                NOT_IMPLEMENTED(to_string(heap_, o));
+                std::wostringstream woss;
+                woss << "Function has non-object prototype of type " << o.type() << " in instanceof check";
+                throw native_error_exception{native_error_type::type, stack_trace(), woss.str()};
             }
             auto v = l.object_value()->prototype();
             if (!v) {

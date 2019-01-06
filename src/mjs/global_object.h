@@ -52,6 +52,9 @@ public:
     // Throw TypeError if 'v' isn't an object with prototype equal to 'expected_prototype'
     void validate_type(const value& v, const object_ptr& expected_prototype, const char* expected_type) const;
 
+    object_ptr make_arguments_array();
+    bool is_arguments_array(const object_ptr& o);
+
 protected:
     version version_;
     using object::object;

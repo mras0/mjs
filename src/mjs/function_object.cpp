@@ -90,20 +90,28 @@ create_result make_function_object(global_object& global) {
         put_native_function(global, prototype, "apply", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
             global->validate_type(this_, global->function_prototype(), "function");
             std::vector<value> new_args;
+
             if (args.size() > 1 && args[1].type() != value_type::undefined && args[1].type() != value_type::null) {
-                if (args[1].type() != value_type::object) {
-                    std::wostringstream woss;
+                std::wostringstream woss;
+                if (args[1].type() == value_type::object) {
+                    auto a = args[1].object_value();
+                    auto p = a->prototype();
+                    if ((p && p.get() == global->array_prototype().get()) || global->is_arguments_array(a)) {
+                        const uint32_t len = to_uint32(a->get(L"length"));
+                        new_args.resize(len);
+                        for (uint32_t i = 0; i < len; ++i) {
+                            new_args[i] = a->get(index_string(i));
+                        }
+                        goto do_call;
+                    }
+                    woss << a->class_name();
+                } else {
                     debug_print(woss, args[1], 4);
-                    woss << " is not an array";
-                    throw native_error_exception(native_error_type::type, global->stack_trace(), woss.str());
                 }
-                auto a = args[1].object_value();
-                const uint32_t len = to_uint32(a->get(L"length"));
-                new_args.resize(len);
-                for (uint32_t i = 0; i < len; ++i) {
-                    new_args[i] = a->get(index_string(i));
-                }
+                woss << " is not an (arguments) array";
+                throw native_error_exception(native_error_type::type, global->stack_trace(), woss.str());
             }
+do_call:
             return static_cast<const function_object&>(*this_.object_value()).call(get_this_arg(global, args), new_args);
         }, 2);
     }

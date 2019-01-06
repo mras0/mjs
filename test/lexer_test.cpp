@@ -71,7 +71,6 @@ void basic_tests() {
     SIMPLE_TEST(L"a b cd", ID("a"), WS, ID("b"), WS, ID("cd"));
     SIMPLE_TEST(L"$ _ $foo2_", ID("$"), WS, ID("_"), WS, ID("$foo2_"));
     SIMPLE_TEST(L"1a", token{1.}, ID("a"));
-    // TODO: Support more unicode characters (and escape sequences!) in indentifiers
     // Punctuator
     SIMPLE_TEST(LR"(<<>>>=)", T(lshift), T(rshiftshiftequal));
     if (tested_version() == version::es1) {
