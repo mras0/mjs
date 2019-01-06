@@ -19,7 +19,6 @@ public:
 
     void operator()(const literal_expression& e) {
         switch (e.t().type()) {
-        case token_type::undefined_:       os_ << "undefined"; return;
         case token_type::null_:            os_ << "null"; return;
         case token_type::true_:            os_ << "true"; return;
         case token_type::false_:           os_ << "false"; return;

@@ -9,7 +9,6 @@
 namespace mjs {
 
 #define MJS_RESERVED_WORDS(X)   \
-    X(undefined,    es1)        \
     X(null,         es1)        \
     X(false,        es1)        \
     X(true,         es1)        \
@@ -145,7 +144,7 @@ std::ostream& operator<<(std::ostream& os, token_type t);
 std::wostream& operator<<(std::wostream& os, token_type t);
 
 constexpr bool is_literal(token_type tt) {
-    return tt == token_type::undefined_ || tt == token_type::null_ || tt == token_type::true_ || tt == token_type::false_ || tt == token_type::numeric_literal || tt == token_type::string_literal;
+    return tt == token_type::null_ || tt == token_type::true_ || tt == token_type::false_ || tt == token_type::numeric_literal || tt == token_type::string_literal;
 }
 
 constexpr bool is_relational(token_type tt) {

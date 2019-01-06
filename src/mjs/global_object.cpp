@@ -748,8 +748,18 @@ private:
 
         auto self = self_ptr();
 
-        put(string{heap(), "NaN"}, value{NAN}, default_attributes);
-        put(string{heap(), "Infinity"}, value{INFINITY}, default_attributes);
+        auto global_const_attrs = default_attributes;
+        if (version_ >= version::es3) {
+            global_const_attrs |= property_attribute::dont_delete;
+        }
+        if (version_ >= version::es5) {
+            global_const_attrs |= property_attribute::read_only;
+        }
+
+        put(string{heap(), "NaN"}, value{NAN}, global_const_attrs);
+        put(string{heap(), "Infinity"}, value{INFINITY}, global_const_attrs);
+        put(string{heap(), "undefined"}, value{value::undefined}, global_const_attrs);
+
         // Note: eval is added by the interpreter
 
         put_native_function(*this, self, "parseInt", [&h=heap()](const value&, const std::vector<value>& args) {

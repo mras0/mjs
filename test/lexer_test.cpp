@@ -65,7 +65,7 @@ void basic_tests() {
     SIMPLE_TEST(L"x//test", ID("x"), WS);
     SIMPLE_TEST(L"x//test\n", ID("x"), WS, NL);
     // Reserver word
-    SIMPLE_TEST(LR"(undefined)", T(undefined_));
+    SIMPLE_TEST(LR"(for)", T(for_));
     // Identifier
     SIMPLE_TEST(LR"(test)", ID("test"));
     SIMPLE_TEST(L"a b cd", ID("a"), WS, ID("b"), WS, ID("cd"));

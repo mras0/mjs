@@ -469,13 +469,28 @@ isFinite(42) //$ boolean true
 isFinite(Number.MAX_VALUE) //$ boolean true
 )");
 
+    // undefined, NaN and Infinity are immutable in ES5+
+    RUN_TEST(L"undefined=42;undefined", tested_version() >= version::es5 ? value::undefined : value{42.});
+    RUN_TEST(L"NaN=42;NaN", tested_version() >= version::es5 ? value{NAN} : value{42.});
+    RUN_TEST(L"Infinity=42;Infinity", tested_version() >= version::es5 ? value{INFINITY} : value{42.});
+
     // ES3, 15.1.3, URI Handling Functions
 
     if (tested_version() < version::es3) {
+        RUN_TEST_SPEC(R"(
+delete undefined; //$boolean true
+delete NaN;       //$boolean true
+delete Infinity;  //$boolean true
+)");
         RUN_TEST(L"global.decodeURI || global.decodeURIComponent || global.encodeURI || global.encodeURIComponent", value::undefined);
         return;
     }
 
+    RUN_TEST_SPEC(R"(
+delete undefined; //$boolean false
+delete NaN;       //$boolean false
+delete Infinity;  //$boolean false
+)");
 
     // Tests adapted from https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/encodeURI
     RUN_TEST_SPEC(R"x(
@@ -1957,7 +1972,7 @@ try {
 
 int main() {
     try {
-        //test_regexp_object(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
+        //test_global_functions(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
 
         for (const auto ver: supported_versions) {
             tested_version(ver);

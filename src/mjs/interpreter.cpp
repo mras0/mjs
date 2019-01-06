@@ -383,7 +383,6 @@ public:
 
     value operator()(const literal_expression& e) {
         switch (e.t().type()) {
-        case token_type::undefined_:      return value::undefined;
         case token_type::null_:           return value::null;
         case token_type::true_:           return value{true};
         case token_type::false_:          return value{false};

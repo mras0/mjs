@@ -15,6 +15,10 @@ constexpr inline property_attribute operator|(property_attribute l, property_att
     return static_cast<property_attribute>(static_cast<int>(l) | static_cast<int>(r));
 }
 
+constexpr inline property_attribute operator|=(property_attribute& l, property_attribute r) {
+    return l = static_cast<property_attribute>(static_cast<int>(l) | static_cast<int>(r));
+}
+
 constexpr inline property_attribute operator&(property_attribute l, property_attribute r) {
     return static_cast<property_attribute>(static_cast<int>(l) & static_cast<int>(r));
 }

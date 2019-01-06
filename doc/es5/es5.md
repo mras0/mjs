@@ -18,7 +18,6 @@ Annex D, E and F contain lists of the necessary changes.
 - Annex E: 10.6: Changes to the arguments array
 - Annex E: 12.6.4: `for..in` on `null`/`undefined` now allowed
 - Annex E: 15: New `Object`, `Array` and `Date` functions
-- Annex E: 15.1.1 `NaN`, `Infinity` and `undefined` are now read-only properties of the global object
 - Annex E: 15.1.2.2: `parseInt` must not treat a leading 0 as an octal constant
 - Annex E: 15.3.4.3: Relax restrictions on the `arguments` argument to `Function.prototype.apply`
 - Annex E: 15.3.4.3,4: Change in handling of `null`/`undefined` when passed to `apply/call`
@@ -32,6 +31,7 @@ Annex D, E and F contain lists of the necessary changes.
 
 ## Done:
 - 11.1.5: Object Initialiser: Allow trailing comma and reserved words as keys
+- Annex E: 15.1.1 `NaN`, `Infinity` and `undefined` are now read-only properties of the global object
 
 ## Notes:
 - 7.1 Form Control Characters changed from ES1 -> ES3 -> ES5
