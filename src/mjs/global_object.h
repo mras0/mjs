@@ -65,6 +65,7 @@ private:
 };
 
 extern std::wstring index_string(uint32_t index);
+extern bool is_global_object(const object_ptr& o);
 
 // TODO: Need better name
 struct create_result {

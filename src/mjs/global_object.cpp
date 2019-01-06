@@ -886,4 +886,8 @@ bool global_object::is_arguments_array(const object_ptr& o) {
     return o.has_type<arguments_array_object>();
 }
 
+bool is_global_object(const object_ptr& o) {
+    return o.has_type<global_object_impl>();
+}
+
 } // namespace mjs

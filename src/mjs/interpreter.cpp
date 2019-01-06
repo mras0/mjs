@@ -796,7 +796,7 @@ public:
             if (d.init()) {
                 // Evaulate in two steps to avoid using stale activation object pointer in case the evaulation forces a garbage collection
                 auto init_val = get_value(eval(*d.init()));
-                active_scope_->put(string{heap_, d.id()}, init_val);
+                active_scope_->put_local(string{heap_, d.id()}, init_val);
             }
         }
         return completion{};
@@ -992,8 +992,7 @@ public:
         if (c.type != completion_type::throw_) {
             // Nothing to do
         } else if (auto catch_ = s.catch_block()) {
-            auto op = global_->object_prototype();
-            auto o = heap_.make<object>(op->class_name(), op);
+            auto o = global_->make_object();
             o->put(string{heap_, s.catch_id()}, c.result, property_attribute::dont_delete);
             auto_scope catch_scope{*this, o, active_scope_};
             c = eval(*catch_);
@@ -1006,7 +1005,7 @@ public:
     }
 
     completion operator()(const function_definition& s) {
-        active_scope_->put(string{heap_, s.id()}, value{create_function(s, active_scope_)});
+        active_scope_->put_local(string{heap_, s.id()}, value{create_function(s, active_scope_)});
         return completion{};
     }
 
@@ -1025,7 +1024,7 @@ private:
 
 #ifndef NDBEUG
         bool has_property(const std::wstring& id) const {
-            return activation_.dereference(heap_).has_property(id);
+            return activation_.dereference(heap_).has_property(id) || prev_.dereference(heap_).has_property(id);
         }
 #endif
 
@@ -1044,8 +1043,15 @@ private:
             return lookup(string{heap_, id});
         }
 
-        void put(const string& key, const value& val) {
-            activation_.dereference(heap_).put(key, val);
+        void put_local(const string& key, const value& val) {
+            auto act = activation_.track(heap_);
+            // Hack-ish, but variable/function definitions end up in e.g. in the "with" object
+            if (act.has_type<activation_object>() || is_global_object(act)) {
+                act->put(key, val);
+            } else {
+                assert(prev_);
+                prev_.dereference(heap_).put_local(key, val);
+            }
         }
 
         const scope* get_prev() const {

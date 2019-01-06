@@ -198,9 +198,11 @@ with (a) {
     x; //$ number 42
     x = 60;
     y = true;
+    var z = 60;
 }
 global['x']; //$ undefined
 global['y']; //$ boolean true
+global['z']; //$ number 60
 a.x; //$ number 60
 a.y; //$ undefined
 
@@ -408,6 +410,14 @@ s=''; new X(0) < new X(1); s; //$string '01'
 s=''; new X(2) <= new X(3); s; //$string '23'
 s=''; new X(8) >= new X(9); s; //$string '89'
 s=''; new X(10) > new X(11); s; //$string '1011'
+)");
+
+    RUN_TEST_SPEC(R"(
+if (1) { var x = 42; }
+x; //$number 42
+function f() { var y = 42; }
+f();
+global['y']; //$undefined
 )");
 }
 
@@ -971,6 +981,9 @@ try {
 }
 s; //$string 'e:1fe2:43f2'
 )");
+
+    // ES5.1 12.4 (See Annex D) - `this` should be undefined in the function?
+    RUN_TEST(L"x=13; g=0; try { throw function() { this.x=42; }; } catch (f) { f(); g=x; } g", value{42.});
 }
 
 void test_object_object() {
@@ -1992,7 +2005,7 @@ try {
 
 int main() {
     try {
-        //test_regexp_object(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
+        //test_es3_statements(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
 
         for (const auto ver: supported_versions) {
             tested_version(ver);

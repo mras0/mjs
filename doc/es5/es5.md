@@ -4,8 +4,6 @@ Annex D, E and F contain lists of the necessary changes.
 
 ## TODO
 - Annex C Strict Mode
-- Annex D 12.4: Exception object
-- Annex D: 13: Scope rules for FunctionExpression
 - Annex E: 7.1: Handling of format control characters
 - Annex E: 7.2: `<BOM>` is white space
 - Annex E: 7.8.5: Changes to handling of RegExp literals
@@ -32,8 +30,11 @@ Annex D, E and F contain lists of the necessary changes.
 - Annex D 11.2.3: Order of evaluation of member vs. arguments in function call
 - Annex D: 15.10.6: `RegExp.prototype` should be a `RegExp` object
 - Annex D 11.8.2, 11.8.3, 11.8.5: Order of calls to `ToPrimitive` in comparisons
+- Annex D 12.4: Exception object
+- Annex D: 13: Scope rules for FunctionExpression
 
 ## Notes:
 - 7.1 Form Control Characters changed from ES1 -> ES3 -> ES5
 - 7.2 Handling of `<BOM>`
 - `IdentifierName` allowed in various places (i.e. `ReservedWord`s can be used as property names)
+- Annex D: Can't reproduce expected standard behavior for (12.4: Exception object and 15.10.6)
