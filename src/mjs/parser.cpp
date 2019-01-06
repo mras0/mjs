@@ -300,6 +300,10 @@ private:
             while (!accept(token_type::rbrace)) {
                 if (!elements.empty()) {
                     EXPECT(token_type::comma);
+                    if (version_ >= version::es5 && accept(token_type::rbrace)) {
+                        // Trailing comma allowed in ES5+
+                        break;
+                    }
                 }
                 expression_ptr p;
                 {

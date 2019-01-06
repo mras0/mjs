@@ -275,8 +275,26 @@ void test_object_literal() {
     }
 
     RUN_TEST(L"{1,2,3}", value{3.}); // Not an object literal!
-    test_parse_fails("({1:2,})"); // Trailing comma not allowed until ES5
-    test_parse_fails("({test})"); // No shorthand property name syntaax until ES2015
+
+    test_parse_fails("{,})");
+
+    if (tested_version() == version::es3) {
+        test_parse_fails("({33:66,})"); // Trailing comma not allowed until ES5
+        test_parse_fails("{if:2})"); // Rserved words not allowed as property name until ES5
+    } else {
+        const auto& [bs, e] = parse_object_literal("({33:66,})");
+        (void)bs;
+        REQUIRE_EQ(e->elements().size(), 1U);
+        const auto& [p0, v0] = e->elements()[0];
+        REQUIRE(p0);
+        REQUIRE(v0);
+        REQUIRE_EQ(CHECK_EXPR_TYPE(p0, literal).t(), token{33.0});
+        REQUIRE_EQ(CHECK_EXPR_TYPE(v0, literal).t(), token{66.0});
+
+        //RUN_TEST(L"({if:2}).if", value{2.0}); // Rserved words not allowed as property name until ES5
+    }
+
+    test_parse_fails("({test})"); // No shorthand property name syntax until ES2015
 
     // More complicated examples + nesting
     RUN_TEST_SPEC(R"(

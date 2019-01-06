@@ -3,7 +3,7 @@
 Annex D, E and F contain lists of the necessary changes.
 
 ## TODO
-- 11.1.5: Object Initialiser: Allow trailing comma and reserved words as keys
+- 11.1.5: Object Initialiser: Reserved words as keys
 - 12.15: `debugger` statement
 - Annex C Strict Mode
 - Annex D 11.8.2, 11.8.3, 11.8.5: Check order in ES1/ES3 vs. ES5
@@ -31,6 +31,8 @@ Annex D, E and F contain lists of the necessary changes.
 - Annex E: 15.11.15.11.4.4: `Error.toString` now has specified format
 - Annex E: 15.12: `JSON` object
 
+## Done:
+- 11.1.5: Object Initialiser: Allow trailing comma
 
 ## Notes:
 - 7.1 Form Control Characters changed from ES1 -> ES3 -> ES5
