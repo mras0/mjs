@@ -274,7 +274,12 @@ public:
                 body = to_string(heap_, args.back()).view();
             }
 
-            auto bs = parse(std::make_shared<source_file>(L"Function definition", L"function anonymous(" + p + L") {\n" + body + L"\n}", global_->language_version()));
+            std::unique_ptr<block_statement> bs;
+            try {
+                bs = parse(std::make_shared<source_file>(L"Function definition", L"function anonymous(" + p + L") {\n" + body + L"\n}", global_->language_version()));
+            } catch (const std::exception&) {
+                throw native_error_exception{native_error_type::syntax, stack_trace(), L"Invalid argument to function constructor"};
+            }
             if (bs->l().size() != 1 || bs->l().front()->type() != statement_type::function_definition) {
                 NOT_IMPLEMENTED("Invalid function definition: " << bs->extend().source_view());
             }

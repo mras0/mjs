@@ -1056,6 +1056,12 @@ try { ('h').call(); } catch (e) {
     e.toString(); //$ string 'TypeError: String is not a function'
 }
 )");
+
+    RUN_TEST_SPEC(R"(
+try {new Function('a;b','return a+b');} catch (e) { e.toString(); } //$string 'SyntaxError: Invalid argument to function constructor'
+try {new Function('a,b','*a');} catch (e) { e.toString(); } //$string 'SyntaxError: Invalid argument to function constructor'
+
+)");
 }
 
 void test_regexp_object() {
@@ -1200,6 +1206,15 @@ r.lastIndex;        //$number 8
     // - RegExp use with String
     // - Constructor corner cases
     // - etc...
+    //
+    // SyntaxError
+    //
+    // ES3, 15.10.2.5, 15.10.2.9, 15.10.2.15, 15.10.2.19, and 15.10.4.1
+    //
+    // TypeError
+    //
+    // ES3, 15.10.4.1, and 15.10.6.
+    //
 }
 
 void test_error_object() {
@@ -1839,17 +1854,11 @@ try {
 // TODO: Check if these are tested elsewhere (some probably are)
 
 //
-// SyntaxError
-//
-// ES3, 15.3.2.1, 15.10.2.5, 15.10.2.9, 15.10.2.15, 15.10.2.19, and 15.10.4.1
-
-//
 // TypeError
 //
 // ES3, 8.6.2, 8.6.2.6, 9.9, 11.2.2, 11.2.3, 11.8.6, 11.8.7, 15.3.4.2, 15.3.4.3,
 // 15.3.4.4, 15.3.5.3, 15.4.4.2, 15.4.4.3, 15.5.4.2, 15.5.4.3, 15.6.4, 15.6.4.2,
-// 15.6.4.3, 15.9.5, 15.9.5.9, 15.9.5.27, 15.10.4.1,
-// and 15.10.6.
+// 15.6.4.3, 15.9.5, 15.9.5.9, 15.9.5.27
 
 int main() {
     try {
