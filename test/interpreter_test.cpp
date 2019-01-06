@@ -1051,7 +1051,7 @@ try { (null).toString(); } catch (e) { e.toString(); } //$string 'TypeError: Can
 void test_function_object() {
     gc_heap h{256};
     // In ES3 prototype only has attributes DontDelete, in ES1 it's DontEnum
-    const string expected_keys{h, tested_version() < version::es3 ? "" : "prototype,"};
+    const string expected_keys{h, tested_version() != version::es3 ? "" : "prototype,"};
     RUN_TEST(L"s=''; function a(){}; for(k in a) { s+=k+','; }; s", value{expected_keys});
     // length and are arguments should be DontDelete|DontEnum|ReadOnly
     RUN_TEST_SPEC(R"(
@@ -1065,6 +1065,10 @@ void test_function_object() {
     Function.toString(); //$string 'function Function() { [native code] }'
     Function.prototype.toString(); //$string 'function () { [native code] }'
 )");
+
+    // ES5.1, 15.3.5.2 "In Edition 5, the prototype property of Function instances is not enumerable. In Edition 3, this property was enumerable"
+    RUN_TEST(L"function a(){}; s=''; for(k in a)s+=k+','; s", value{string{h, tested_version() != version::es3 ? "" : "prototype,"}});
+
     if (tested_version() < version::es3) {
         // In ES1 prototype should be DontEnum only
         RUN_TEST(L"function a(){}; (delete a.prototype)", value{true});
@@ -2005,7 +2009,7 @@ try {
 
 int main() {
     try {
-        //test_es3_statements(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
+        //test_function_object(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
 
         for (const auto ver: supported_versions) {
             tested_version(ver);

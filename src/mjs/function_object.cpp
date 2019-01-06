@@ -46,7 +46,11 @@ value function_object::construct(const value& this_, const std::vector<value>& a
 gc_heap_ptr<function_object> make_raw_function(global_object& global) {
     auto fp = global.function_prototype();
     auto o = global.heap().make<function_object>(fp->class_name(), fp);
-    o->put_prototype_with_attributes(global.make_object(), global.language_version() >= version::es3 ? property_attribute::dont_delete : property_attribute::dont_enum);
+    const auto ver = global.language_version();
+    const auto attrs =
+        (ver != version::es3 ? property_attribute::dont_enum : property_attribute::none)
+        | (ver >= version::es3 ? property_attribute::dont_delete : property_attribute::none);
+    o->put_prototype_with_attributes(global.make_object(),  attrs);
     return o;
 }
 
