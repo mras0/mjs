@@ -438,6 +438,10 @@ eval('1+2*3') //$ number 7
 x42=50; eval('x'+42+'=13'); x42 //$ number 13
 )");
 
+    // ES5.1, 10.4.2 the global context is used for indirect calls to eval
+    RUN_TEST(L"var s=1; function t() { var s=2; return eval('s'); }; t();", value{2.});
+    RUN_TEST(L"var s=1; function t() { var s=2; return (0,eval)('s'); }; t();", value{tested_version() >= version::es5 ? 1. : 2.});
+
     // parseInt
     RUN_TEST_SPEC(R"(
 parseInt('0'); //$ number 0 

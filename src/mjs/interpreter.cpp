@@ -247,6 +247,7 @@ public:
                 throw native_error_exception{native_error_type::syntax, stack_trace(), L"Invalid argument to eval"};
             }
 
+            const std::unique_ptr<force_global_scope> fgs{!was_direct_call_to_eval_ ? new force_global_scope{*this} : nullptr};
             auto c = eval(*bs);
             if (!c) {
                 return c.result;
@@ -449,10 +450,18 @@ public:
             woss << to_string(heap_, mval).view() << " is not a function";
             throw native_error_exception(native_error_type::type, stack_trace(), woss.str());
         }
+        // See ES5.1, 10.4.2 and 15.1.2.1.1
+        const bool is_es5_or_later = global_->language_version() >= version::es5;
+        was_direct_call_to_eval_ = !is_es5_or_later;
         auto this_ = value::null;
         if (member.type() == value_type::reference) {
-            if (auto o = member.reference_value().base(); !o.has_type<activation_object>()) {
+            const auto& ref = member.reference_value();
+            if (auto o = ref.base(); !o.has_type<activation_object>()) {
                 this_ = value{o};
+            }
+            if (is_es5_or_later && ref.property_name().view() == L"eval") {
+                // Meh, may need extra/better check
+                was_direct_call_to_eval_ = true;
             }
         }
 
@@ -1108,6 +1117,18 @@ private:
         source_extend pos_;
 #endif
     };
+    class force_global_scope {
+    public:
+        explicit force_global_scope(impl& i) : parent_(i), old_scope_(parent_.active_scope_) {
+            parent_.active_scope_ = make_scope(i.global_, nullptr);
+        }
+        ~force_global_scope() {
+            parent_.active_scope_ = old_scope_;
+        }
+    private:
+        impl&     parent_;
+        scope_ptr old_scope_;
+    };
 
     gc_heap&                       heap_;
     const block_statement&         program_;
@@ -1119,6 +1140,7 @@ private:
     label_set                      label_set_;
     const statement*               labels_valid_for_ = nullptr;
     source_extend                  current_extend_;
+    bool                           was_direct_call_to_eval_ = false; // To support ES5.1, 15.1.2.1.1 Direct Call to Eval (TODO: Do this smarter...)
 
     static scope_ptr make_scope(const object_ptr& act, const scope_ptr& prev) {
         return act.heap().make<scope>(act, prev);

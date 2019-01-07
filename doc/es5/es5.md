@@ -5,13 +5,12 @@ Annex D, E and F contain lists of the necessary changes.
 ## TODO
 - Annex C Strict Mode
 - Annex E: 7.8.5: Changes to handling of RegExp literals
-- Annex E: 10.4.2: Changes to the environment of `eval`
-- Annex E: 15.4.4: `Array.prototype.to(Locale)String()` is now generic
 - Annex E: 10.6: Changes to the arguments array
 - Annex E: 12.6.4: `for..in` on `null`/`undefined` now allowed
 - Annex E: 15: New `Object`, `Array` and `Date` functions
 - Annex E: 15.3.4.3: Relax restrictions on the `arguments` argument to `Function.prototype.apply`
 - Annex E: 15.3.4.3,4: Change in handling of `null`/`undefined` when passed to `apply/call`
+- Annex E: 15.4.4: `Array.prototype.to(Locale)String()` are now generic
 - Annex E: 15.5.5.2: Array like access to `String` objects
 - Annex E: 15.9.4.2: `Date.parse` should attempt to parse as ISO format string
 - Annex E: 15.10.4.1/15.10.6.4: `RegExp.source/toString` now has specified format
@@ -32,9 +31,11 @@ Annex D, E and F contain lists of the necessary changes.
 - Annex E: 15.3.5.2: Make the `prototype` property of function objects non-enumerable
 - Annex E: 7.1: Handling of format control characters
 - Annex E: 7.2: `<BOM>` is white space
+- Annex E: 10.4.2: Changes to the environment of `eval`
 
 ## Notes:
 - 7.1 Form Control Characters changed from ES1 -> ES3 -> ES5
 - 7.2 Handling of `<BOM>`
 - `IdentifierName` allowed in various places (i.e. `ReservedWord`s can be used as property names)
 - Annex D: Can't reproduce expected standard behavior for (12.4: Exception object and 15.10.6)
+- 10.4.2 Direct calls to `eval` behave differently than indirect calls!
