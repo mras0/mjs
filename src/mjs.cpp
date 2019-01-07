@@ -12,17 +12,18 @@
 #include <mjs/interpreter.h>
 #include <mjs/printer.h>
 #include <mjs/platform.h>
+#include <mjs/char_conversions.h>
 
 #include <fstream>
 #include <streambuf>
 #include <cstring>
 
-std::shared_ptr<mjs::source_file> read_ascii_file(mjs::version ver, const char* filename) {
+std::shared_ptr<mjs::source_file> read_utf8_file(mjs::version ver, const char* filename) {
     std::ifstream in(filename);
     if (!in) throw std::runtime_error("Could not open " + std::string(filename));
     return std::make_shared<mjs::source_file>(
         std::wstring(filename, filename+std::strlen(filename)), 
-        std::wstring((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>()),
+        mjs::unicode::utf8_to_utf16(std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>())),
         ver
         );
 }
@@ -57,7 +58,7 @@ int main(int argc, char* argv[]) {
         }
 
         if (argc > 1) {
-            return interpret_file(read_ascii_file(ver, argv[1]));
+            return interpret_file(read_utf8_file(ver, argv[1]));
         }
 
         mjs::gc_heap heap{1<<22}; // TODO: Do something sane

@@ -2,6 +2,7 @@
 #include <mjs/parser.h>
 #include <mjs/interpreter.h>
 #include <mjs/printer.h>
+#include <mjs/platform.h>
 #include <sstream>
 
 using namespace mjs;
@@ -117,3 +118,15 @@ bool operator==(const token& l, const token& r) {
 }
 
 }  // namespace mjs
+
+int main() {
+    platform_init();
+    try {
+        test_main();
+    } catch (const std::exception& e) {
+        std::wcerr << e.what() << "\n";
+        std::wcerr << "Tested version: " << tested_version() << "\n";
+        return 1;
+    }
+    return 0;
+}

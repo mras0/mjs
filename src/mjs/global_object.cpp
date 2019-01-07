@@ -9,6 +9,7 @@
 #include "string_object.h"
 #include "number_object.h"
 #include "date_object.h"
+#include "char_conversions.h"
 #include <sstream>
 #include <chrono>
 #include <algorithm>
@@ -211,21 +212,17 @@ struct escape_encoder {
 
 struct uri_encoder {
     void operator()(std::wstring& res, int ch) const {
+        uint8_t buffer[unicode::utf8_max_length];
+        const auto len = unicode::utf32_to_utf8(static_cast<uint32_t>(ch), buffer);
+        if (!len) {
+            throw encoder_exception{};
+        }
+
         assert(ch >= 0);
-        if (ch <= 0x7F) {
-            // One byte
-            put_percent_hex_byte(res, ch);
-            return;
-        } else if (ch <= 0x7FF) {
-            // Two byte
-            put_percent_hex_byte(res, 0b11000000 | (ch >> 6));
-            put_percent_hex_byte(res, 0b10000000 | (ch & 0x3f));
-            return;
-        } else if (ch <= 0xD7FF || (ch >= 0xE000 && ch <= 0xFFFF)) {
-            // Three byte
-            put_percent_hex_byte(res, 0b11100000 | (ch >> 12));
-            put_percent_hex_byte(res, 0b10000000 | ((ch >> 6) & 0x3f));
-            put_percent_hex_byte(res, 0b10000000 | (ch & 0x3f));
+        if (ch <= 0xFFFF && !unicode::utf16_is_surrogate(static_cast<char16_t>(ch))) {
+            for (unsigned i = 0; i < len; ++i) {
+                put_percent_hex_byte(res, buffer[i]);
+            }
             return;
         } else if (ch <= 0xDBFF) {
             // Surrogate pair
@@ -328,7 +325,7 @@ value decode_uri(const gc_heap_ptr<global_object>& global, const std::wstring_vi
             ++i;
             continue;
         }
-        auto get_byte = [&] () {
+       auto get_byte = [&] () {
             assert(s[i] == '%');
             ++i;
             if (i + 2 > s.length()) {
@@ -336,34 +333,26 @@ value decode_uri(const gc_heap_ptr<global_object>& global, const std::wstring_vi
             }
             i += 2;
             return static_cast<uint8_t>(get_hex_value2(&s[i-2]));
-        };
-        auto get_continuation_byte = [&] () {
-            auto b = get_byte();
-            if ((b & 0b11000000) != 0b10000000) {
-                throw_uri_error(global);
-            }
-            return static_cast<uint8_t>(b & 0x3f);
-        };
-
-        const auto first = get_byte();
-        if (!(first & 0x80)) {
-            // One byte
-            res.push_back(first);
-         } else if ((first & 0b11100000) == 0b11000000) {
-            // Two byte
-            char16_t c = first & 0x1f;
-            c = (c << 6) | get_continuation_byte();
-            res.push_back(c);
-        } else if ((first & 0b11110000) == 0b11100000) {
-            char16_t c = first & 0xf;
-            c = (c << 6) | get_continuation_byte();
-            c = (c << 6) | get_continuation_byte();
-            res.push_back(c);
-        } else {
+       };
+       uint8_t buf[4] = { get_byte(), };
+       const auto len = unicode::utf8_length_from_lead_code_unit(buf[0]);
+       if (!len) {
+           std::wostringstream woss;
+           woss << "Unsupported: " << s;
+           NOT_IMPLEMENTED(woss.str());
+       }
+       assert(len < sizeof(buf));
+       for (unsigned j = 1; j < len; ++j) {
+           buf[j] = get_byte();
+       }
+       auto conv = unicode::utf8_to_utf32(buf, len);
+       if (conv.length != len) {
             std::wostringstream woss;
-            woss << "Unsupported: " << "0x" << std::hex << first;
+            woss << "Unsupported: " << s;
             NOT_IMPLEMENTED(woss.str());
         }
+       assert(conv.code_point <= 0xffff);
+       res.push_back(static_cast<char16_t>(conv.code_point));
     }
     return value{string{global.heap(), res}};
 }

@@ -1,7 +1,6 @@
 #include "test.h"
 
 #include <mjs/lexer.h>
-#include <mjs/platform.h>
 #include <vector>
 #include <sstream>
 
@@ -254,22 +253,15 @@ void test_format_control_characters() {
     }
 }
 
-int main() {
-    platform_init();
-    try {
-        for (const auto v: supported_versions) {
-            tested_version(v);
-            basic_tests();
-            test_unicode_escape_sequence_in_identifier();
-            test_format_control_characters();
-            if (v > version::es1) {
-                test_regexp_literals();
-            }
-            check_keywords();
+void test_main() {
+    for (const auto v: supported_versions) {
+        tested_version(v);
+        basic_tests();
+        test_unicode_escape_sequence_in_identifier();
+        test_format_control_characters();
+        if (v > version::es1) {
+            test_regexp_literals();
         }
-    } catch (const std::exception& e) {
-        std::wcerr << e.what() << "\n";
-        std::wcerr << "Lexer version: " << tested_version() << "\n";
-        return 1;
+        check_keywords();
     }
 }

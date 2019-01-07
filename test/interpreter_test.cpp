@@ -2012,37 +2012,30 @@ try {
     }
 }
 
-int main() {
-    try {
-        //test_function_object(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
+void test_main() {
+    //test_global_functions(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
 
-        for (const auto ver: supported_versions) {
-            tested_version(ver);
+    for (const auto ver: supported_versions) {
+        tested_version(ver);
 
-            eval_tests();
-            if (tested_version() >= version::es3) {
-                test_es3_statements();
-            }
-            test_object_object();
-            test_function_object();
-            test_array_object();
-            test_string_object();
-            test_boolean_object();
-            test_number_object();
-            test_global_functions();
-            test_math_functions();
-            test_date_object();
-            test_regexp_object();
-            test_error_object();
-            test_long_object_chain();
-            test_eval_exception();
-            test_console();
+        eval_tests();
+        if (tested_version() >= version::es3) {
+            test_es3_statements();
         }
-    } catch (const std::exception& e) {
-        std::cerr << "Unexpected exception: " << e.what() << '\n';
-        std::cerr << "Version tested: " << tested_version() << "\n";
-        return 1;
+        test_object_object();
+        test_function_object();
+        test_array_object();
+        test_string_object();
+        test_boolean_object();
+        test_number_object();
+        test_global_functions();
+        test_math_functions();
+        test_date_object();
+        test_regexp_object();
+        test_error_object();
+        test_long_object_chain();
+        test_eval_exception();
+        test_console();
     }
-
 }
 

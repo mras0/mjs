@@ -46,5 +46,6 @@ inline bool operator!=(const token& l, const token& r) {
 } // namespace mjs
 
 
+void test_main(void);
 
 #endif

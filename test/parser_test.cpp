@@ -2,7 +2,6 @@
 #include "test_spec.h"
 #include <sstream>
 #include <mjs/parser.h>
-#include <mjs/platform.h>
 
 namespace mjs {
 
@@ -398,33 +397,25 @@ void test_debugger_statement() {
     REQUIRE_EQ(s->type(), statement_type::debugger);
 }
 
-int main() {
-    platform_init();
-    try {
-        for (const auto ver: supported_versions) {
-            tested_version(ver);
-            test_semicolon_insertion();
-            test_form_control_characters();
-            if (ver > version::es1) {
-                test_array_literal();
-                test_object_literal();
-                test_labelled_statements();
-                test_regexp_literal();
-            }
-            if (ver > version::es3) {
-                test_debugger_statement();
-            }
-            if (ver < version::es3) {
-                test_fails_with_es3_constructors();
-            }
-            if (ver < version::es5) {
-                test_fails_with_es5_constructors();
-            }
+void test_main() {
+    for (const auto ver: supported_versions) {
+        tested_version(ver);
+        test_semicolon_insertion();
+        test_form_control_characters();
+        if (ver > version::es1) {
+            test_array_literal();
+            test_object_literal();
+            test_labelled_statements();
+            test_regexp_literal();
         }
-
-    } catch (const std::runtime_error& e) {
-        std::wcerr << e.what() << "\n";
-        std::wcerr << "Tested version: " << tested_version() << "\n";
-        return 1;
+        if (ver > version::es3) {
+            test_debugger_statement();
+        }
+        if (ver < version::es3) {
+            test_fails_with_es3_constructors();
+        }
+        if (ver < version::es5) {
+            test_fails_with_es5_constructors();
+        }
     }
 }
