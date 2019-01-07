@@ -34,7 +34,7 @@ public:
     explicit source_file(const std::wstring_view& filename, const std::wstring_view& text, version ver)
         : ver_(ver)
         , filename_(filename)
-        , text_(ver >= version::es3 ? strip_format_control_characters(text) : text) {
+        , text_(ver == version::es3 ? strip_format_control_characters(text) : text) {
     }
 
     version language_version() const { return ver_; }

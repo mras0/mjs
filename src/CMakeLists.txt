@@ -27,6 +27,8 @@ add_library(mjs_lib STATIC
     mjs/object.h
     mjs/parser.cpp
     mjs/parser.h
+    mjs/platform.cpp
+    mjs/platform.h
     mjs/printer.cpp
     mjs/printer.h
     mjs/property_attribute.h

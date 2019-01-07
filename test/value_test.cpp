@@ -6,6 +6,7 @@
 #include <mjs/value.h>
 #include <mjs/object.h>
 #include <mjs/gc_heap.h>
+#include <mjs/platform.h>
 #include "test.h"
 
 using namespace mjs;
@@ -161,6 +162,7 @@ void test_number_to_string() {
 }
 
 int main() {
+    platform_init();
     test_value();
     test_object();
     test_type_conversion();

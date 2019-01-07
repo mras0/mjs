@@ -1,6 +1,7 @@
 #include "test.h"
 
 #include <mjs/lexer.h>
+#include <mjs/platform.h>
 #include <vector>
 #include <sstream>
 
@@ -225,14 +226,36 @@ void test_unicode_escape_sequence_in_identifier() {
 }
 
 void test_format_control_characters() {
-    if (tested_version() == version::es1) {
-        check_lex_fails(L"1\xAD"); // Soft-hypen
+    REQUIRE_EQ(strip_format_control_characters(L"te\xADst\x600zz"), L"testzz");
+    check_lex_fails(L"1\xAD"); // Soft-hypen
+    check_lex_fails(L"a\x600");
+    check_lex_fails(L"\x200c");
+    const wchar_t * const in_id = L"a\x200c\x200dz";
+    const wchar_t * const bom_is_ws = L"\xFEFF  \xFEFF" L"abc\t\xFEFF";
+    const wchar_t * const cf_in_lit = L"'\x600\x200c\xFEFF hello'";
+    const wchar_t * const cf_in_relit = L"/\x600\x200c\xFEFF/";
+
+    // It's only in ES3 that we can't have format control characters in string literals
+    if (tested_version() != version::es3) {
+        SIMPLE_TEST(cf_in_lit, STR("\x600\x200c\xFEFF hello"));
     } else {
-        REQUIRE_EQ(strip_format_control_characters(L"te\xADst\x600zz"), L"testzz");
+        check_lex_fails(cf_in_lit);
+    }
+
+
+    if (tested_version() < version::es5) {
+        check_lex_fails(in_id);
+        check_lex_fails(bom_is_ws);
+        check_lex_fails(cf_in_relit);
+    } else {
+        SIMPLE_TEST(in_id, ID("a\x200c\x200dz"));
+        SIMPLE_TEST(bom_is_ws, WS, ID("abc"), WS);
+        test_get_regex_literal(cf_in_relit);
     }
 }
 
 int main() {
+    platform_init();
     try {
         for (const auto v: supported_versions) {
             tested_version(v);

@@ -13,6 +13,10 @@ const token eof_token{token_type::eof};
 
 namespace {
 
+constexpr const wchar_t unicode_ZWNJ = 0x200c;
+constexpr const wchar_t unicode_ZWJ  = 0x200d;
+constexpr const wchar_t unicode_BOM  = 0xfeff;
+
 void cpp_quote_escape(std::wstring& r, char16_t c) {
     switch (c) {
     case '\'': r += L"\\\'"; break;
@@ -91,6 +95,25 @@ constexpr bool is_identifier_part_v3(int ch) {
     }
 }
 
+constexpr bool is_identifier_part_v5(int ch) {
+    switch (classify(ch)) {
+    case unicode::classification::id_start:
+    case unicode::classification::id_part:
+        return true;
+    case unicode::classification::format:
+        // ES5.1, \u200c (<ZWNJ>) and \u200d (<ZWJ>) are considered identifier parts outside literals/comments/etc.
+        return ch == unicode_ZWNJ || ch == unicode_ZWJ;
+    default:
+        return false;
+    }
+}
+
+constexpr bool is_identifier_part(int ch, version ver) {
+    if (is_identifier_part_v1(ch)) return true;
+    if (ver < version::es3) return false;
+    return ver >= version::es5 ? is_identifier_part_v5(ch) : is_identifier_part_v3(ch);
+}
+
 constexpr bool is_form_control(uint32_t ch) {
     // Slight optimization: No form control characters until soft-hypen (0xAD)
     return ch >= 0xAD && classify(ch) == unicode::classification::format;
@@ -155,7 +178,7 @@ std::pair<wchar_t, size_t> get_octal_escape_sequence(const std::wstring_view& te
     return { static_cast<wchar_t>(value), len };
 }
 
-std::wstring replace_unicode_escape_sequences(const std::wstring& id) {
+std::wstring replace_unicode_escape_sequences(const std::wstring& id, version ver) {
     auto idx = id.find_first_of(L'\\');
     assert(idx != std::wstring::npos);
     std::wstring res;
@@ -173,7 +196,7 @@ std::wstring replace_unicode_escape_sequences(const std::wstring& id) {
         }
 
         const auto ch = static_cast<char16_t>(get_hex_value4(&id[idx+2]));
-        if (!is_identifier_part_v1(ch) && !is_identifier_part_v3(ch)) {
+        if (!is_identifier_part(ch, ver)) {
             throw std::runtime_error(default_error_message);
         }
         res += ch;
@@ -257,7 +280,10 @@ std::pair<token, size_t> get_string_literal(const std::wstring_view text_, const
         } else if (qch == ch) {
             ++token_end;
             break;
-        } else {
+        } else {        
+            if (ver == version::es3 && classify(qch) == unicode::classification::format) {
+                throw std::runtime_error("Format control characters not allowed in string literals in ES3");
+            }
             s.push_back(qch);
         }
     }
@@ -268,6 +294,9 @@ std::pair<token, size_t> get_string_literal(const std::wstring_view text_, const
 std::pair<token, size_t> get_identifier(const std::wstring_view text, const size_t token_start, version ver) {
     auto token_end = token_start + 1;
     bool escape_sequence_used = text[token_start] == '\\';
+
+    const auto exended_id_part = ver >= version::es5 ? is_identifier_part_v5 : is_identifier_part_v3;
+
     for (; token_end < text.size(); ++token_end) {
         const int ch = text[token_end];
         if (is_identifier_part_v1(ch)) {
@@ -276,14 +305,14 @@ std::pair<token, size_t> get_identifier(const std::wstring_view text, const size
             break;
         } else if (ch == '\\') {
             escape_sequence_used = true;
-        } else if (!is_identifier_part_v3(ch)) {
+        } else if (!exended_id_part(ch)) {
             break;
         }
     }
     auto id = std::wstring{text.begin() + token_start, text.begin() + token_end};
     token tok{token_type::eof};
     if (escape_sequence_used) {
-        id = replace_unicode_escape_sequences(id);
+        id = replace_unicode_escape_sequences(id, ver);
     }
     if (0) {}
 #define X(rw, v) else if (id == L ## #rw) { if (version::v > ver) { std::ostringstream oss; oss << #rw << " is not available until " << version::v; throw std::runtime_error(oss.str()); }  tok = token{token_type::rw ## _}; }
@@ -355,6 +384,7 @@ std::pair<token, size_t> skip_whitespace(const std::wstring_view text, const siz
     auto token_end = token_start;
     while (token_end < text.size() && 
         (is_whitespace_v1(text[token_end]) 
+            || (ver >= version::es5 && text[token_end] == unicode_BOM)
             || (ver >= version::es3 && classify(text[token_end]) == unicode::classification::whitespace))) {
         ++token_end;
     }
@@ -501,7 +531,7 @@ void lexer::next_token() {
             token_end = text_pos_ + len;
             current_token_ = token{tok};
         }
-    } else if (is_whitespace_v1(ch)) {
+    } else if (is_whitespace_v1(ch) || (version_ >= version::es5 && ch == unicode_BOM)) {
         std::tie(current_token_, token_end) = skip_whitespace(text_, text_pos_, version_);
     } else if (is_identifier_start_v1(ch) || (version_ >= version::es3 && ch == '\\')) {
         std::tie(current_token_, token_end) = get_identifier(text_, text_pos_, version_);
@@ -514,9 +544,6 @@ void lexer::next_token() {
         case unicode::classification::id_start:
             std::tie(current_token_, token_end) = get_identifier(text_, text_pos_, version_);
             break;
-        case unicode::classification::format:
-            assert(version_ == version::es1 && "Use strip_format_control_characters to remove format control chars.");
-            [[fallthrough]];
         default:
             std::ostringstream oss;
             oss << "Unhandled character in " << __FUNCTION__ << ": " << ch << " 0x" << std::hex << (int)ch << "\n";
@@ -553,7 +580,7 @@ std::wstring_view lexer::get_regex_literal() {
 
     // Flags
     for (; text_pos_ < text_.size(); ++text_pos_) {
-        if (!is_identifier_part_v1(text_[text_pos_])) {
+        if (!is_identifier_part(text_[text_pos_], version_)) {
             break;
         }
     }

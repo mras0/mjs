@@ -4,8 +4,6 @@ Annex D, E and F contain lists of the necessary changes.
 
 ## TODO
 - Annex C Strict Mode
-- Annex E: 7.1: Handling of format control characters
-- Annex E: 7.2: `<BOM>` is white space
 - Annex E: 7.8.5: Changes to handling of RegExp literals
 - Annex E: 10.4.2: Changes to the environment of `eval`
 - Annex E: 15.4.4: `Array.prototype.to(Locale)String()` is now generic
@@ -32,6 +30,8 @@ Annex D, E and F contain lists of the necessary changes.
 - Annex D 12.4: Exception object
 - Annex D: 13: Scope rules for FunctionExpression
 - Annex E: 15.3.5.2: Make the `prototype` property of function objects non-enumerable
+- Annex E: 7.1: Handling of format control characters
+- Annex E: 7.2: `<BOM>` is white space
 
 ## Notes:
 - 7.1 Form Control Characters changed from ES1 -> ES3 -> ES5

@@ -984,6 +984,7 @@ s; //$string 'e:1fe2:43f2'
 
     // ES5.1 12.4 (See Annex D) - `this` should be undefined in the function?
     RUN_TEST(L"x=13; g=0; try { throw function() { this.x=42; }; } catch (f) { f(); g=x; } g", value{42.});
+    RUN_TEST(L"(function() { try { throw function() { return !('a' in this); }; } catch(e) { var a = true; return e(); } })()", value{true});
 }
 
 void test_object_object() {

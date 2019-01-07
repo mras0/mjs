@@ -2,6 +2,7 @@
 #include "test_spec.h"
 #include <sstream>
 #include <mjs/parser.h>
+#include <mjs/platform.h>
 
 namespace mjs {
 
@@ -36,9 +37,14 @@ auto parse_text(T&& text) {
 
 template<typename CharT>
 auto parse_one_statement(const CharT* text) {
-    auto bs = parse_text(text);
-    REQUIRE_EQ(bs->l().size(), 1U);
-    return std::move(const_cast<statement_ptr&>(bs->l().front()));
+    try {
+        auto bs = parse_text(text);
+        REQUIRE_EQ(bs->l().size(), 1U);
+        return std::move(const_cast<statement_ptr&>(bs->l().front()));
+    } catch (...) {
+        std::wcerr << "Error while parsing \"" << text << "\"\n";
+        throw;
+    }
 }
 
 void test_parse_fails(const std::wstring_view text) {
@@ -344,15 +350,47 @@ void test_regexp_literal() {
 
 void test_form_control_characters() {
     const wchar_t* const text = L"t\x200cq12\xADst\xFEFFww;";
-    if (tested_version() == version::es1) {
+    if (tested_version() != version::es3) {
         test_parse_fails(text);
-        return;
+    } else {
+        auto s = parse_one_statement(text);
+        REQUIRE_EQ(s->type(), statement_type::expression);
+        const auto& e = static_cast<const expression_statement&>(*s).e();
+        REQUIRE_EQ(e.type(), expression_type::identifier);
+        REQUIRE_EQ(static_cast<const identifier_expression&>(e).id(), L"tq12stww");
     }
-    auto s = parse_one_statement(text);
-    REQUIRE_EQ(s->type(), statement_type::expression);
-    const auto& e = static_cast<const expression_statement&>(*s).e();
-    REQUIRE_EQ(e.type(), expression_type::identifier);
-    REQUIRE_EQ(static_cast<const identifier_expression&>(e).id(), L"tq12stww");
+
+    // Format control characters were stripped in ES3
+    {
+        const wchar_t* const lit = L"'\xFEFF\x200c\xADtest!!'";
+        const wchar_t* const expected_lit = tested_version() == version::es3 ? L"test!!" : L"\xFEFF\x200c\xADtest!!";
+        auto s = parse_one_statement(lit);
+        REQUIRE_EQ(s->type(), statement_type::expression);
+        const auto& e = static_cast<const expression_statement&>(*s).e();
+        REQUIRE_EQ(e.type(), expression_type::literal);
+        const auto& le = static_cast<const literal_expression&>(e);
+        REQUIRE_EQ(le.t().type(), token_type::string_literal);
+        REQUIRE_EQ(le.t().text(), expected_lit);
+    }
+
+    if (tested_version() >= version::es5) {
+        // Cf in expression regular expression literals
+        auto s = parse_one_statement(L"\xFEFF/\xFEFF\x200c\xADtest/gi");
+        REQUIRE_EQ(s->type(), statement_type::expression);
+        const auto& e = static_cast<const expression_statement&>(*s).e();
+        REQUIRE_EQ(e.type(), expression_type::regexp_literal);
+        const auto& re = static_cast<const regexp_literal_expression&>(e);
+        REQUIRE_EQ(re.pattern(), L"\xFEFF\x200c\xADtest");
+        REQUIRE_EQ(re.flags(), L"gi");
+
+        // Zero-width (non)-joiner in identifier
+        auto s2 = parse_one_statement(L"test\\u200c\x200dxyz");
+        REQUIRE_EQ(s2->type(), statement_type::expression);
+        const auto& e2 = static_cast<const expression_statement&>(*s2).e();
+        REQUIRE_EQ(e2.type(), expression_type::identifier);
+        REQUIRE_EQ(static_cast<const identifier_expression&>(e2).id(), L"test\x200c\x200dxyz");
+    }
+
 }
 
 void test_debugger_statement() {
@@ -361,6 +399,7 @@ void test_debugger_statement() {
 }
 
 int main() {
+    platform_init();
     try {
         for (const auto ver: supported_versions) {
             tested_version(ver);
