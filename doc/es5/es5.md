@@ -5,7 +5,6 @@ Annex D, E and F contain lists of the necessary changes.
 ## TODO
 - Annex C Strict Mode
 - Annex E: 7.8.5: Changes to handling of RegExp literals
-- Annex E: 10.6: Changes to the arguments array
 - Annex E: 12.6.4: `for..in` on `null`/`undefined` now allowed
 - Annex E: 15: New `Object`, `Array` and `Date` functions
 - Annex E: 15.3.4.3: Relax restrictions on the `arguments` argument to `Function.prototype.apply`
@@ -32,6 +31,7 @@ Annex D, E and F contain lists of the necessary changes.
 - Annex E: 7.1: Handling of format control characters
 - Annex E: 7.2: `<BOM>` is white space
 - Annex E: 10.4.2: Changes to the environment of `eval`
+- Annex E: 10.6: Changes to the arguments array
 
 ## Notes:
 - 7.1 Form Control Characters changed from ES1 -> ES3 -> ES5

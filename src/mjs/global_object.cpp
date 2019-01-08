@@ -868,7 +868,8 @@ private:
 };
 
 object_ptr global_object::make_arguments_array() {
-    return heap().make<arguments_array_object>(common_string("Arguments"), object_prototype());
+    auto op = object_prototype();
+    return heap().make<arguments_array_object>(language_version() >= version::es5 ? common_string("Arguments") : op->class_name(), op);
 }
 
 bool global_object::is_arguments_array(const object_ptr& o) {

@@ -193,7 +193,7 @@ private:
         as->put(global.common_string("length"), value{static_cast<double>(args.size())}, property_attribute::dont_enum);
         for (uint32_t i = 0; i < args.size(); ++i) {
             string is{heap(), index_string(i)};
-            as->put(is, args[i], property_attribute::dont_enum);
+            as->put(is, args[i], global.language_version() >= version::es5 ? property_attribute::none : property_attribute::dont_enum);
 
             //
             // Handle the (ugly) fact that the arguments array aliases the parameters

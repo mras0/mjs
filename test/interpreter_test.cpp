@@ -228,6 +228,9 @@ with(42) {
 
     RUN_TEST(L"function sum() {  var s = 0; for (var i = 0; i < arguments.length; ++i) s += arguments[i]; return s; } sum(1,2,3)", value{6.0});
 
+    // In ES5 the [[Class]] of the arguments array changed from Object to Arguments and the indexed properties are enumerable
+    RUN_TEST(L" function f() { var a=''; for (k in arguments) {a+=k+',';} arguments.s=Object.prototype.toString; return a+arguments.s(); }; f(23,45);", value{string{h, tested_version() >= version::es5 ? L"0,1,[object Arguments]" : L"[object Object]"}});
+
     // ES3, 15.1: The [[Prototype]] and [[Class]] properties of the global object are implementation-dependent
     RUN_TEST(L"global.toString()", value{string{h, "[object Global]"}});
 
