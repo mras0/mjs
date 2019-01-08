@@ -35,26 +35,24 @@ public:
     string to_string() const {
         auto& h = heap();
         std::wostringstream woss;
-        woss << type_string(type_) << ": " << mjs::to_string(h, message_.get_value(h)).view();
+        woss << type_string(type_) << ": " << mjs::to_string(h, get(L"message")).view();
         return string{h, woss.str()};
     }
 
     [[noreturn]] void rethrow() const {
         auto& h = heap();
-        throw native_error_exception{type_, stack_trace_.dereference(h).view(), mjs::to_string(h, message_.get_value(h)).view()};
+        throw native_error_exception{type_, stack_trace_.dereference(h).view(), mjs::to_string(h, get(L"message")).view()};
     }
 
 private:
     friend gc_type_info_registration<error_object>;
     native_error_type                type_;
     value_representation             name_;
-    value_representation             message_;
     gc_heap_ptr_untracked<gc_string> stack_trace_;
 
     void fixup() {
         auto& h = heap();
         name_.fixup(h);
-        message_.fixup(h);
         stack_trace_.fixup(h);
         native_object::fixup();
     }
@@ -66,30 +64,36 @@ private:
     void put_name(const value& v) {
         name_ = value_representation{v};
     }
-    
-    value get_message() const {
-        return message_.get_value(heap());
-    }
 
-    void put_message(const value& v) {
-        message_ = value_representation{v};
-    }
-
-    explicit error_object(native_error_type type, const string& class_name, const object_ptr& prototype, const value& message, const string& stack_trace)
+    explicit error_object(native_error_type type, const string& class_name, const object_ptr& prototype, const string& stack_trace)
         : native_object{class_name, prototype}
         , type_(type)
         , name_(value_representation{value{class_name}})
-        , message_(value_representation{message})
         , stack_trace_(stack_trace.unsafe_raw_get()) {
         DEFINE_NATIVE_PROPERTY(error_object, name);
-        DEFINE_NATIVE_PROPERTY(error_object, message);
     }
 };
 static_assert(!gc_type_info_registration<error_object>::needs_destroy);
 static_assert(gc_type_info_registration<error_object>::needs_fixup);
 
+namespace {
+
+std::string get_eval_exception_repr(native_error_type type, const std::wstring_view& stack_trace, const std::wstring_view& msg) {
+    std::ostringstream oss;
+    oss << type_string(type) << ": "<< std::string(msg.begin(), msg.end());
+    if (!stack_trace.empty()) {
+        oss << '\n' << std::string(stack_trace.begin(), stack_trace.end());
+    }
+    return oss.str();
+}
+
+constexpr auto message_attributes = property_attribute::dont_delete | property_attribute::dont_enum;
+
+} // unnamed namespace
+
+
 create_result make_error_object(global_object& global) {
-    auto prototype = global.heap().make<error_object>(native_error_type::generic, global.common_string("Error"), global.object_prototype(), value::undefined, string{global.heap(), ""});
+    auto prototype = global.heap().make<error_object>(native_error_type::generic, global.common_string("Error"), global.object_prototype(), string{global.heap(), ""});
 
     gc_heap_ptr<function_object> error_constructor;
     for (const auto error_type: {native_error_type::generic, native_error_type::eval, native_error_type::range, native_error_type::reference, native_error_type::syntax, native_error_type::type, native_error_type::uri}) {
@@ -97,8 +101,11 @@ create_result make_error_object(global_object& global) {
         auto constructor = make_function(global, [error_type, n, global = global.self_ptr()](const value&, const std::vector<value>& args) {
             auto& h = global.heap();
             auto prototype = global->error_prototype();
-            string stack_trace{h, "TODO: Stack trace in error constructor"};
-            return value{h.make<error_object>(error_type, n, prototype, value{args.empty() || args[0].type() == value_type::undefined ? string{h, ""} : to_string(h, args[0])}, stack_trace)};
+            auto eo = h.make<error_object>(error_type, n, prototype, string{h, global->stack_trace()});
+            if (!args.empty() && args.front().type() != value_type::undefined) {
+                eo->put(global->common_string("message"), value{to_string(h, args.front())}, message_attributes);
+            }
+            return value{eo};
         }, prototype->class_name().unsafe_raw_get(), 1);
         constructor->default_construct_function();
         if (!error_constructor) {
@@ -120,22 +127,10 @@ create_result make_error_object(global_object& global) {
     }, 0);
 
     prototype->put(global.common_string("constructor"), value{error_constructor}, global_object::prototype_attributes);
+    prototype->put(string{global.heap(), "message"}, value{string{global.heap(), ""}}, message_attributes);
 
     return { error_constructor, prototype };
 }
-
-namespace {
-
-std::string get_eval_exception_repr(native_error_type type, const std::wstring_view& stack_trace, const std::wstring_view& msg) {
-    std::ostringstream oss;
-    oss << type_string(type) << ": "<< std::string(msg.begin(), msg.end());
-    if (!stack_trace.empty()) {
-        oss << '\n' << std::string(stack_trace.begin(), stack_trace.end());
-    }
-    return oss.str();
-}
-
-} // unnamed namespace
 
 native_error_exception::native_error_exception(native_error_type type, const std::wstring_view& stack_trace, const std::wstring_view& msg)
     : eval_exception{get_eval_exception_repr(type, stack_trace, msg)}
@@ -150,7 +145,9 @@ native_error_exception::native_error_exception(native_error_type type, const std
 
 object_ptr native_error_exception::make_error_object(const gc_heap_ptr<global_object>& global) const {
     auto& h = global.heap();
-    return h.make<error_object>(type_, global->common_string(type_string(type_)), global->error_prototype(), value{string{h, msg_}}, string{h, stack_trace_});
+    auto eo = h.make<error_object>(type_, global->common_string(type_string(type_)), global->error_prototype(), string{h, stack_trace_});
+    eo->put(global->common_string("message"), value{string{h, msg_}}, message_attributes);
+    return eo;
 }
 
 [[noreturn]] void rethrow_error(const object_ptr& error) {

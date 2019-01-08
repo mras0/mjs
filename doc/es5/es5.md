@@ -12,9 +12,6 @@ Annex D, E and F contain lists of the necessary changes.
 - Annex E: 15.4.4: `Array.prototype.to(Locale)String()` are now generic
 - Annex E: 15.5.5.2: Array like access to `String` objects
 - Annex E: 15.9.4.2: `Date.parse` should attempt to parse as ISO format string
-- Annex E: 15.10.4.1/15.10.6.4: `RegExp.source/toString` now has specified format
-- Annex E: 15.11.2.1/15.11.4.3: `Error.message` now has specified format
-- Annex E: 15.11.15.11.4.4: `Error.toString` now has specified format
 - Annex E: 15.12: `JSON` object
 
 ## Done:
@@ -32,6 +29,9 @@ Annex D, E and F contain lists of the necessary changes.
 - Annex E: 7.2: `<BOM>` is white space
 - Annex E: 10.4.2: Changes to the environment of `eval`
 - Annex E: 10.6: Changes to the arguments array
+- Annex E: 15.10.4.1/15.10.6.4: `RegExp.source/toString` now has specified format
+- Annex E: 15.11.2.1/15.11.4.3: `Error.message` now has specified format
+- Annex E: 15.11.15.11.4.4: `Error.toString` now has specified format
 
 ## Notes:
 - 7.1 Form Control Characters changed from ES1 -> ES3 -> ES5

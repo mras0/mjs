@@ -1379,6 +1379,14 @@ delete SyntaxError;
 try { [] instanceof 42; } catch (e) { e.toString(); } //$string 'TypeError: number is not an object'
 try { [] in 'x'; } catch (e) { e.toString(); } //$string 'TypeError: string is not an object'
 
+// ES5.1, 15.11.2.1,15.11.4.3 message is the empty string when no argument is given to the error constructor
+new Error().message; //$string ''
+new Error('xx').message; //$string 'xx'
+Error.prototype.message; //$string ''
+Error.prototype.message='test';
+new Error().message; //$string 'test'
+new Error(undefined).message; //$string 'test'
+new Error('yy').message; //$string 'yy'
 )");
 
     RUN_TEST_SPEC(R"(
