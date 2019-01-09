@@ -56,7 +56,7 @@ create_result make_number_object(global_object& global) {
             THROW_RUNTIME_ERROR(woss.str());
         }
         if (radix != 10) {
-            NOT_IMPLEMENTED(radix);
+            return string{h, number_to_radix_string(num, radix)};
         }
         return to_string(h, num);
     });

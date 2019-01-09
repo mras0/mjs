@@ -127,7 +127,7 @@ class test_spec_runner {
 public:
     static size_t run(gc_heap& h, const std::vector<test_spec>& specs, const block_statement& statements) {
 #ifdef TEST_SPEC_DEBUG
-        std::wcout << "Running test spec for " << statements.extend().file->text << "\n";
+        std::wcout << "Running test spec for " << statements.extend().file->text() << "\n";
         std::wcout << "Parsed:\n";
         print(std::wcout, statements);
         std::wcout << "Specs:\n";

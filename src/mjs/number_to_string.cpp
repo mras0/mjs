@@ -53,6 +53,36 @@ ecvt_result do_ecvt(double m, int k) {
     return res;
 }
 
+std::wstring to_radix_string_inner(double x, int radix, bool int_part) {
+    assert(std::isfinite(x) && x > 0);
+    constexpr const char digits[37] = "0123456789abcdefghijklmnopqrstuvwxyz";
+    std::wstring res;
+    int iter = 1100;
+    do {
+        if (!--iter) {
+            break;
+        }
+        double rem, n;
+        if (int_part) {
+            assert(x > 0.0 && x == std::floor(x));
+            rem = std::fmod(x, radix);
+            n   = (x - rem) / radix;
+        } else {
+            assert(x <= 1.0);
+            n = x*radix;
+            rem = std::fmod(std::floor(n), radix);
+            n -= rem;
+        }
+
+        assert(rem >= 0 && rem < radix);
+        res += digits[static_cast<int>(rem)];
+        x = n;
+
+    } while (x != 0.0);
+
+    return int_part ? std::wstring(res.crbegin(), res.crend()) : res;
+}
+
 } // unnamed namespace
 
 std::wstring do_format_double(double m, int k) {
@@ -213,6 +243,30 @@ std::wstring number_to_precision(double x, int p) {
     }
 
     return s + m;
+}
+
+std::wstring number_to_radix_string(double x, int radix) {
+    assert(radix >= 2 && radix != 10 && radix <= 36);
+    if (!std::isfinite(x)) {
+        return number_to_string(x);
+    } else if (x == 0.0) {
+        return L"0";
+    } else if (x < 0) {
+        return L"-" + number_to_radix_string(-x, radix);
+    }
+    assert(std::isfinite(x) && x > 0);
+
+    const double int_part  = std::floor(x);
+    const double frac_part = x - int_part;
+
+    auto res = int_part ? to_radix_string_inner(int_part, radix, true) : L"0";
+    if (frac_part != 0.0) {
+        res += '.';
+        res += to_radix_string_inner(frac_part, radix, false);
+    }
+
+    return res;
+
 }
 
 } // namespace mjs
