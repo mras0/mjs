@@ -5,7 +5,6 @@ Annex D, E and F contain lists of the necessary changes.
 ## TODO
 - Annex C Strict Mode
 - Annex E: 7.8.5: Changes to handling of RegExp literals
-- Annex E: 12.6.4: `for..in` on `null`/`undefined` now allowed
 - Annex E: 15: New `Object`, `Array` and `Date` functions
 - Annex E: 15.3.4.3: Relax restrictions on the `arguments` argument to `Function.prototype.apply`
 - Annex E: 15.3.4.3,4: Change in handling of `null`/`undefined` when passed to `apply/call`
@@ -32,6 +31,7 @@ Annex D, E and F contain lists of the necessary changes.
 - Annex E: 15.10.4.1/15.10.6.4: `RegExp.source/toString` now has specified format
 - Annex E: 15.11.2.1/15.11.4.3: `Error.message` now has specified format
 - Annex E: 15.11.15.11.4.4: `Error.toString` now has specified format
+- Annex E: 12.6.4: `for..in` on `null`/`undefined` now allowed
 
 ## Notes:
 - 7.1 Form Control Characters changed from ES1 -> ES3 -> ES5

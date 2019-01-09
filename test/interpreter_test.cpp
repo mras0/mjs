@@ -190,6 +190,20 @@ for (var y = 11 in 60){}
 y; //$ number 11
 )");
 
+    // for..in  on undefined/null is a NO-op in ES5+ (12.6.4)
+    if (tested_version() < version::es5) {
+        expect_exception(L"for(k in undefined){}");
+        expect_exception(L"for(k in null){}");
+    } else {
+        RUN_TEST_SPEC(R"(
+s= ''; for (k in undefined) { s+=k; }; s; //$string ''
+s= ''; for (k in null) { s+=k; }; s; //$string ''
+s= ''; for (k in {a:32}) { s+=k; }; s; //$string 'a'
+s= ''; for (var k in undefined) { s+=k; }; s; //$string ''
+s= ''; for (var k in null) { s+=k; }; s; //$string ''
+)");
+    }
+
     // with statement
     RUN_TEST_SPEC(R"(
 var a = new Object();

@@ -882,9 +882,16 @@ public:
 
     completion operator()(const for_in_statement& s) {
         const auto ls = get_labels(s);
+
+        // In ES5.1 for (?? in null/undefined) is just a no-op
+        auto skip = [ver = global_->language_version()](value_type t) { return ver >= version::es5 && (t == value_type::undefined || t == value_type::null); };
+
         completion c{};
         if (s.init().type() == statement_type::expression) {
             auto ev = get_value(eval(s.e()));
+            if (skip(ev.type())) {
+                return completion{};
+            }
             auto o = global_->to_object(ev);
             const auto& lhs_expression = static_cast<const expression_statement&>(s.init()).e();
             for (const auto& n: o->property_names()) {
@@ -908,6 +915,9 @@ public:
 
             // Happens after the initial assignment
             auto ev = get_value(eval(s.e()));
+            if (skip(ev.type())) {
+                return completion{};
+            }
             auto o = global_->to_object(ev);
 
             for (const auto& n: o->property_names()) {
