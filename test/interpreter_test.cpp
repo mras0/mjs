@@ -1162,12 +1162,10 @@ o = {}
 o.apply = Function.prototype.apply;
 try { o.apply(); } catch (e) { e.toString(); } //$string 'TypeError: Object is not a function'
 
-
 function g(a,b) { return '('+a+';'+b+')'; }
 function f() { return g.apply(null, arguments); }
 f(1,2); //$string '(1;2)'
-
-try { Object.prototype.toString.apply(null, {}); } catch (e) { e.toString(); } //$string 'TypeError: Object is not an (arguments) array'
+g.apply(null, [3,4]); //$string '(3;4)'
 
 // ES3, 15.3.4.4
 o = {}
@@ -1181,6 +1179,16 @@ fi instanceof f; //$boolean true
 f.prototype = undefined;
 try { fi instanceof f; } catch (e) { e.toString(); } //$string 'TypeError: Function has non-object prototype of type undefined in instanceof check'
 )");
+
+    const wchar_t* const apply_normal_object = L"try { Number.prototype.toString.apply(42, {'length':1,0:16}); } catch (e) { e.toString(); }";
+    if (tested_version() < version::es5) {
+        // In ES3 the second argument to Function.prototype.apply must be an Arguments object or an Array.
+        RUN_TEST(apply_normal_object, value{string{h, "TypeError: Object is not an (arguments) array"}});
+    } else {
+        // ES5.1, 15.3.4.3 the second argument to apply can be any object with a length property
+        RUN_TEST(apply_normal_object, value{string{h, "2a"}});
+    }
+
 }
 
 void test_regexp_object() {
@@ -2064,7 +2072,7 @@ try {
 }
 
 void test_main() {
-    //test_global_functions(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
+    //test_function_object(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
 
     for (const auto ver: supported_versions) {
         tested_version(ver);

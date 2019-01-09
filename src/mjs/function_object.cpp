@@ -100,7 +100,9 @@ create_result make_function_object(global_object& global) {
                 if (args[1].type() == value_type::object) {
                     auto a = args[1].object_value();
                     auto p = a->prototype();
-                    if ((p && p.get() == global->array_prototype().get()) || global->is_arguments_array(a)) {
+                    if (global->language_version() >= version::es5
+                    || (p && p.get() == global->array_prototype().get()) 
+                        || global->is_arguments_array(a)) {
                         const uint32_t len = to_uint32(a->get(L"length"));
                         new_args.resize(len);
                         for (uint32_t i = 0; i < len; ++i) {
