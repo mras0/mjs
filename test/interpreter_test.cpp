@@ -539,13 +539,17 @@ encodeURI(set2); //$string '-_.!~*\'()'
 encodeURI(set3); //$string 'ABC%20abc%20123'
 encodeURI('ABC\x80\u0800\ud7ff\ue000\u1234EF'); //$string 'ABC%C2%80%E0%A0%80%ED%9F%BF%EE%80%80%E1%88%B4EF'
 encodeURI('\ud7ff'); //$string '%ED%9F%BF'
+encodeURI('\uD800\uDFFF'); //$string '%F0%90%8F%BF'
 
 encodeURIComponent(set1); //$string '%3B%2C%2F%3F%3A%40%26%3D%2B%24%23'
 encodeURIComponent(set2); //$string '-_.!~*\'()'
 encodeURIComponent(set3); //$string 'ABC%20abc%20123'
 encodeURIComponent('ABC\x7F\xAD\u1234EF'); //$string 'ABC%7F%C2%AD%E1%88%B4EF'
+encodeURIComponent('\uDBFF\uDFFF'); //$string '%F4%8F%BF%BF'
 
+try { encodeURI('\ud800'); } catch (e) { e.toString(); } //$ string 'URIError: URI malformed'
 try { encodeURI('\udc00'); } catch (e) { e.toString(); } //$ string 'URIError: URI malformed'
+try { encodeURIComponent('\ud800'); } catch (e) { e.toString(); } //$ string 'URIError: URI malformed'
 try { encodeURIComponent('\udc00'); } catch (e) { e.toString(); } //$ string 'URIError: URI malformed'
 
 decodeURI(); //$string 'undefined'
@@ -560,12 +564,14 @@ decodeURI('%E0%A0%80'); //$string '\u0800'
 decodeURI('%ED%9F%BF'); //$string '\ud7ff'
 decodeURI('%EE%80%80'); //$string '\ue000'
 decodeURI('ABC%C2%80'); //$string 'ABC\u0080'
+decodeURI('%f0%90%8f%bf'); //$string '\ud800\udfff'
 
 decodeURI('ABC%C2%80%E0%A0%80%ED%9F%BF%EE%80%80%E1%88%B4EF'); //$string 'ABC\u0080\u0800\ud7ff\ue000\u1234EF'
 decodeURIComponent('%3B%2C%2F%3F%3A%40%26%3D%2B%24%23'); //$string ';,/?:@&=+$#'
 decodeURIComponent(set2); //$string '-_.!~*\'()'
 decodeURIComponent('ABC%20abc%20123'); //$string 'ABC abc 123'
 decodeURIComponent('ABC%7F%C2%AD%E1%88%B4EF'); //$string 'ABC\u007F\u00ad\u1234EF'
+decodeURIComponent('%F4%8F%BF%BF'); //$string '\uDBFF\uDFFF'
 
 try { decodeURI('%E0%A4%A'); } catch (e) { e.toString(); } //$ string 'URIError: URI malformed'
 try { decodeURIComponent('%E0%A4%A'); } catch (e) { e.toString(); } //$ string 'URIError: URI malformed'
@@ -2044,7 +2050,7 @@ try {
 }
 
 void test_main() {
-    //test_number_object(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
+    //test_global_functions(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
 
     for (const auto ver: supported_versions) {
         tested_version(ver);

@@ -197,57 +197,6 @@ public:
     }
 };
 
-struct escape_encoder {
-    void operator()(std::wstring& res, int ch) const {
-        if (ch > 255) {
-            res.push_back('%');
-            res.push_back('u');
-            put_hex_byte(res, ch>>8);
-            put_hex_byte(res, ch);
-        } else {
-            put_percent_hex_byte(res, ch);
-        }
-    }
-};
-
-struct uri_encoder {
-    void operator()(std::wstring& res, int ch) const {
-        uint8_t buffer[unicode::utf8_max_length];
-        const auto len = unicode::utf32_to_utf8(static_cast<uint32_t>(ch), buffer);
-        if (!len) {
-            throw encoder_exception{};
-        }
-
-        assert(ch >= 0);
-        if (ch <= 0xFFFF && !unicode::utf16_is_surrogate(static_cast<char16_t>(ch))) {
-            for (unsigned i = 0; i < len; ++i) {
-                put_percent_hex_byte(res, buffer[i]);
-            }
-            return;
-        } else if (ch <= 0xDBFF) {
-            // Surrogate pair
-        } else if (ch <= 0xDFFF) {
-            throw encoder_exception{};
-        }
-        std::wostringstream woss;
-        woss << "Not implemented in uri_encoder: 0x" << std::hex << ch << " '" << static_cast<wchar_t>(ch) << "'";
-        NOT_IMPLEMENTED(woss.str());
-    }
-};
-
-template<typename Pred, typename Encoder = uri_encoder>
-std::wstring encode_inner(const std::wstring_view s, Pred pred, Encoder enc = Encoder{}) {
-    std::wstring res;
-    for (uint16_t ch: s) {
-        if (pred(ch)) {
-            res.push_back(ch);
-        } else {
-            enc(res, ch);
-        }
-    }
-    return res;
-}
-
 [[noreturn]] void throw_uri_error(const gc_heap_ptr<global_object>& global) {
     throw native_error_exception{native_error_type::uri, global->stack_trace(), L"URI malformed"};
 }
@@ -255,7 +204,28 @@ std::wstring encode_inner(const std::wstring_view s, Pred pred, Encoder enc = En
 template<typename Pred>
 value encode_uri_helper(const gc_heap_ptr<global_object>& global, const std::wstring_view s, Pred pred) {
     try {
-        return value{string{global.heap(), encode_inner(s, pred)}};
+        std::wstring res;
+        uint8_t buffer[unicode::utf8_max_length];
+        for (unsigned i = 0, l = static_cast<unsigned>(s.length()); i < l;) {
+            if (pred(s[i])) {
+                res.push_back(s[i]);
+                ++i;
+            } else {
+                const auto conv = unicode::utf16_to_utf32(&s[i], l - i);
+                if (conv.length == unicode::invalid_length) {
+                    throw encoder_exception{};
+                }
+                const auto len = unicode::utf32_to_utf8(conv.code_point, buffer);
+                if (len == unicode::invalid_length) {
+                    throw encoder_exception{};
+                }
+                for (unsigned j = 0; j < len; ++j) {
+                    put_percent_hex_byte(res, buffer[j]);
+                }
+                i += conv.length;
+            }
+        }
+        return value{string{global.heap(), res}};
     } catch (const encoder_exception&) {
         throw_uri_error(global);
     }
@@ -284,7 +254,20 @@ constexpr bool is_uri_reserved(int ch) {
 } // unnamed namespace
 
 value escape(const gc_heap_ptr<global_object>& global, const std::wstring_view s) {
-    return value{string{global.heap(), encode_inner(s, [](int ch) { return is_alpha_or_digit(ch) || is_in_list(ch, "@*_+-./"); }, escape_encoder{})}};
+    std::wstring res;
+    for (uint16_t ch: s) {
+        if (is_alpha_or_digit(ch) || is_in_list(ch, "@*_+-./")) {
+            res.push_back(ch);
+        } else if (ch > 255) {
+            res.push_back('%');
+            res.push_back('u');
+            put_hex_byte(res, ch>>8);
+            put_hex_byte(res, ch);
+        } else {
+            put_percent_hex_byte(res, ch);
+        }
+    }
+    return value{string{global.heap(), res}};
 }
 
 value unescape(const gc_heap_ptr<global_object>& global, const std::wstring_view s) {
@@ -338,11 +321,16 @@ value decode_uri(const gc_heap_ptr<global_object>& global, const std::wstring_vi
        const auto len = unicode::utf8_length_from_lead_code_unit(buf[0]);
        if (!len) {
            std::wostringstream woss;
-           woss << "Unsupported: " << s;
+           woss << "Unsupported: " << s.substr(i);
            NOT_IMPLEMENTED(woss.str());
        }
-       assert(len < sizeof(buf));
+       assert(len <= sizeof(buf));
        for (unsigned j = 1; j < len; ++j) {
+           if (s[i] != '%') {
+               std::wostringstream woss;
+               woss << "Unsupported: " << s.substr(i);
+               NOT_IMPLEMENTED(woss.str());
+           }
            buf[j] = get_byte();
        }
        auto conv = unicode::utf8_to_utf32(buf, len);
@@ -351,8 +339,15 @@ value decode_uri(const gc_heap_ptr<global_object>& global, const std::wstring_vi
             woss << "Unsupported: " << s;
             NOT_IMPLEMENTED(woss.str());
         }
-       assert(conv.code_point <= 0xffff);
-       res.push_back(static_cast<char16_t>(conv.code_point));
+       wchar_t buf16[unicode::utf16_max_length];
+       const auto len16 = unicode::utf32_to_utf16(conv.code_point, buf16);
+       assert(len16 <= sizeof(buf16)/sizeof(*buf16));
+       if (len16 == unicode::invalid_length) {
+           std::wostringstream woss;
+           woss << "Unsupported: " << s.substr(i);
+           NOT_IMPLEMENTED(woss.str());
+       }
+       res.insert(res.end(), buf16, buf16 + len16);
     }
     return value{string{global.heap(), res}};
 }
