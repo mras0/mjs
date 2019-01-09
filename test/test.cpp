@@ -104,6 +104,30 @@ void run_test(const std::wstring_view& text, const value& expected) {
     }
 }
 
+std::string expect_eval_exception(const std::wstring_view& text) {
+    decltype(parse(nullptr)) bs;
+    try {
+        bs = parse(std::make_shared<source_file>(L"test", text, tested_version()));
+    } catch (const std::exception& e) {
+        std::wcout << "Parse failed for \"" << text << "\": " << e.what() <<  "\n";
+        throw;
+    }
+
+    try {
+        gc_heap h{1<<20}; // Use local heap, even if expected lives in another heap
+        interpreter i{h, tested_version(), *bs};
+        (void) i.eval_program();
+    } catch (const eval_exception& e) {
+        return e.what();
+    } catch (const std::exception& e) {
+        std::wcout << "Unexpected exception thrown: " << e.what() << " while processing\n" << text << "\n"; 
+        throw;
+    }
+
+    std::wcout << "Exception not thrown in\n" << text << "\n";
+    THROW_RUNTIME_ERROR("Expected exception not thrown");
+}
+
 namespace mjs {
 
 bool operator==(const token& l, const token& r) {
@@ -116,6 +140,7 @@ bool operator==(const token& l, const token& r) {
     }
     return true;
 }
+
 
 }  // namespace mjs
 

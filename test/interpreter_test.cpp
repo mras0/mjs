@@ -14,36 +14,6 @@
 
 using namespace mjs;
 
-template<typename ExceptionType = eval_exception>
-std::string expect_exception(const std::wstring_view& text) {
-    decltype(parse(nullptr)) bs;
-    try {
-        bs = parse(std::make_shared<source_file>(L"test", text, tested_version()));
-    } catch (const std::exception& e) {
-        std::wcout << "Parse failed for \"" << text << "\": " << e.what() <<  "\n";
-        throw;
-    }
-
-    gc_heap h{1<<20}; // Use local heap, even if expected lives in another heap
-    try {
-        interpreter i{h, tested_version(), *bs};
-        (void) i.eval_program();
-    } catch (const ExceptionType& e) {
-        h.garbage_collect();
-        if (h.use_percentage()) {
-            std::wcout << "Leaks during processing of\n" << text << "\n";
-            THROW_RUNTIME_ERROR("Leaks");
-        }
-        return e.what();
-    } catch (const std::exception& e) {
-        std::wcout << "Unexpected exception thrown: " << e.what() << " while processing\n" << text << "\n"; 
-        throw;
-    }
-
-    std::wcout << "Exception not thrown in\n" << text << "\n";
-    THROW_RUNTIME_ERROR("Expected exception not thrown");
-}
-
 void eval_tests() {
     gc_heap h{1<<20};
 
@@ -192,8 +162,8 @@ y; //$ number 11
 
     // for..in  on undefined/null is a NO-op in ES5+ (12.6.4)
     if (tested_version() < version::es5) {
-        expect_exception(L"for(k in undefined){}");
-        expect_exception(L"for(k in null){}");
+        expect_eval_exception(L"for(k in undefined){}");
+        expect_eval_exception(L"for(k in null){}");
     } else {
         RUN_TEST_SPEC(R"(
 s= ''; for (k in undefined) { s+=k; }; s; //$string ''
@@ -792,24 +762,24 @@ null
 #define EX_EQUAL(expected, actual) do { const auto _e = (expected); const auto _a = (actual); if (_e != _a) { std::ostringstream _woss; _woss << "Expected\n\"" << _e << "\" got\n\"" << _a << "\"\n"; THROW_RUNTIME_ERROR(_woss.str()); } } while (0)
 
 void test_eval_exception() {
-    EX_EQUAL("ReferenceError: not_callable is not defined\ntest:1:2-1:18", expect_exception<>(LR"( not_callable(); )"));
-    EX_EQUAL("TypeError: 42 is not a function\ntest:2:16-2:21\ntest:3:19-3:22\ntest:4:17-4:20\ntest:5:40-5:43", expect_exception<>(LR"( x = 42;
+    EX_EQUAL("ReferenceError: not_callable is not defined\ntest:1:2-1:18", expect_eval_exception(LR"( not_callable(); )"));
+    EX_EQUAL("TypeError: 42 is not a function\ntest:2:16-2:21\ntest:3:19-3:22\ntest:4:17-4:20\ntest:5:40-5:43", expect_eval_exception(LR"( x = 42;
 function a() { x(); }
    function b() { a(); }
  function c() { b(); }
                                        c();
 )"));
 
-    EX_EQUAL("ReferenceError: bar is not defined\ntest:2:17-2:52\ntest:2:32-2:39\ntest:2:32-2:39\ntest:3:1-3:5", expect_exception<>(LR"(
+    EX_EQUAL("ReferenceError: bar is not defined\ntest:2:17-2:52\ntest:2:32-2:39\ntest:2:32-2:39\ntest:3:1-3:5", expect_eval_exception(LR"(
 function f(i) { return i > 2 ? f(i-1) : new bar(); }
 f(4);
 )"));
 
-    EX_EQUAL("TypeError: Function is not constructable\ntest:1:1-1:18", expect_exception<eval_exception>(L"new parseInt(42);"));
+    EX_EQUAL("TypeError: Function is not constructable\ntest:1:1-1:18", expect_eval_exception(L"new parseInt(42);"));
 
-    EX_EQUAL("SyntaxError: Illegal return statement\neval:1:1-1:11\ntest:1:1-1:19", expect_exception<eval_exception>(L"eval('return 42;');"));
-    EX_EQUAL("SyntaxError: Illegal break statement\neval:1:1-1:7\ntest:1:1-1:15", expect_exception<eval_exception>(L"eval('break;');"));
-    EX_EQUAL("SyntaxError: Illegal continue statement\neval:1:1-1:10\ntest:1:1-1:18", expect_exception<eval_exception>(L"eval('continue;');"));
+    EX_EQUAL("SyntaxError: Illegal return statement\neval:1:1-1:11\ntest:1:1-1:19", expect_eval_exception(L"eval('return 42;');"));
+    EX_EQUAL("SyntaxError: Illegal break statement\neval:1:1-1:7\ntest:1:1-1:15", expect_eval_exception(L"eval('break;');"));
+    EX_EQUAL("SyntaxError: Illegal continue statement\neval:1:1-1:10\ntest:1:1-1:18", expect_eval_exception(L"eval('continue;');"));
 }
 
 void test_es3_statements() {
@@ -884,9 +854,9 @@ f(7); s //$ string 'c1c2c3c4c5c6defs4s5'
     //
     RUN_TEST(L"x:42", value{42.});
 
-    expect_exception<eval_exception>(L"a:a:2;"); // duplicate label
-    expect_exception<eval_exception>(L"a:2;while(1){break a;}"); // invalid label reference
-    expect_exception<eval_exception>(L"function f(){break a;} a:f();"); // invalid label reference
+    expect_eval_exception(L"a:a:2;"); // duplicate label
+    expect_eval_exception(L"a:2;while(1){break a;}"); // invalid label reference
+    expect_eval_exception(L"function f(){break a;} a:f();"); // invalid label reference
 
     RUN_TEST_SPEC(R"(
 s='';
@@ -1193,7 +1163,7 @@ try { fi instanceof f; } catch (e) { e.toString(); } //$string 'TypeError: Funct
 
 void test_regexp_object() {
     if (tested_version() == version::es1) {
-        expect_exception<eval_exception>(L"new RegExp();");
+        expect_eval_exception(L"new RegExp();");
         return;
     }
 
@@ -1369,7 +1339,7 @@ e('test'); //$string 'TypeError: Object is not a RegExp'
 
 void test_error_object() {
     if (tested_version() == version::es1) {
-        expect_exception<eval_exception>(L"new Error();");
+        expect_eval_exception(L"new Error();");
         return;
     }
 
