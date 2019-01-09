@@ -9,6 +9,12 @@
 #ifdef _MSC_VER
 #include <crtdbg.h>
 extern "C" int __stdcall IsDebuggerPresent(void);
+struct check_for_leaks_at_exit {
+    ~check_for_leaks_at_exit() {
+        // Only report leaks if destructors run (so they only show up on clean exits)
+        _CrtSetDbgFlag(_CRTDBG_LEAK_CHECK_DF | _CrtSetDbgFlag(_CRTDBG_REPORT_FLAG));
+    }
+} check_for_leaks_at_exit_;
 #endif
 
 namespace mjs {
@@ -16,6 +22,7 @@ namespace mjs {
 void platform_init() {
 
 #ifdef _MSC_VER
+    (void)check_for_leaks_at_exit_;
     if (!IsDebuggerPresent()) {
         _CrtSetReportMode(_CRT_WARN,   _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
         _CrtSetReportFile(_CRT_WARN,   _CRTDBG_FILE_STDERR);
@@ -24,7 +31,6 @@ void platform_init() {
         _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
         _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
     }
-    _CrtSetDbgFlag(_CRTDBG_LEAK_CHECK_DF | _CrtSetDbgFlag(_CRTDBG_REPORT_FLAG));
 #endif
 
 #ifdef _WIN32

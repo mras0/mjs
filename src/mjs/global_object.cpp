@@ -635,6 +635,7 @@ public:
 
     object_ptr object_prototype() const override { return object_prototype_.track(heap()); }
     object_ptr function_prototype() const override { return function_prototype_.track(heap()); }
+    object_ptr string_prototype() const override { return string_prototype_.track(heap()); }
     object_ptr array_prototype() const override { return array_prototype_.track(heap()); }
     object_ptr regexp_prototype() const override { assert(language_version() >= version::es3); return regexp_prototype_.track(heap()); }
     object_ptr error_prototype() const override { assert(language_version() >= version::es3); return error_prototype_.track(heap()); }
@@ -651,7 +652,7 @@ public:
             }
         case value_type::boolean: return new_boolean(boolean_prototype_.track(heap()), v.boolean_value());
         case value_type::number:  return new_number(number_prototype_.track(heap()), v.number_value());
-        case value_type::string:  return new_string(string_prototype_.track(heap()), v.string_value());
+        case value_type::string:  return new_string(self_ptr(), v.string_value());
         case value_type::object:  return v.object_value();
         default:
             NOT_IMPLEMENTED(v.type());

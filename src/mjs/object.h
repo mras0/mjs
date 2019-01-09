@@ -24,7 +24,7 @@ public:
     // The value of the [[Prototype]] property must be either an object or null , and every [[Prototype]] chain must have
     // finite  length  (that  is,  starting  from  any  object,  recursively  accessing  the  [[Prototype]]  property  must  eventually
     // lead to a null value). Whether or not a native object can have a host object as its [[Prototype]] depends on the implementation
-    object_ptr prototype() { return prototype_ ? prototype_.track(heap_) : nullptr; }
+    object_ptr prototype() const { return prototype_ ? prototype_.track(heap_) : nullptr; }
 
     //
     // [[Class]] ()

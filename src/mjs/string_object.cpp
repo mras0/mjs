@@ -18,18 +18,76 @@ inline const value& get_arg(const std::vector<value>& args, int index) {
 
 class string_object : public native_object {
 public:
+    value get(const std::wstring_view& name) const override {
+        if (const auto s = handle_array_like_access(name); !s.empty()) {
+            return value{string{heap(), s}};
+        }
+        return native_object::get(name);
+    }
+
+    // can_put needed?
+
+    bool has_property(const std::wstring_view& name) const override {
+        if (const auto s = handle_array_like_access(name); !s.empty()) {
+            return true;
+        }
+        return native_object::has_property(name);
+    }
+
+    bool delete_property(const std::wstring_view& name) override {
+        if (const auto s = handle_array_like_access(name); !s.empty()) {
+            return false;
+        }
+        return native_object::delete_property(name);
+    }
+
+    bool check_own_property_attribute(const std::wstring_view& name, property_attribute mask, property_attribute expected) const override {
+        if (const auto s = handle_array_like_access(name); !s.empty()) {
+            return expected == property_attribute::none;
+        }
+        return native_object::check_own_property_attribute(name, mask, expected);
+    }
 
 private:
     friend gc_type_info_registration<string_object>;
+    bool is_v5_or_later_;
 
-    value get_length() const {
-        return value{static_cast<double>(internal_value().string_value().view().length())};
+    std::wstring_view handle_array_like_access(const std::wstring_view property_name) const {
+        if (is_v5_or_later_) {
+            if (const uint32_t index = index_value_from_string(property_name); index != invalid_index_value) {
+                auto v = view();
+                if (index < v.length()) {
+                    return v.substr(index, 1);
+                }
+            }
+        }
+        return {};
     }
 
-    explicit string_object(const object_ptr& prototype, const string& val) : native_object(prototype->class_name(), prototype) {
+    std::wstring_view view() const {
+        return internal_value().string_value().view();
+    }
+
+    value get_length() const {
+        return value{static_cast<double>(view().length())};
+    }
+
+    explicit string_object(const object_ptr& prototype, const string& val, bool is_v5_or_later) : native_object(prototype->class_name(), prototype), is_v5_or_later_(is_v5_or_later) {
         DEFINE_NATIVE_PROPERTY_READONLY(string_object, length);
         internal_value(value{val});
     }
+
+    void add_property_names(std::vector<string>& names) const override {
+        native_object::add_property_names(names);
+        if (is_v5_or_later_) {
+            const auto s = view();
+            auto& h = heap();
+            for (auto i = 0U, l = static_cast<uint32_t>(s.length()); i < l; ++i) {
+                names.push_back(string{h, index_string(i)});
+            }
+        }
+    }
+
 };
 
 create_result make_string_object(global_object& global) {
@@ -41,8 +99,9 @@ create_result make_string_object(global_object& global) {
     auto c = make_function(global, [&h](const value&, const std::vector<value>& args) {
         return value{args.empty() ? string{h, ""} : to_string(h, args.front())};
     }, String_str_.unsafe_raw_get(), 1);
-    make_constructable(global, c, [prototype](const value&, const std::vector<value>& args) {
-        return value{prototype.heap().make<string_object>(prototype, args.empty() ? string{prototype.heap(), ""} : to_string(prototype.heap(), args.front()))};
+    make_constructable(global, c, [global = global.self_ptr()](const value&, const std::vector<value>& args) {
+        auto& h = global.heap();
+        return value{new_string(global, args.empty() ? string{h, ""} : to_string(h, args.front()))};
     });
 
     put_native_function(global, c, string{h, "fromCharCode"}, [&h](const value&, const std::vector<value>& args){
@@ -205,8 +264,8 @@ create_result make_string_object(global_object& global) {
     return {c, prototype};
 }
 
-object_ptr new_string(const object_ptr& prototype, const string& val) {
-    return prototype.heap().make<string_object>(prototype, val);
+object_ptr new_string(const gc_heap_ptr<global_object>& global, const string& val) {
+    return global.heap().make<string_object>(global->string_prototype(), val, global->language_version() >= version::es5);
 }
 
 } // namespace mjs

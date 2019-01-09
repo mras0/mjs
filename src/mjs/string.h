@@ -65,6 +65,11 @@ inline string operator+(const string& l, const string& r) {
 double to_number(const std::wstring_view& s);
 double to_number(const string& s);
 
+constexpr uint32_t invalid_index_value = UINT32_MAX;
+
+// Convert 'str' to an index value. Returns invalid_index_value if the conversion failed.
+uint32_t index_value_from_string(const std::wstring_view& str);
+
 } // namespace mjs
 
 #endif

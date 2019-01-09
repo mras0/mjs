@@ -19,6 +19,7 @@ public:
 
     virtual object_ptr object_prototype() const = 0;
     virtual object_ptr function_prototype() const = 0;
+    virtual object_ptr string_prototype() const = 0;
     virtual object_ptr array_prototype() const = 0;
     virtual object_ptr regexp_prototype() const = 0;
     virtual object_ptr error_prototype() const = 0;

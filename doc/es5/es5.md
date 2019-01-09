@@ -8,7 +8,6 @@ Annex D, E and F contain lists of the necessary changes.
 - Annex E: 15: New `Object`, `Array` and `Date` functions
 - Annex E: 15.3.4.3,4: Change in handling of `null`/`undefined` when passed to `apply/call`
 - Annex E: 15.4.4: `Array.prototype.to(Locale)String()` are now generic
-- Annex E: 15.5.5.2: Array like access to `String` objects
 - Annex E: 15.9.4.2: `Date.parse` should attempt to parse as ISO format string
 - Annex E: 15.12: `JSON` object
 
@@ -32,6 +31,7 @@ Annex D, E and F contain lists of the necessary changes.
 - Annex E: 15.11.15.11.4.4: `Error.toString` now has specified format
 - Annex E: 12.6.4: `for..in` on `null`/`undefined` now allowed
 - Annex E: 15.3.4.3: Relax restrictions on the `arguments` argument to `Function.prototype.apply`
+- Annex E: 15.5.5.2: Array like access to `String` objects
 
 ## Notes:
 - 7.1 Form Control Characters changed from ES1 -> ES3 -> ES5

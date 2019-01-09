@@ -32,8 +32,8 @@ public:
     }
 
     value get(const std::wstring_view& name) const override {
-        const uint32_t index = get_array_index(name);
-        if (index != invalid_array_index) {
+        const uint32_t index = index_value_from_string(name);
+        if (index != invalid_index_value) {
             return get_at(index);
         } else {
             return native_object::get(name);
@@ -45,8 +45,8 @@ public:
             return;
         }
 
-        const uint32_t index = get_array_index(name.view());
-        if (index != invalid_array_index) {
+        const uint32_t index = index_value_from_string(name.view());
+        if (index != invalid_index_value) {
             if (index >= length_) {
                 resize(index + 1);
             }
@@ -57,21 +57,21 @@ public:
     }
 
     bool can_put(const std::wstring_view& name) const override {
-        if (const uint32_t index = get_array_index(name); index != invalid_array_index) {
+        if (const uint32_t index = index_value_from_string(name); index != invalid_index_value) {
             return true;
         }
         return native_object::can_put(name);
     }
 
     bool has_property(const std::wstring_view& name) const override {
-        if (const uint32_t index = get_array_index(name); index != invalid_array_index) {
+        if (const uint32_t index = index_value_from_string(name); index != invalid_index_value) {
             return index_present(index);
         }
         return native_object::has_property(name);
     }
 
     bool delete_property(const std::wstring_view& name) override {
-        if (const uint32_t index = get_array_index(name); index != invalid_array_index) {
+        if (const uint32_t index = index_value_from_string(name); index != invalid_index_value) {
             if (index_present(index)) {
                 present_mask_.dereference(heap())[index/64] &= ~(1ULL<<(index%64));
             }
@@ -81,7 +81,7 @@ public:
     }
 
     bool check_own_property_attribute(const std::wstring_view& name, property_attribute mask, property_attribute expected) const override {
-        if (const uint32_t index = get_array_index(name); index != invalid_array_index && index_present(index)) {
+        if (const uint32_t index = index_value_from_string(name); index != invalid_index_value && index_present(index)) {
             return expected == property_attribute::none;
         }
         return native_object::check_own_property_attribute(name, mask, expected);
@@ -110,8 +110,6 @@ private:
         resize(check_array_length(global_.dereference(heap()), to_number(v)));
     }
 
-    static constexpr uint32_t invalid_array_index = UINT32_MAX;
-
     bool index_present(uint32_t index) const {
         return index < length_ && (present_mask_.dereference(heap())[index/64]&(1ULL<<(index%64)));
     }
@@ -119,29 +117,6 @@ private:
     value get_at(uint32_t index) const {
         auto& h = heap();
         return index_present(index) ? values_.dereference(h)[index].get_value(h) : value::undefined;
-    }
-
-    uint32_t get_array_index(const std::wstring_view& name) const {
-        // TODO: Optimize this
-        const auto len = name.length();
-        if (len == 0 || len > 10) {
-            assert(len); // Shouldn't be passed the empty string
-            return invalid_array_index;
-        }
-        uint32_t index = 0;
-        for (uint32_t i = 0; i < len; ++i) {
-            const auto ch = name[i];
-            if (ch < L'0' || ch > L'9') {
-                return invalid_array_index;
-            }
-            const auto last = index;
-            index = index*10 + (ch - L'0');
-            if (index < last) {
-                // Overflow
-                return invalid_array_index;
-            }
-        }
-        return index;
     }
 
     void resize(uint32_t len) {

@@ -1778,6 +1778,48 @@ o.charCodeAt(-1); //$number NaN
     RUN_TEST(L"'ABc'.toLowerCase()", value{string{h, "abc"}});
     RUN_TEST(L"'ABc'.toUpperCase()", value{string{h, "ABC"}});
 
+    // Array like access came in ES5
+    if (tested_version() < version::es5) {
+        RUN_TEST_SPEC(R"(
+s = new String('test');
+ks='';for(k in new String('01')){ks+=k+',';} ks; //$string ''
+s[5]; //$undefined
+s[3]; //$undefined
+s[3] = 42;
+s[3]; //$number 42
+delete s[3]; //$boolean true
+s[3]; //$undefined
+)");
+    } else {
+        RUN_TEST_SPEC(R"(
+s = new String('test');
+3 in s; //boolean $true
+ks='';for(k in new String('01')){ks+=k+',';} ks; //$string '0,1,'
+s[5]; //$undefined
+s[3]; //$string 't'
+s[3] = 42;
+s[3]; //$string 't'
+delete s[3]; //$boolean false
+s[3]; //$string 't'
+s[5] = 'XY';
+s[5][1]; //$string 'Y'
+s.length;//$number 4
+5 in s;                         //$boolean true
+s.hasOwnProperty('5');          //$boolean true
+s.propertyIsEnumerable('5');    //$boolean true
+s.length;//$number 4
+delete s[5];                    //$boolean true
+s[5];                           //$undefined
+5 in s;                         //$boolean false
+s.hasOwnProperty('5');          //$boolean false
+s.propertyIsEnumerable('5');    //$boolean false
+s.length;//$number 4
+
+s.hasOwnProperty('3'); //$boolean true
+s.propertyIsEnumerable('3'); //$boolean true
+)");
+    }
+
     if (tested_version() < version::es3) {
         RUN_TEST_SPEC(R"(
 var sp = String.prototype;
@@ -2072,7 +2114,7 @@ try {
 }
 
 void test_main() {
-    //test_function_object(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
+    //test_string_object(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
 
     for (const auto ver: supported_versions) {
         tested_version(ver);

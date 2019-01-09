@@ -7,7 +7,7 @@ namespace mjs {
 
 create_result make_string_object(global_object& global);
 
-object_ptr new_string(const object_ptr& prototype, const string& val);
+object_ptr new_string(const gc_heap_ptr<global_object>& global, const string& val);
 
 } // namespace mjs
 
