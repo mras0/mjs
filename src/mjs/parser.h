@@ -8,6 +8,7 @@
 #include <algorithm>
 
 #include "lexer.h"
+#include "regexp.h"
 
 namespace mjs {
 
@@ -27,7 +28,6 @@ struct source_position {
 };
 
 std::pair<source_position, source_position> extend_to_positions(const std::wstring_view& t, uint32_t start, uint32_t end);
-
 
 class source_file {
 public:
@@ -251,21 +251,18 @@ private:
 
 class regexp_literal_expression : public expression {
 public:
-
-    explicit regexp_literal_expression(const source_extend& extend, std::wstring_view pattern, std::wstring_view flags) : expression(extend), pattern_(pattern), flags_(flags) {
+    explicit regexp_literal_expression(const source_extend& extend, std::wstring_view pattern, std::wstring_view flags) : expression(extend), re_(pattern, flags) {
     }
 
     expression_type type() const override { return expression_type::regexp_literal; }
 
-    const std::wstring& pattern() const { return pattern_; }
-    const std::wstring& flags() const { return flags_; }
+    const regexp& re() const { return re_; }
 
 private:
-    std::wstring pattern_;
-    std::wstring flags_;
+    regexp re_;
 
     void print(std::wostream& os) const override {
-        os << "regexp_literal_expression{" << pattern_ << ", " << flags_ << "}";
+        os << "regexp_literal_expression{" << re_.pattern() << ", " << re_.flags() << "}";
     }
 };
 

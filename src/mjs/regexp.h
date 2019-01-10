@@ -5,6 +5,7 @@
 #include <string_view>
 #include <memory>
 #include <vector>
+#include <ostream>
 #include <stdint.h>
 
 namespace mjs {
@@ -23,6 +24,9 @@ constexpr inline regexp_flag operator|(regexp_flag l, regexp_flag r) {
 constexpr inline regexp_flag operator&(regexp_flag l, regexp_flag r) {
     return static_cast<regexp_flag>(static_cast<int>(l) & static_cast<int>(r));
 }
+
+std::ostream& operator<<(std::ostream& os, regexp_flag f);
+std::wostream& operator<<(std::wostream& os, regexp_flag f);
 
 // Convert character to regexp_flag, returns regexp_flag::none on conversion error
 regexp_flag regexp_flag_from_char(char ch);
@@ -44,6 +48,7 @@ struct regexp_match {
 class regexp {
 public:
     explicit regexp(std::wstring_view pattern, regexp_flag flags);
+    explicit regexp(std::wstring_view pattern, std::wstring_view flags) : regexp(pattern, regexp_flags_from_string(flags)) {}
     ~regexp();
 
     static constexpr uint32_t npos = 0xffff'ffff;

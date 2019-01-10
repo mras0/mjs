@@ -19,10 +19,9 @@
     - Date
         - time zone adjustments
         - locale functions
-    - RegExp - multiline regexp
-    - Make it possible to implement native (member) functions more easily. Perhaps create the ECMAScript function object only if requested?
-    - Add test cases for directly relatable to clauses in the spec (e.g. `Boolean.prototype.constructor` exists and is correct)
-    - Split up `mjs_lib` into its constituents (e.g. GC lib, lexer lib, ...), but most important to get global object and friends out
+    - RegExp
+        - multiline regexp
+        - ES3 regular expression literals shouldn't be unique
     - Create function objects on demand (?)
     - Consider implementing some things in ECMAScript (i.e. polyfill it)!
 * Better GC

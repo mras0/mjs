@@ -54,7 +54,7 @@ public:
     }
 
     void operator()(const regexp_literal_expression& e) {
-        os_ << '/' << e.pattern() << '/' << e.flags();
+        os_ << '/' << e.re().pattern() << '/' << e.re().flags();
     }
 
     void operator()(const call_expression& e) {

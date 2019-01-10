@@ -50,8 +50,8 @@ string get_source_string(const gc_heap_ptr<global_object>& global, const std::ws
 //       but need to be careful about not using too much (non-GC) memory.
 class regexp_object : public native_object {
 public:
-    static gc_heap_ptr<regexp_object> make(const gc_heap_ptr<global_object>& global, const string& pattern, regexp_flag flags) {
-        return global.heap().make<regexp_object>(global, global->regexp_prototype(), get_source_string(global, pattern.view()), flags);
+    static gc_heap_ptr<regexp_object> make(const gc_heap_ptr<global_object>& global, const std::wstring_view& pattern, regexp_flag flags) {
+        return global.heap().make<regexp_object>(global, global->regexp_prototype(), get_source_string(global, pattern), flags);
     }
 
     regexp_flag flags() const {
@@ -73,7 +73,7 @@ public:
 
     string to_string() const {
         std::wostringstream woss;
-        woss << "/" << source_.track(heap()) << "/" << regexp_flags_to_string(flags_);
+        woss << "/" << source_.track(heap()) << "/" << flags_;
         return string{heap(), woss.str()};
     }
 
@@ -229,7 +229,7 @@ create_result make_regexp_object(global_object& global) {
             }
         }
 
-        return value{regexp_object::make(global_, pattern, flags)};
+        return value{regexp_object::make(global_, pattern.view(), flags)};
     };
 
     auto constructor = make_function(global, [construct_regexp](const value& this_, const std::vector<value>& args) {
@@ -256,8 +256,12 @@ create_result make_regexp_object(global_object& global) {
     return { constructor, prototype };
 }
 
+object_ptr make_regexp(const gc_heap_ptr<global_object>& global, const regexp& re) {
+    return regexp_object::make(global, re.pattern(), re.flags());
+}
+
 object_ptr make_regexp(const gc_heap_ptr<global_object>& global, const string& pattern, const string& flags) {
-    return regexp_object::make(global, pattern, parse_regexp_flags(*global, flags));
+    return regexp_object::make(global, pattern.view(), parse_regexp_flags(*global, flags));
 }
 
 namespace {
@@ -270,7 +274,7 @@ gc_heap_ptr<regexp_object> to_regexp_object(const gc_heap_ptr<global_object>& gl
         }
     }
     auto& h = global.heap();
-    return regexp_object::make(global, to_string(h, regexp), regexp_flag::none);
+    return regexp_object::make(global, to_string(h, regexp).view(), regexp_flag::none);
 }
 
 string do_get_replacement_string(const string& str, const object_ptr& match, const value& replace_value) {

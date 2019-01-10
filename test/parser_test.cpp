@@ -333,18 +333,33 @@ void test_labelled_statements() {
 }
 
 void test_regexp_literal() {
-    auto s = parse_one_statement(R"(a = /a*b\//g;)");
-    REQUIRE_EQ(s->type(), statement_type::expression);
-    const auto& es = static_cast<const expression_statement&>(*s);
-    REQUIRE_EQ(es.e().type(), expression_type::binary);
-    const auto& be = static_cast<const binary_expression&>(es.e());
-    REQUIRE_EQ(be.op(), token_type::equal);
-    REQUIRE_EQ(be.lhs().type(), expression_type::identifier);
-    REQUIRE_EQ(static_cast<const identifier_expression&>(be.lhs()).id(), L"a");
-    REQUIRE_EQ(be.rhs().type(), expression_type::regexp_literal);
-    const auto& rle = static_cast<const regexp_literal_expression&>(be.rhs());
-    REQUIRE_EQ(rle.pattern(), LR"(a*b\/)");
-    REQUIRE_EQ(rle.flags(), L"g");
+    {
+        auto s = parse_one_statement(R"(a = /a*b\//g;)");
+        REQUIRE_EQ(s->type(), statement_type::expression);
+        const auto& es = static_cast<const expression_statement&>(*s);
+        REQUIRE_EQ(es.e().type(), expression_type::binary);
+        const auto& be = static_cast<const binary_expression&>(es.e());
+        REQUIRE_EQ(be.op(), token_type::equal);
+        REQUIRE_EQ(be.lhs().type(), expression_type::identifier);
+        REQUIRE_EQ(static_cast<const identifier_expression&>(be.lhs()).id(), L"a");
+        REQUIRE_EQ(be.rhs().type(), expression_type::regexp_literal);
+        const auto& rle = static_cast<const regexp_literal_expression&>(be.rhs());
+        REQUIRE_EQ(rle.re().pattern(), LR"(a*b\/)");
+        REQUIRE_EQ(rle.re().flags(), regexp_flag::global);
+    }
+
+    {
+        auto es = parse_expression("/abc/gim");
+        REQUIRE_EQ(es->e().type(), expression_type::regexp_literal);
+        const auto& re = static_cast<const regexp_literal_expression&>(es->e()).re();
+        REQUIRE_EQ(re.pattern(), L"abc");
+        REQUIRE_EQ(re.flags(), regexp_flag::global | regexp_flag::ignore_case | regexp_flag::multiline);
+    }
+
+    // TODO: Error may be deferred in ES3, could support that
+    test_parse_fails(L"/re/x");
+    test_parse_fails(L"/(/");
+    test_parse_fails(L"function f() { /re/x; }");
 }
 
 void test_form_control_characters() {
@@ -379,8 +394,8 @@ void test_form_control_characters() {
         const auto& e = static_cast<const expression_statement&>(*s).e();
         REQUIRE_EQ(e.type(), expression_type::regexp_literal);
         const auto& re = static_cast<const regexp_literal_expression&>(e);
-        REQUIRE_EQ(re.pattern(), L"\xFEFF\x200c\xADtest");
-        REQUIRE_EQ(re.flags(), L"gi");
+        REQUIRE_EQ(re.re().pattern(), L"\xFEFF\x200c\xADtest");
+        REQUIRE_EQ(re.re().flags(), regexp_flag::global | regexp_flag::ignore_case);
 
         // Zero-width (non)-joiner in identifier
         auto s2 = parse_one_statement(L"test\\u200c\x200dxyz");

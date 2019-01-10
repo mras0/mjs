@@ -5,6 +5,15 @@
 
 namespace mjs {
 
+std::ostream& operator<<(std::ostream& os, regexp_flag f) {
+    auto ws = regexp_flags_to_string(f);
+    return os << std::string(ws.begin(), ws.end());
+}
+
+std::wostream& operator<<(std::wostream& os, regexp_flag f) {
+    return os << regexp_flags_to_string(f);
+}
+
 regexp_flag regexp_flag_from_char(char ch) {
     switch (ch) {
     case 'g': return regexp_flag::global;
