@@ -93,8 +93,6 @@ public:
         present_mask_.dereference(heap())[index/64] |= 1ULL<<(index%64);
     }
 
-    static string to_locale_string(const gc_heap_ptr<global_object>& global, const gc_heap_ptr<array_object>& arr);
-
 private:
     gc_heap_ptr_untracked<global_object> global_;
     uint32_t length_;
@@ -173,14 +171,16 @@ private:
     }
 };
 
-string array_object::to_locale_string(const gc_heap_ptr<global_object>& global_, const gc_heap_ptr<array_object>& arr) {
+namespace {
+
+string array_to_locale_string(const gc_heap_ptr<global_object>& global_, const object_ptr& arr) {
     auto& h = arr.heap();
-    const uint32_t len = arr->length_;
+    const uint32_t len = to_uint32(arr->get(L"length"));
     std::wstring s;
     gc_heap_ptr<global_object> global = global_; // Keep local copy since due to use of call_function below (XXX)
     for (uint32_t i = 0; i < len; ++i) {
         if (i) s += L",";
-        auto v = arr->get_at(i);
+        auto v = arr->get(index_string(i));
         if (v.type() != value_type::undefined && v.type() != value_type::null) {
             auto o = global->to_object(v);
             s += to_string(h, call_function(o->get(L"toLocaleString"), value{o}, {})).view();
@@ -188,8 +188,6 @@ string array_object::to_locale_string(const gc_heap_ptr<global_object>& global_,
     }
     return string{h, s};
 }
-
-namespace {
 
 string array_join(const object_ptr& o, const std::wstring_view& sep) {
     auto& h = o.heap();
@@ -391,13 +389,13 @@ create_result make_array_object(global_object& global) {
             return value{array_join(this_.object_value(), L",")};
         }, 0);
     } else {
-        put_native_function(global, prototype, "toString", [global = global.self_ptr()](const value& this_, const std::vector<value>&) {
-            global->validate_type(this_, global->array_prototype(), "array");
+        put_native_function(global, prototype, "toString", [version, global = global.self_ptr()](const value& this_, const std::vector<value>&) {
+            if (version < version::es5) global->validate_type(this_, global->array_prototype(), "array");
             return value{array_join(this_.object_value(), L",")};
         }, 0);
-        put_native_function(global, prototype, "toLocaleString", [global = global.self_ptr()](const value& this_, const std::vector<value>&) {
-            global->validate_type(this_, global->array_prototype(), "array");
-            return value{array_object::to_locale_string(global, static_cast<gc_heap_ptr<array_object>>(this_.object_value()))};
+        put_native_function(global, prototype, "toLocaleString", [version, global = global.self_ptr()](const value& this_, const std::vector<value>&) {
+            if (version < version::es5) global->validate_type(this_, global->array_prototype(), "array");
+            return value{array_to_locale_string(global, this_.object_value())};
         }, 0);
         put_native_function(global, prototype, "pop", [global = global.self_ptr()](const value& this_, const std::vector<value>&) {
             global->validate_object(this_);

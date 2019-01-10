@@ -43,7 +43,10 @@ void add_object_prototype_functions(global_object& global, const object_ptr& pro
     }, 0);
 
     if (global.language_version() >= version::es3) {
-        prototype->put(global.common_string("toLocaleString"), prototype->get(L"toString"), global_object::default_attributes);
+        put_native_function(global, prototype, "toLocaleString", [global = global.self_ptr()](const value& this_, const std::vector<value>&) {
+            auto o = global->to_object(this_);
+            return call_function(o->get(L"toString"), value{o}, {});
+        }, 0);
         put_native_function(global, prototype, "hasOwnProperty", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
             global->validate_object(this_);
             const auto& o = this_.object_value();

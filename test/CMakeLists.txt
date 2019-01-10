@@ -23,6 +23,7 @@ mjs_add_normal_test(lexer_test)
 mjs_add_normal_test(parser_test)
 mjs_add_normal_test(interpreter_test)
 mjs_add_normal_test(util_test)
+mjs_add_normal_test(array_object_test)
 
 mjs_add_file_test(es1 array_literal.js WILL_FAIL TRUE)
 mjs_add_file_test(es3 array_literal.js PASS_REGULAR_EXPRESSION "OK")
