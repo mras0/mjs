@@ -3,57 +3,20 @@
 #include "array_object.h"
 #include "native_object.h"
 #include "error_object.h"
+#include "regexp.h"
 #include <sstream>
-#include <regex>
 
 namespace mjs {
 
-enum class regexp_flag {
-    none        = 0,
-    global      = 1<<0,
-    ignore_case = 1<<1,
-    multiline   = 1<<2,
-};
-
-constexpr inline regexp_flag operator|(regexp_flag l, regexp_flag r) {
-    return static_cast<regexp_flag>(static_cast<int>(l) | static_cast<int>(r));
-}
-
-constexpr inline regexp_flag operator&(regexp_flag l, regexp_flag r) {
-    return static_cast<regexp_flag>(static_cast<int>(l) & static_cast<int>(r));
-}
-
-regexp_flag char_to_flag(int ch) {
-    switch (ch) {
-    case 'g': return regexp_flag::global;
-    case 'i': return regexp_flag::ignore_case;
-    case 'm': return regexp_flag::multiline;
-    default:  return regexp_flag::none;
-    }
-}
-
 regexp_flag parse_regexp_flags(global_object& global, const string& s) {
-    auto f = regexp_flag::none;
-    for (const auto ch: s.view()) {
-        const regexp_flag here = char_to_flag(ch);
-        if (here == regexp_flag::none || (f & here) != regexp_flag::none) {
-            std::wostringstream woss;
-            woss << (here == regexp_flag::none ? "Invalid" : "Duplicate") << " flag '" << static_cast<wchar_t>(ch) << "' given to RegExp constructor";
-            throw native_error_exception{native_error_type::syntax, global.stack_trace(), woss.str()};
-        }
-        f = f | here;
+    try {
+        return regexp_flags_from_string(s.view());
+    } catch (const std::exception& e) {
+        throw native_error_exception{native_error_type::syntax, global.stack_trace(), e.what()};
     }
-    return f;
 }
 
 namespace {
-std::wstring flags_string(regexp_flag flags) {
-    std::wstring res;
-    if ((flags & regexp_flag::global) != regexp_flag::none)      res.push_back('g');
-    if ((flags & regexp_flag::ignore_case) != regexp_flag::none) res.push_back('i');
-    if ((flags & regexp_flag::multiline) != regexp_flag::none)   res.push_back('m');
-    return res;
-}
 
 const char* empty_string_regexp = "(?:)";
 
@@ -110,7 +73,7 @@ public:
 
     string to_string() const {
         std::wostringstream woss;
-        woss << "/" << source_.track(heap()) << "/" << flags_string(flags_);
+        woss << "/" << source_.track(heap()) << "/" << regexp_flags_to_string(flags_);
         return string{heap(), woss.str()};
     }
 
@@ -125,8 +88,10 @@ public:
 
         const wchar_t* const str_beg = str.view().data();
         const wchar_t* const str_end = str_beg + str.view().length();
-        std::wcmatch match;
-        if (!std::regex_search(str_beg + start_index, str_end, match, get_regex())) {
+        const wchar_t* const search_start = str_beg + start_index;
+
+        const auto match = regexp{source_.dereference(heap()).view(), flags_}.exec(std::wstring_view{search_start, static_cast<size_t>(str_end - search_start)});
+        if (match.empty()) {
             return value::null;
         }
 
@@ -147,13 +112,8 @@ public:
     }
 
     double search(const string& str) const {
-        std::wcmatch match;
-        const wchar_t* const str_beg = str.view().data();
-        const wchar_t* const str_end = str_beg + str.view().length();
-        if (!std::regex_search(str_beg, str_end, match, get_regex())) {
-            return -1;
-        }
-        return static_cast<double>(match[0].first - str_beg);
+        const auto index = regexp{source_.dereference(heap()).view(), flags_}.search(str.view());
+        return index == regexp::npos ? -1. : static_cast<double>(index);
     }
 
 private:
@@ -162,14 +122,6 @@ private:
     gc_heap_ptr_untracked<gc_string>        source_;
     value_representation                    last_index_;
     regexp_flag                             flags_;
-
-    std::wregex get_regex() const {
-        auto options = std::regex_constants::ECMAScript;
-        if ((flags_ & regexp_flag::ignore_case) != regexp_flag::none) options |= std::regex_constants::icase;
-        // TODO: Not implemented in MSVC yet
-        //if ((flags_ & regexp_flag::multiline) != regexp_flag::none) options |= std::regex_constants::multiline;
-        return std::wregex{std::wstring{source_.dereference(heap()).view()}, options};
-    }
 
     value get_source() const {
         return value{source_.track(heap())};

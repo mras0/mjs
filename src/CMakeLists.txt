@@ -1,8 +1,26 @@
+add_library(mjs_core STATIC
+    mjs/char_conversions.cpp
+    mjs/char_conversions.h
+    mjs/platform.cpp
+    mjs/platform.h
+    )
+ target_include_directories(mjs_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
+add_library(mjs_parser STATIC
+    mjs/lexer.cpp
+    mjs/lexer.h
+    mjs/parser.cpp
+    mjs/parser.h
+    mjs/version.cpp
+    mjs/version.h
+    mjs/unicode_data.h
+    )
+target_include_directories(mjs_parser PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(mjs_parser mjs_core)
+
 add_library(mjs_lib STATIC
     mjs/array_object.cpp
     mjs/array_object.h
-    mjs/char_conversions.cpp
-    mjs/char_conversions.h
     mjs/date_object.cpp
     mjs/date_object.h
     mjs/error_object.cpp
@@ -17,8 +35,6 @@ add_library(mjs_lib STATIC
     mjs/global_object.h
     mjs/interpreter.cpp
     mjs/interpreter.h
-    mjs/lexer.cpp
-    mjs/lexer.h
     mjs/native_object.cpp
     mjs/native_object.h
     mjs/number_object.cpp
@@ -27,27 +43,24 @@ add_library(mjs_lib STATIC
     mjs/number_to_string.h
     mjs/object.cpp
     mjs/object.h
-    mjs/parser.cpp
-    mjs/parser.h
-    mjs/platform.cpp
-    mjs/platform.h
     mjs/printer.cpp
     mjs/printer.h
     mjs/property_attribute.h
+    mjs/regexp.cpp
+    mjs/regexp.h
     mjs/regexp_object.cpp
     mjs/regexp_object.h
     mjs/string.cpp
     mjs/string.h
     mjs/string_object.cpp
     mjs/string_object.h
-    mjs/unicode_data.h
     mjs/value.cpp
     mjs/value.h
     mjs/value_representation.cpp
     mjs/value_representation.h
-    mjs/version.cpp
-    mjs/version.h
     )
 target_include_directories(mjs_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(mjs_lib mjs_core mjs_parser)
+
 add_executable(mjs mjs.cpp)
 target_link_libraries(mjs mjs_lib)
