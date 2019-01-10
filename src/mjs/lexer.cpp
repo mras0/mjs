@@ -561,7 +561,7 @@ std::wstring_view lexer::get_regex_literal() {
     assert(start < text_pos_);
 
     // Body
-    for (bool quote = false;; ++text_pos_) {
+    for (bool quote = false, in_class = false;; ++text_pos_) {
         if (text_pos_ >= text_.size()) {
             throw std::runtime_error("Unterminated regular expression literal");
         }
@@ -570,11 +570,21 @@ std::wstring_view lexer::get_regex_literal() {
             throw std::runtime_error("Line terminator in regular expression literal");
         } else if (ch == '\\') {
             quote = !quote;
-        } else if (ch == '/' && !quote) {
+            continue;
+        } else if (quote) {
+            quote = false;
+            continue;
+        }
+        assert(!quote && ch != '\\');
+
+        if (ch == ']') {
+            in_class = false;
+        } else if (ch == '[') {
+            in_class = true;
+        } else if (ch == '/' && (!in_class || version_ < version::es5)) {
+            // forward slash can be unquoted in character classes in ES5.1
             ++text_pos_; // The final '/' is part of the regular expression
             break;
-        } else {
-            quote = false;
         }
     }
 

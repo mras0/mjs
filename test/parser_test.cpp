@@ -398,24 +398,21 @@ void test_debugger_statement() {
 }
 
 void test_main() {
-    for (const auto ver: supported_versions) {
-        tested_version(ver);
-        test_semicolon_insertion();
-        test_form_control_characters();
-        if (ver > version::es1) {
-            test_array_literal();
-            test_object_literal();
-            test_labelled_statements();
-            test_regexp_literal();
-        }
-        if (ver > version::es3) {
-            test_debugger_statement();
-        }
-        if (ver < version::es3) {
-            test_fails_with_es3_constructors();
-        }
-        if (ver < version::es5) {
-            test_fails_with_es5_constructors();
-        }
+    test_semicolon_insertion();
+    test_form_control_characters();
+    if (tested_version() > version::es1) {
+        test_array_literal();
+        test_object_literal();
+        test_labelled_statements();
+        test_regexp_literal();
+    }
+    if (tested_version() > version::es3) {
+        test_debugger_statement();
+    }
+    if (tested_version() < version::es3) {
+        test_fails_with_es3_constructors();
+    }
+    if (tested_version() < version::es5) {
+        test_fails_with_es5_constructors();
     }
 }

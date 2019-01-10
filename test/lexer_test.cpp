@@ -119,17 +119,24 @@ void basic_tests() {
     SIMPLE_TEST(LR"(if (1) foo['x']=bar();)", T(if_), WS, T(lparen), token{1.}, T(rparen), WS, ID("foo"), T(lbracket), STR("x"), T(rbracket), T(equal), ID("bar"), T(lparen), T(rparen), T(semicolon));
 }
 
-void test_get_regex_literal(std::wstring_view text) {
+std::wstring get_one_regexp_literal(std::wstring_view text) {
     lexer l{text, tested_version()};
     const auto regex_lit = l.get_regex_literal();
     REQUIRE(!l.current_token()); // Must be at end
-    REQUIRE_EQ(text, regex_lit);
+    return std::wstring{regex_lit};
+}
+
+void test_get_regex_literal(std::wstring_view text) {
+    REQUIRE_EQ(text, get_one_regexp_literal(text));
 }
 
 void test_get_regex_literal_fails(std::wstring_view text) {
     try {
         lexer l{text, tested_version()};
         l.get_regex_literal();
+        if (l.current_token()) {
+            return;
+        }
         std::wcerr << "Should have failed while processing regex literal '" << text << "'\n";
         std::abort();
     } catch (...) {
@@ -144,9 +151,17 @@ void test_regexp_literals() {
     test_get_regex_literal(LR"(/a/test)");
     test_get_regex_literal(LR"(/\||1212/)");
     test_get_regex_literal(LR"(/abc\//)");
+    test_get_regex_literal(LR"(/[\/\[]]/)");
     test_get_regex_literal_fails(LR"(/abc)");
     test_get_regex_literal_fails(LR"(/abc\/)");
     test_get_regex_literal_fails(L"/a\nbc/");
+    const wchar_t* const unsescaped_slash_in_character_class = L"/[/]/";
+    // In ES5 '/' can be unescaped in a character class
+    if (tested_version() < version::es5) {
+        test_get_regex_literal_fails(unsescaped_slash_in_character_class);
+    } else {
+        test_get_regex_literal(unsescaped_slash_in_character_class);
+    }
 }
 
 template<size_t size>
@@ -254,14 +269,11 @@ void test_format_control_characters() {
 }
 
 void test_main() {
-    for (const auto v: supported_versions) {
-        tested_version(v);
-        basic_tests();
-        test_unicode_escape_sequence_in_identifier();
-        test_format_control_characters();
-        if (v > version::es1) {
-            test_regexp_literals();
-        }
-        check_keywords();
+    basic_tests();
+    test_unicode_escape_sequence_in_identifier();
+    test_format_control_characters();
+    if (tested_version() > version::es1) {
+        test_regexp_literals();
     }
+    check_keywords();
 }

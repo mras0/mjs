@@ -32,7 +32,6 @@ regexp_flag char_to_flag(int ch) {
     }
 }
 
-
 regexp_flag parse_regexp_flags(global_object& global, const string& s) {
     auto f = regexp_flag::none;
     for (const auto ch: s.view()) {
@@ -55,6 +54,33 @@ std::wstring flags_string(regexp_flag flags) {
     if ((flags & regexp_flag::multiline) != regexp_flag::none)   res.push_back('m');
     return res;
 }
+
+const char* empty_string_regexp = "(?:)";
+
+string get_source_string(const gc_heap_ptr<global_object>& global, const std::wstring_view s) {
+    auto& h = global.heap();
+
+    if (s.empty()) {
+        return string{h, empty_string_regexp};
+    }
+
+    std::wstring res;
+    bool escape = false;
+    for (uint32_t i = 0, l = static_cast<uint32_t>(s.length()); i < l; ++i) {
+        const auto ch = s[i];
+        if (escape) {
+            escape = false;
+        } else if (ch == '\\') {
+            escape = true;
+        } else if (ch == '/') {
+            res.push_back('\\');
+        }
+        res.push_back(ch);
+    }
+
+    return string{h, res};
+}
+
 } // unnamed namespace
 
 // TODO: Could optimize by not creating a new regex object each time,
@@ -62,7 +88,7 @@ std::wstring flags_string(regexp_flag flags) {
 class regexp_object : public native_object {
 public:
     static gc_heap_ptr<regexp_object> make(const gc_heap_ptr<global_object>& global, const string& pattern, regexp_flag flags) {
-        return global.heap().make<regexp_object>(global, global->regexp_prototype(), pattern.view().empty() ? string{global.heap(), "(?:)"} : pattern, flags);
+        return global.heap().make<regexp_object>(global, global->regexp_prototype(), get_source_string(global, pattern.view()), flags);
     }
 
     regexp_flag flags() const {
@@ -224,7 +250,7 @@ gc_heap_ptr<regexp_object> check_type(const gc_heap_ptr<global_object>& global, 
 
 create_result make_regexp_object(global_object& global) {
     // In ES5+ the prototype object is a RegExp object
-    auto prototype = global.language_version() < version::es5 ? global.make_object() : global.heap().make<regexp_object>(global.self_ptr(), global.object_prototype(), string{global.heap(), "(?:)"}, regexp_flag::none);
+    auto prototype = global.language_version() < version::es5 ? global.make_object() : global.heap().make<regexp_object>(global.self_ptr(), global.object_prototype(), string{global.heap(), empty_string_regexp}, regexp_flag::none);
     auto regexp_str = global.common_string("RegExp");
 
     auto construct_regexp = [global_ = global.self_ptr()](const value&, const std::vector<value>& args) {

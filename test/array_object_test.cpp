@@ -6,7 +6,7 @@
 
 using namespace mjs;
 
-void test_array_object() {
+void test_main() {
     gc_heap h{8192};
 
     // Array
@@ -276,11 +276,4 @@ try {
 }
 
 )");
-}
-
-void test_main() {
-    for (const auto ver: supported_versions) {
-        tested_version(ver);
-        test_array_object();
-    }
 }

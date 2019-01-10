@@ -13,10 +13,6 @@ mjs::version tested_version() {
     return tested_version_;
 }
 
-void tested_version(mjs::version ver) {
-    tested_version_ = ver;
-}
-
 static const char* run_test_func;
 static const char* run_test_file;
 static int run_test_line;
@@ -147,7 +143,10 @@ bool operator==(const token& l, const token& r) {
 int main() {
     platform_init();
     try {
-        test_main();
+        for (const auto ver: supported_versions) {
+            tested_version_ = ver;
+            test_main();
+        }
     } catch (const std::exception& e) {
         std::wcerr << e.what() << "\n";
         std::wcerr << "Tested version: " << tested_version() << "\n";
