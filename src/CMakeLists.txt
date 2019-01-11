@@ -55,6 +55,8 @@ add_library(mjs_global STATIC
     mjs/native_object.h
     mjs/number_object.cpp
     mjs/number_object.h
+    mjs/object_object.cpp
+    mjs/object_object.h
     mjs/regexp_object.cpp
     mjs/regexp_object.h
     mjs/string_object.cpp

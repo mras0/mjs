@@ -4,7 +4,7 @@ Annex D, E and F contain lists of the necessary changes.
 
 ## TODO
 - Annex C Strict Mode
-- Annex E: 15: New `Object`, `Array` and `Date` functions
+- `get` / `set`
 - Annex E: 15.3.4.3,4: Change in handling of `null`/`undefined` when passed to `apply/call` (Note: most e.g. Object.prototype functions have been changed to call `ToObject` on the this argument)
 - Annex E: 15.12: `JSON` object
 - Object.getPrototypeOf

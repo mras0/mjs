@@ -1,7 +1,6 @@
 #include "test.h"
 #include "test_spec.h"
 #include <mjs/array_object.h>
-#include <iostream>
 #include <cmath>
 
 using namespace mjs;

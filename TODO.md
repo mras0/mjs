@@ -1,9 +1,9 @@
 * Lexer
     - Follow specification exactly when handling e.g. number literals..
-    - Add more test cases...
-    - Proper UTF-16 support
+    - Make tests build w/o global object
 * Parser
     - Test `source_extend` logic (could probably be more precise for expressions/statements)
+    - Check behavior of missing semicolon after function definition
     - More tests...
 * Interpreter
     - Lessen stack usage

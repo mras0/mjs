@@ -27,6 +27,7 @@ mjs_add_normal_test(test_string_object)
 mjs_add_normal_test(test_array_object)
 mjs_add_normal_test(test_regexp_object)
 mjs_add_normal_test(test_date_object)
+mjs_add_normal_test(test_object_object)
 
 mjs_add_file_test(es1 array_literal.js WILL_FAIL TRUE)
 mjs_add_file_test(es3 array_literal.js PASS_REGULAR_EXPRESSION "OK")

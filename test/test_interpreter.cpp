@@ -854,74 +854,6 @@ s; //$string 'e:1fe2:43f2'
     RUN_TEST(L"(function() { try { throw function() { return !('a' in this); }; } catch(e) { var a = true; return e(); } })()", value{true});
 }
 
-void test_object_object() {
-    RUN_TEST_SPEC(R"(
-delete Object.prototype; //$boolean false
-c = Object.prototype.constructor;
-c.length; //$number 1
-o = c(); 
-o.toString(); //$string '[object Object]'
-o.valueOf() == o; //$boolean true
-)");
-
-    //
-    // ES3
-    //
-
-    if (tested_version() < version::es3) {
-        return;
-    }
-
-    RUN_TEST_SPEC(R"(
-Object.prototype.toLocaleString.length; //$number 0
-Object.prototype.toLocaleString.call(new Number(42)); //$string '42'
-Object.prototype.toLocaleString.call(new String('test')); //$string 'test'
-function f() { this.x = 'str'; }
-f.prototype.toString = function() { return this.x; }
-new f().toLocaleString(); //$string 'str'
-
-
-o = {x:42};
-'toLocaleString' in o; //$boolean true
-'x' in o; //$boolean true
-o.hasOwnProperty('toLocaleString'); //$boolean false
-o.hasOwnProperty('x'); //$boolean true
-o.propertyIsEnumerable('x'); //$boolean true
-
-a = [42];
-a.hasOwnProperty('length'); //$boolean true
-a.propertyIsEnumerable('length'); //$boolean false
-a.hasOwnProperty('prototype'); //$boolean false
-a.propertyIsEnumerable('prototype'); //$boolean false
-a.hasOwnProperty('0'); //$boolean true
-a.hasOwnProperty(0); //$boolean true
-a.propertyIsEnumerable(0); //$boolean true
-a.hasOwnProperty(); //$ boolean false
-a.propertyIsEnumerable();//$ boolean false
-a[undefined]=1;
-a.hasOwnProperty(); //$ boolean true
-a.propertyIsEnumerable();//$ boolean true
-
-global.hasOwnProperty('parseInt'); //$boolean true
-global.propertyIsEnumerable('parseInt'); //$boolean false
-
-        )");
-
-    RUN_TEST_SPEC(R"(
-// ES3, 8.6.2.6
-function C() {}
-C.prototype.toString = function() { return this; }
-C.prototype.valueOf = function() { return this; }
-try { +(new C()); } catch (e) { e.toString(); } //$string 'TypeError: Cannot convert object to primitive value'
-try { ''+(new C()); } catch (e) { e.toString(); } //$string 'TypeError: Cannot convert object to primitive value'
-
-// ES3, 9.9
-try { (undefined).toString(); } catch (e) { e.toString(); } //$string 'TypeError: Cannot convert undefined to object'
-try { (null).toString(); } catch (e) { e.toString(); } //$string 'TypeError: Cannot convert null to object'
-
-)");
-}
-
 void test_function_object() {
     gc_heap h{256};
     // In ES3 prototype only has attributes DontDelete, in ES1 it's DontEnum
@@ -1327,7 +1259,6 @@ void test_main() {
     if (tested_version() >= version::es3) {
         test_es3_statements();
     }
-    test_object_object();
     test_function_object();
     test_boolean_object();
     test_number_object();
