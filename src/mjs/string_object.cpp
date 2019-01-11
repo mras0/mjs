@@ -3,7 +3,10 @@
 #include "function_object.h"
 #include "array_object.h"
 #include "regexp_object.h"
+#include "error_object.h"
+#include "lexer.h"
 #include <cmath>
+#include <sstream>
 
 namespace mjs {
 
@@ -260,12 +263,45 @@ create_result make_string_object(global_object& global) {
             return string_replace(global, s, get_arg(args, 0), get_arg(args, 1));
         });
     }
+    if (global.language_version() >= version::es5) {
+        put_native_function(global, prototype, string{h, "trim"}, [global = global.self_ptr(), ver = global.language_version()](const value& this_, const std::vector<value>&) {
+            // CheckObjectCoercible
+            if (this_.type() == value_type::undefined || this_.type() == value_type::null) {
+                std::ostringstream oss;
+                oss << "String.prototype.trim cannot be called on " << this_.type();
+                throw native_error_exception(native_error_type::type, global->stack_trace(), oss.str());
+            }
+            auto& h = global.heap();
+            auto s = to_string(h, this_);
+            return value{string{h, trim(s.view(), ver)}};
+        }, 0);
+    }
 
     return {c, prototype};
 }
 
 object_ptr new_string(const gc_heap_ptr<global_object>& global, const string& val) {
     return global.heap().make<string_object>(global->string_prototype(), val, global->language_version() >= version::es5);
+}
+
+std::wstring_view ltrim(std::wstring_view s, version ver) {
+    size_t start_pos = 0;
+    while (start_pos < s.length() && is_whitespace_or_line_terminator(s[start_pos], ver)) {
+        ++start_pos;
+    }
+    return s.substr(start_pos);
+}
+
+std::wstring_view rtrim(std::wstring_view s, version ver) {
+    size_t end_pos = s.length();
+    while (end_pos && is_whitespace_or_line_terminator(s[end_pos-1], ver)) {
+        --end_pos;
+    }
+    return s.substr(0, end_pos);
+}
+
+std::wstring_view trim(std::wstring_view s, version ver) {
+    return rtrim(ltrim(s, ver), ver);
 }
 
 } // namespace mjs

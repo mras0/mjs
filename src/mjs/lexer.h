@@ -161,6 +161,8 @@ extern unsigned get_hex_value(int ch);
 unsigned get_hex_value2(const wchar_t* s);
 unsigned get_hex_value4(const wchar_t* s);
 
+extern bool is_whitespace_or_line_terminator(char16_t ch, version ver);
+
 class token {
 public:
     explicit token(token_type type) : type_(type) {

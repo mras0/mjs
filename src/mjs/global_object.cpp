@@ -118,15 +118,8 @@ create_result make_boolean_object(global_object& global) {
     return { c, prototype };
 }
 
-std::wstring_view ltrim(std::wstring_view s) {
-    size_t start_pos = 0;
-    while (start_pos < s.length() && isspace(s[start_pos]))
-        ++start_pos;
-    return s.substr(start_pos);
-}
-
 double parse_int(std::wstring_view s, int radix, version ver) {
-    s = ltrim(s);
+    s = ltrim(s, ver);
     int sign = 1;
     if (!s.empty() && (s[0] == '+' || s[0] == '-')) {
         if (s[0] == '-') sign = -1;
@@ -172,8 +165,8 @@ double parse_int(std::wstring_view s, int radix, version ver) {
     return sign * value;
 }
 
-value parse_float(const gc_heap_ptr<global_object>&, const std::wstring_view s) {
-    std::wistringstream wiss{std::wstring{ltrim(s)}};
+value parse_float(const gc_heap_ptr<global_object>& global, const std::wstring_view s) {
+    std::wistringstream wiss{std::wstring{ltrim(s, global->language_version())}};
     double val;
     return value{wiss >> val ? val : NAN};
 }

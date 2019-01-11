@@ -23,6 +23,7 @@ mjs_add_normal_test(lexer_test)
 mjs_add_normal_test(parser_test)
 mjs_add_normal_test(interpreter_test)
 mjs_add_normal_test(util_test)
+mjs_add_normal_test(string_object_test)
 mjs_add_normal_test(array_object_test)
 mjs_add_normal_test(regexp_object_test)
 

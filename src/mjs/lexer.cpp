@@ -380,18 +380,25 @@ std::pair<token, size_t> get_number_literal(const std::wstring_view text_, const
     }
 }
 
+constexpr bool is_whitespace(char16_t ch, version ver) {
+    return is_whitespace_v1(ch) 
+        || (ver >= version::es5 && ch == unicode_BOM)
+        || (ver >= version::es3 && classify(ch) == unicode::classification::whitespace);
+}
+
 std::pair<token, size_t> skip_whitespace(const std::wstring_view text, const size_t token_start, version ver) {
     auto token_end = token_start;
-    while (token_end < text.size() && 
-        (is_whitespace_v1(text[token_end]) 
-            || (ver >= version::es5 && text[token_end] == unicode_BOM)
-            || (ver >= version::es3 && classify(text[token_end]) == unicode::classification::whitespace))) {
+    while (token_end < text.size() && is_whitespace(static_cast<char16_t>(text[token_end]), ver)) {
         ++token_end;
     }
     return { token{token_type::whitespace}, token_end };
 }
 
 } // unnamed namespace
+
+bool is_whitespace_or_line_terminator(char16_t ch, version ver) {
+    return is_whitespace(ch, ver) || is_line_terminator(ch, ver);
+}
 
 std::wstring cpp_quote(const std::wstring_view& s) {
     std::wstring r;

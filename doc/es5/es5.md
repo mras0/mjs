@@ -8,6 +8,32 @@ Annex D, E and F contain lists of the necessary changes.
 - Annex E: 15.3.4.3,4: Change in handling of `null`/`undefined` when passed to `apply/call` (Note: most e.g. Object.prototype functions have been changed to call `ToObject` on the this argument)
 - Annex E: 15.9.4.2: `Date.parse` should attempt to parse as ISO format string
 - Annex E: 15.12: `JSON` object
+- Object.getPrototypeOf
+- Object.getOwnPropertyDescriptor
+- Object.getOwnPropertyNames
+- Object.create
+- Object.defineProperty
+- Object.defineProperties
+- Object.seal
+- Object.freeze
+- Object.preventExtensions
+- Object.isSealed
+- Object.isFrozen
+- Object.isExtensible
+- Object.keys
+- Function.prototype.bind
+- Array.prototype.indexOf
+- Array.prototype.lastIndexOf
+- Array.prototype.every
+- Array.prototype.some
+- Array.prototype.forEach
+- Array.prototype.map
+- Array.prototype.filter
+- Array.prototype.reduce
+- Array.prototype.reduceRight
+- Date.now
+- Date.prototype.toISOString
+- Date.prototype.toJSON
 
 ## Done:
 - 11.1.5: Object Initialiser: Allow trailing comma and reserved words as keys
@@ -32,6 +58,7 @@ Annex D, E and F contain lists of the necessary changes.
 - Annex E: 15.5.5.2: Array like access to `String` objects
 - Annex E: 15.4.4: `Array.prototype.to(Locale)String()` are now generic
 - Annex E: 7.8.5: Changes to handling of RegExp literals
+- String.prototype.trim
 
 ## Notes:
 - 7.1 Form Control Characters changed from ES1 -> ES3 -> ES5

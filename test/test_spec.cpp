@@ -95,10 +95,16 @@ value parse_value(gc_heap& h, const std::string& s) {
                 const auto ch = static_cast<uint16_t>(iss.get());
                 if (escape)  {
                     switch (ch) {
-                    case '\\': [[fallthrough]];
-                    case '\'': res.push_back(ch); break;
+                    case 'b': res.push_back('\x08'); break;
+                    case 't': res.push_back('\t'); break;
                     case 'n': res.push_back('\n'); break;
+                    case 'v': res.push_back('\x0b'); break;
+                    case 'f': res.push_back('\x0c'); break;
+                    case 'r': res.push_back('\r'); break;
                     case 'u': res.push_back(get_escape_sequence(iss)); break;
+                    case '\"': [[fallthrough]];
+                    case '\'': [[fallthrough]];
+                    case '\\': res.push_back(ch); break;
                     default:
                         NOT_IMPLEMENTED("Unhandled escape sequence \\" << (char)ch);
                     }
