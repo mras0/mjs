@@ -116,6 +116,8 @@ Date.parse('2019-01-11T18:56:42Z');      //$number 1547233002000
 Date.parse('2019-01-11T18:56:42.712Z');  //$number 1547233002712
 Date.parse('2019-01-11T18:56:42.712Zz'); //$number NaN
 Date.parse(new Date(4343242362321).toISOString()); //$number 4343242362321
+Date.parse(new Date(1547239125092).toISOString()); //$number 1547239125092
+
 n2 = Date.now();
 Date.parse(new Date(n2).toISOString()) === n2; //$boolean true
         )");
@@ -157,4 +159,3 @@ e('setDate'); //$string 'TypeError: Object is not a Date'
 
 )");
 }
-

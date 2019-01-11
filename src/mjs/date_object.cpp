@@ -7,6 +7,7 @@
 #include <chrono>
 #include <iomanip>
 #include <cstring>
+#include <iomanip>
 
 #include <iostream> ///TEMP
 
@@ -217,7 +218,7 @@ struct date_helper {
         }
         const auto tm = tm_from_time(t);
         std::wostringstream woss;
-        woss << std::put_time(&tm, iso_format) << '.' << ms_from_time(t) << 'Z';
+        woss << std::put_time(&tm, iso_format) << '.' << std::setw(3) << std::setfill(L'0') << ms_from_time(t) << 'Z';
         return string{global.heap(), woss.str()};
     }
 
