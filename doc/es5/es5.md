@@ -6,7 +6,6 @@ Annex D, E and F contain lists of the necessary changes.
 - Annex C Strict Mode
 - Annex E: 15: New `Object`, `Array` and `Date` functions
 - Annex E: 15.3.4.3,4: Change in handling of `null`/`undefined` when passed to `apply/call` (Note: most e.g. Object.prototype functions have been changed to call `ToObject` on the this argument)
-- Annex E: 15.9.4.2: `Date.parse` should attempt to parse as ISO format string
 - Annex E: 15.12: `JSON` object
 - Object.getPrototypeOf
 - Object.getOwnPropertyDescriptor
@@ -31,8 +30,6 @@ Annex D, E and F contain lists of the necessary changes.
 - Array.prototype.filter
 - Array.prototype.reduce
 - Array.prototype.reduceRight
-- Date.now
-- Date.prototype.toISOString
 - Date.prototype.toJSON
 
 ## Done:
@@ -59,6 +56,9 @@ Annex D, E and F contain lists of the necessary changes.
 - Annex E: 15.4.4: `Array.prototype.to(Locale)String()` are now generic
 - Annex E: 7.8.5: Changes to handling of RegExp literals
 - String.prototype.trim
+- Date.now
+- Date.prototype.toISOString
+- Annex E: 15.9.4.2: `Date.parse` should attempt to parse as ISO format string
 
 ## Notes:
 - 7.1 Form Control Characters changed from ES1 -> ES3 -> ES5

@@ -99,6 +99,30 @@ invalid.toUTCString(); //$string 'Invalid Date'
 +d3; //$ number 946730096789
 )");
 
+    if (tested_version() < version::es5) {
+        RUN_TEST_SPEC(R"(
+        Date.now||Date.prototype.toISOString||Date.prototype.toJSON; //$undefined
+        )");
+    } else {
+        RUN_TEST_SPEC(R"(
+var n = Date.now();
+typeof n; //$string 'number'
+n >= 1547231254870; //$boolean true
+
+new Date(123456789876).toISOString(); //$string '1973-11-29T21:33:09.876Z'
+try { new Date(NaN).toISOString(); } catch (e) { e.toString(); } //$string 'RangeError: Invalid Date'
+Date.parse('2019-01-11T18:56:42');       //$number 1547233002000
+Date.parse('2019-01-11T18:56:42Z');      //$number 1547233002000
+Date.parse('2019-01-11T18:56:42.712Z');  //$number 1547233002712
+Date.parse('2019-01-11T18:56:42.712Zz'); //$number NaN
+Date.parse(new Date(4343242362321).toISOString()); //$number 4343242362321
+n2 = Date.now();
+Date.parse(new Date(n2).toISOString()) === n2; //$boolean true
+        )");
+
+        // TODO: Date.prototype.toJSON
+    }
+
     if (tested_version() < version::es3) {
             RUN_TEST_SPEC(R"(
         dp = Date.prototype; dp.toDateString||dp.toTimeString||dp.toLocaleDateString||dp.toLocaleTimeString;//$undefined

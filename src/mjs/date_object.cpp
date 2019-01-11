@@ -1,5 +1,6 @@
 #include "date_object.h"
 #include "function_object.h"
+#include "error_object.h"
 #include <sstream>
 #include <ctime>
 #include <cmath>
@@ -35,7 +36,7 @@ struct date_helper {
     static_assert(ms_per_day == 86'400'000);
 
     static double current_time_utc() {
-        return std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::system_clock::now().time_since_epoch()).count();
+        return std::floor(ms_per_second * std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::system_clock::now().time_since_epoch()).count());
     }
 
     static int64_t day(double t) {
@@ -154,12 +155,32 @@ struct date_helper {
         return date_helper::make_date(date_helper::make_day(year, month, day), date_helper::make_time(hours, minutes, seconds, ms));
     }
 
-    static constexpr const wchar_t* invalid_date_string = L"Invalid Date";
-    static constexpr const wchar_t* time_format = L"%a %b %d %Y %H:%M:%S";
+    static constexpr const wchar_t* const invalid_date_string = L"Invalid Date";
+    static constexpr const wchar_t* const time_format = L"%a %b %d %Y %H:%M:%S";
+    static constexpr const wchar_t* const iso_format = L"%Y-%m-%dT%H:%M:%S";
 
     static double parse(const std::wstring_view s) {
         std::wistringstream wiss{std::wstring{s}};
         std::tm tm;
+        if (wiss >> std::get_time(&tm, iso_format)) {
+            auto t = time_from_tm(tm);
+            if (wiss.peek() == '.') {
+                wiss.get();
+                const int num_digits = 3;
+                wchar_t digits[num_digits];
+                if (!wiss.read(digits, num_digits) || !std::all_of(digits, digits+num_digits, isdigit)) {
+                    return NAN;
+                }
+                t += (digits[0]-'0')*100 + (digits[1]-'0')*10 + (digits[2]-'0');
+            }
+            if (wiss.peek() == 'Z') {
+                wiss.get();
+            }
+            return !wiss.rdbuf()->in_avail() ? t : NAN;
+        } 
+        wiss.seekg(0);
+        wiss.clear();
+        assert(wiss);
         if (wiss >> std::get_time(&tm, time_format)) {
             return time_from_tm(tm);
         }
@@ -188,6 +209,16 @@ struct date_helper {
         std::wostringstream woss;
         woss << std::put_time(&tm, L"%H:%M:%S");
         return string{h, woss.str()};
+    }
+
+    static string to_iso_string(const gc_heap_ptr<global_object>& global, double t) {
+        if (!std::isfinite(t)) {
+            throw native_error_exception{native_error_type::range, global->stack_trace(), invalid_date_string};
+        }
+        const auto tm = tm_from_time(t);
+        std::wostringstream woss;
+        woss << std::put_time(&tm, iso_format) << '.' << ms_from_time(t) << 'Z';
+        return string{global.heap(), woss.str()};
     }
 
     static double utc(double t) {
@@ -424,6 +455,18 @@ create_result make_date_object(global_object& global) {
 
         copy_func(L"toTimeString", L"toLocaleTimeString");
         copy_func(L"toDateString", L"toLocaleDateString");
+    }
+
+    if (global.language_version() >= version::es5) {
+        put_native_function(global, c, "now", [](const value&, const std::vector<value>&) {
+            return value{date_helper::current_time_utc()};
+        }, 0);
+
+        put_native_function(global, prototype, "toISOString", [check_type, global = global.self_ptr()](const value& this_, const std::vector<value>&) {
+            check_type(this_);
+            auto o = this_.object_value();
+            return value{date_helper::to_iso_string(global, o->internal_value().number_value())};
+        }, 0);
     }
 
     return { c, prototype };
