@@ -32,13 +32,6 @@ public:
 
     bool delete_property(const std::wstring_view& name) override;
 
-    bool check_own_property_attribute(const std::wstring_view& name, property_attribute mask, property_attribute expected) const override {
-        if (auto it = find(name)) {
-            return (it->attributes & mask) == expected;
-        }
-        return object::check_own_property_attribute(name, mask, expected);
-    }
-
 private:
     using get_func = value (*)(const native_object&);
     using put_func = void (*)(native_object&, const value&);
@@ -80,6 +73,14 @@ protected:
     }
 
     void add_own_property_names(std::vector<string>& names, bool check_enumerable) const override;
+
+    property_attribute do_own_property_attributes(const std::wstring_view& name) const override {
+        if (auto it = find(name)) {
+            return it->attributes;
+        }
+        return object::do_own_property_attributes(name);
+    }
+
 
     void update_property_attributes(const char* name, property_attribute attributes) {
         auto it = find(name);

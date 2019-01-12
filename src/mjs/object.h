@@ -56,12 +56,9 @@ public:
     // [[Delete]] (PropertyName)
     virtual bool delete_property(const std::wstring_view& name);
 
-    // Check if the object has a property with matching attributes
-    virtual bool check_own_property_attribute(const std::wstring_view& name, property_attribute mask, property_attribute expected) const {
-        if (auto it = find(name).first; it) {
-            return (it->attributes & mask) == expected;
-        }
-        return false;
+    // Get attributes of own property, returns invalid if not found
+    property_attribute own_property_attributes(const std::wstring_view& name) const {
+        return do_own_property_attributes(name);
     }
 
     virtual value_type default_value_type() const {
@@ -78,6 +75,8 @@ protected:
     explicit object(const string& class_name, const object_ptr& prototype);
     object(object&& o) = default;
     void fixup();
+
+    virtual property_attribute do_own_property_attributes(const std::wstring_view& name) const;
     virtual void add_own_property_names(std::vector<string>& names, bool check_enumerable) const;
     virtual void do_debug_print_extra(std::wostream& os, int indent_incr, int max_nest, int indent) const {
         (void)os; (void)indent_incr; (void)max_nest; (void)indent;

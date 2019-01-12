@@ -26,7 +26,7 @@ public:
     }
 
     void put_prototype_with_attributes(const object_ptr& p, property_attribute attributes) {
-        assert(!object::check_own_property_attribute(L"prototype", property_attribute::none, property_attribute::none));
+        assert(is_valid(object::own_property_attributes(L"prototype")));
         prototype_prop_ = value_representation{value{p}};
         update_property_attributes("prototype", attributes);
     }

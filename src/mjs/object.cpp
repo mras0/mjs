@@ -20,7 +20,7 @@ void object::fixup() {
 }
 
 bool object::has_property(const std::wstring_view& name) const {
-    if (check_own_property_attribute(name, property_attribute::none, property_attribute::none)) {
+    if (own_property_attributes(name) != property_attribute::invalid) {
         return true;
     }
     return prototype_ && prototype_.dereference(heap()).has_property(name);
@@ -39,6 +39,13 @@ std::vector<string> object::own_property_names(bool check_enumerable) const {
     std::vector<string> names;
     add_own_property_names(names, check_enumerable);
     return names;
+}
+
+property_attribute object::do_own_property_attributes(const std::wstring_view& name) const {
+    if (auto it = find(name).first; it) {
+        return it->attributes;
+    }
+    return property_attribute::invalid;
 }
 
 void object::add_own_property_names(std::vector<string>& names, bool check_enumerable) const {

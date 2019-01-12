@@ -37,13 +37,6 @@ public:
         return native_object::delete_property(name);
     }
 
-    bool check_own_property_attribute(const std::wstring_view& name, property_attribute mask, property_attribute expected) const override {
-        if (const auto s = handle_array_like_access(name); !s.empty()) {
-            return expected == property_attribute::none;
-        }
-        return native_object::check_own_property_attribute(name, mask, expected);
-    }
-
     string string_value() const {
         return value_.track(heap());
     }
@@ -84,6 +77,13 @@ private:
         auto& h = heap();
         value_.fixup(h);
         native_object::fixup();
+    }
+
+    property_attribute do_own_property_attributes(const std::wstring_view& name) const override {
+        if (const auto s = handle_array_like_access(name); !s.empty()) {
+            return property_attribute::none;
+        }
+        return native_object::do_own_property_attributes(name);
     }
 
     void add_own_property_names(std::vector<string>& names, bool check_enumerable) const override {

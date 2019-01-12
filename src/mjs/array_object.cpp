@@ -73,13 +73,6 @@ public:
         return native_object::delete_property(name);
     }
 
-    bool check_own_property_attribute(const std::wstring_view& name, property_attribute mask, property_attribute expected) const override {
-        if (const uint32_t index = index_value_from_string(name); index != invalid_index_value && index_present(index)) {
-            return expected == property_attribute::none;
-        }
-        return native_object::check_own_property_attribute(name, mask, expected);
-    }
-
     void unchecked_put(uint32_t index, const value& val) {
         assert(index < length_);
         values_.dereference(heap())[index] = value_representation{val};
@@ -130,6 +123,13 @@ private:
         values_.fixup(heap());
         present_mask_.fixup(heap());
         native_object::fixup();
+    }
+
+    property_attribute do_own_property_attributes(const std::wstring_view& name) const override {
+        if (const uint32_t index = index_value_from_string(name); index != invalid_index_value) {
+            return index_present(index) ? property_attribute::none : property_attribute::invalid;
+        }
+        return native_object::do_own_property_attributes(name);
     }
 
     void add_own_property_names(std::vector<string>& names, bool check_enumerable) const override {

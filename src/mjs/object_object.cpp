@@ -54,12 +54,13 @@ global_object_create_result make_object_object(global_object& global) {
         put_native_function(global, prototype, "hasOwnProperty", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
             global->validate_object(this_);
             const auto& o = this_.object_value();
-            return value{o->check_own_property_attribute(to_string(o.heap(), get_arg(args, 0)).view(), property_attribute::none, property_attribute::none)};
+            return value{o->own_property_attributes(to_string(o.heap(), get_arg(args, 0)).view()) != property_attribute::invalid};
         }, 1);
         put_native_function(global, prototype, "propertyIsEnumerable", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
             global->validate_object(this_);
             const auto& o = this_.object_value();
-            return value{o->check_own_property_attribute(to_string(o.heap(), get_arg(args, 0)).view(), property_attribute::dont_enum, property_attribute::none)};
+            const auto a = o->own_property_attributes(to_string(o.heap(), get_arg(args, 0)).view());
+            return value{is_valid(a) && (a & property_attribute::dont_enum) == property_attribute::none};
         }, 1);
     }
 
