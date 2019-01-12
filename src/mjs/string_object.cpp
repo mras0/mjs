@@ -30,13 +30,6 @@ public:
 
     // can_put needed?
 
-    bool has_property(const std::wstring_view& name) const override {
-        if (const auto s = handle_array_like_access(name); !s.empty()) {
-            return true;
-        }
-        return native_object::has_property(name);
-    }
-
     bool delete_property(const std::wstring_view& name) override {
         if (const auto s = handle_array_like_access(name); !s.empty()) {
             return false;

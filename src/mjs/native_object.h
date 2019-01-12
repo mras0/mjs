@@ -17,19 +17,8 @@ public:
         return object::get(name);
     }
 
-    bool do_put(const string& name, const value& val) {
-        if (auto it = find(name.view())) {
-            if (!it->has_attribute(property_attribute::read_only)) {
-                it->put(*this, val);
-            }
-            return true;
-        } else {
-            return false;
-        }
-    }
-
     void put(const string& name, const value& val, property_attribute attr) override {
-        if (!do_put(name, val)) {
+        if (!do_native_put(name, val)) {
             object::put(name, val, attr);
         }
     }
@@ -39,10 +28,6 @@ public:
             return !it->has_attribute(property_attribute::read_only);
         }
         return object::can_put(name);
-    }
-
-    bool has_property(const std::wstring_view& name) const override {
-        return find(name) || object::has_property(name);
     }
 
     bool delete_property(const std::wstring_view& name) override;
@@ -101,6 +86,17 @@ protected:
         assert(it);
         assert(((attributes & property_attribute::read_only) != property_attribute::none) || it->put);
         it->attributes = attributes;
+    }
+
+    bool do_native_put(const string& name, const value& val) {
+        if (auto it = find(name.view())) {
+            if (!it->has_attribute(property_attribute::read_only)) {
+                it->put(*this, val);
+            }
+            return true;
+        } else {
+            return false;
+        }
     }
 
     void fixup();

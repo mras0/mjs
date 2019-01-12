@@ -51,9 +51,7 @@ public:
     }
 
     // [[HasProperty]] (PropertyName)
-    virtual bool has_property(const std::wstring_view& name) const {
-        return deep_find(name).first;
-    }
+    bool has_property(const std::wstring_view& name) const;
 
     // [[Delete]] (PropertyName)
     virtual bool delete_property(const std::wstring_view& name);

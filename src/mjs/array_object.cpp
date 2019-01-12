@@ -41,7 +41,7 @@ public:
     }
 
     void put(const string& name, const value& val, property_attribute attr) override {
-        if (!can_put(name.view()) || do_put(name, val)) {
+        if (!can_put(name.view()) || do_native_put(name, val)) {
             return;
         }
 
@@ -61,13 +61,6 @@ public:
             return true;
         }
         return native_object::can_put(name);
-    }
-
-    bool has_property(const std::wstring_view& name) const override {
-        if (const uint32_t index = index_value_from_string(name); index != invalid_index_value) {
-            return index_present(index);
-        }
-        return native_object::has_property(name);
     }
 
     bool delete_property(const std::wstring_view& name) override {

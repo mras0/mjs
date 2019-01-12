@@ -19,6 +19,13 @@ void object::fixup() {
     properties_.fixup(heap_);
 }
 
+bool object::has_property(const std::wstring_view& name) const {
+    if (check_own_property_attribute(name, property_attribute::none, property_attribute::none)) {
+        return true;
+    }
+    return prototype_ && prototype_.dereference(heap()).has_property(name);
+}
+
 std::vector<string> object::enumerable_property_names() const {
     std::vector<string> names;
     add_own_property_names(names, true);

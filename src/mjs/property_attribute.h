@@ -8,7 +8,6 @@ enum class property_attribute {
     read_only = 1<<0,
     dont_enum = 1<<1,
     dont_delete = 1<<2,
-    internal = 1<<3,
 };
 
 constexpr inline property_attribute operator|(property_attribute l, property_attribute r) {
