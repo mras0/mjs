@@ -731,9 +731,9 @@ std::wstring index_string(uint32_t index) {
     return std::wstring{p};
 }
 
-void global_object::validate_object(const value& v) const {
+object_ptr global_object::validate_object(const value& v) const {
     if (v.type() == value_type::object) {
-        return;
+        return v.object_value();
     }
     std::wostringstream woss;
     mjs::debug_print(woss, v, 2, 1);

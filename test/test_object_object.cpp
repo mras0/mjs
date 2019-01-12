@@ -75,8 +75,8 @@ try { (null).toString(); } catch (e) { e.toString(); } //$string 'TypeError: Can
 
     if (tested_version() < version::es5) {
         RUN_TEST_SPEC(R"(
-Object.getPrototypeOf || Object.getOwnPrObjectertyDescriptor || Object.getOwnPrObjectertyNames ||
-Object.create ||  Object.definePrObjecterty || Object.definePrObjecterties || Object.seal ||
+Object.getPrototypeOf || Object.getOwnPropertyDescriptor  || Object.getOwnPropertyNames ||
+Object.create ||  Object.defineProperty || Object.defineProperties || Object.seal ||
 Object.freeze || Object.preventExtensions || Object.isSealed || Object.isFrozen ||
 Object.isExtensible || Object.keys; //$undefined
         )");
@@ -130,11 +130,39 @@ a.prototype.x = 42;
 keys(new a()); //$string ''
 s='';for (k in new a) { s+=k+','; } s; //$string  'x,'
 
-Object.getOwnPrObjectertyDescriptor ||
-Object.create ||  Object.definePrObjecterty || Object.definePrObjecterties || Object.seal ||
+Object.getOwnPropertyDescriptor.length; //$number 2
+function gopd(o,p) {
+    var d = Object.getOwnPropertyDescriptor(o,p);
+    if (d === undefined) return d;
+    var r = '{';
+    for (k in d) {
+        r += k + ': ' + d[k] + ',';
+    }
+    return r + '}';
+}
+try { gopd(); } catch (e) { e.toString(); } //$string 'TypeError: undefined is not an object'
+try { gopd(undefined); } catch (e) { e.toString(); } //$string 'TypeError: undefined is not an object'
+try { gopd(null); } catch (e) { e.toString(); } //$string 'TypeError: null is not an object'
+try { gopd(42); } catch (e) { e.toString(); } //$string 'TypeError: 42 is not an object'
+try { gopd('x'); } catch (e) { e.toString(); } //$string 'TypeError: \'x\' is not an object'
+gopd(Object,'sadjasdisds'); //$undefined
+gopd(Object,'prototype'); //$string '{value: [object Object],writable: false,enumerable: false,configurable: false,}'
+gopd(new String('test'),'length'); //$string '{value: 4,writable: false,enumerable: false,configurable: false,}'
+gopd(new String('test'),3); //$string '{value: t,writable: false,enumerable: true,configurable: false,}'
+gopd(new String('test'),5); //$undefined
+gopd([0,1,2,3,4],3); //$string '{value: 3,writable: true,enumerable: true,configurable: true,}'
+gopd([0,1,2,3,4],5); //$undefined
+
+o = {};
+o2 = {x:o};
+Object.getOwnPropertyDescriptor(o2,'x').value === o; //$boolean true
+
+Object.create ||  Object.defineProperty || Object.defineProperties || Object.seal ||
 Object.freeze || Object.preventExtensions || Object.isSealed || Object.isFrozen ||
 Object.isExtensible; //$undefined
 )");
+
+        // TODO: When implementing get/set remember to check getOwnPropertyDescriptor, etc.
     }
 }
 

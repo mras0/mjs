@@ -81,7 +81,7 @@ private:
 
     property_attribute do_own_property_attributes(const std::wstring_view& name) const override {
         if (const auto s = handle_array_like_access(name); !s.empty()) {
-            return property_attribute::none;
+            return property_attribute::read_only | property_attribute::dont_delete;
         }
         return native_object::do_own_property_attributes(name);
     }

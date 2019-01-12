@@ -52,13 +52,11 @@ global_object_create_result make_object_object(global_object& global) {
             return call_function(o->get(L"toString"), value{o}, {});
         }, 0);
         put_native_function(global, prototype, "hasOwnProperty", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
-            global->validate_object(this_);
-            const auto& o = this_.object_value();
+            auto o = global->validate_object(this_);
             return value{o->own_property_attributes(to_string(o.heap(), get_arg(args, 0)).view()) != property_attribute::invalid};
         }, 1);
         put_native_function(global, prototype, "propertyIsEnumerable", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
-            global->validate_object(this_);
-            const auto& o = this_.object_value();
+            auto o = global->validate_object(this_);
             const auto a = o->own_property_attributes(to_string(o.heap(), get_arg(args, 0)).view());
             return value{is_valid(a) && (a & property_attribute::dont_enum) == property_attribute::none};
         }, 1);
@@ -66,9 +64,8 @@ global_object_create_result make_object_object(global_object& global) {
 
     if (global.language_version() >= version::es5) {
         put_native_function(global, o, "getPrototypeOf", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
-            auto o = get_arg(args, 0);
-            global->validate_object(o);
-            return value{o.object_value()->prototype()};
+            auto o = global->validate_object(get_arg(args, 0));
+            return value{o->prototype()};
         }, 1);
 
         put_native_function(global, o, "getOwnPropertyNames", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
@@ -78,6 +75,27 @@ global_object_create_result make_object_object(global_object& global) {
         put_native_function(global, o, "keys", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
             return get_property_names(global, get_arg(args, 0), true);
         }, 1);
+
+        put_native_function(global, o, "getOwnPropertyDescriptor", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
+            auto o = global->validate_object(get_arg(args, 0));
+            auto& h = global.heap();
+            auto p = to_string(h, get_arg(args, 1));
+            const auto a = o->own_property_attributes(p.view());
+            if (!is_valid(a)) {
+                // Seems like we have to return undefined in ES5.1 (15.10.4)
+                return value::undefined;
+            }
+            auto desc = global->make_object();
+            if (has_attributes(a, property_attribute::accessor)) {
+                assert(!"Not implemented"); // See ES5.1, 8.10.4
+            } else {
+                desc->put(global->common_string("value"), o->get(p.view()));
+                desc->put(global->common_string("writable"), value{(a & property_attribute::read_only) == property_attribute::none});
+            }
+            desc->put(global->common_string("enumerable"), value{(a & property_attribute::dont_enum) == property_attribute::none});
+            desc->put(global->common_string("configurable"), value{(a & property_attribute::dont_delete) == property_attribute::none});
+            return value{desc};
+        }, 2);
     }
 
     return { o, prototype };
