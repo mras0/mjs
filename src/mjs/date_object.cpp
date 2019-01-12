@@ -222,6 +222,16 @@ struct date_helper {
         return string{global.heap(), woss.str()};
     }
 
+    static value to_json(const gc_heap_ptr<global_object>& global, const value& val) {
+        auto o = global->to_object(val);
+        auto tv = to_primitive(value{o}, value_type::number);
+        if (tv.type() == value_type::number && !std::isfinite(tv.number_value())) {
+            return value::null;
+        }
+        auto to_iso = o->get(L"toISOString");
+        return call_function(to_iso, value{o}, {});
+    }
+
     static double utc(double t) {
         // TODO: subtract local time adjustment
         return t;
@@ -467,6 +477,10 @@ create_result make_date_object(global_object& global) {
             check_type(this_);
             auto o = this_.object_value();
             return value{date_helper::to_iso_string(global, o->internal_value().number_value())};
+        }, 0);
+
+        put_native_function(global, prototype, "toJSON", [global = global.self_ptr()](const value& this_, const std::vector<value>&) {
+            return date_helper::to_json(global, this_);
         }, 0);
     }
 

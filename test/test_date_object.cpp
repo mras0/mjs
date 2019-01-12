@@ -99,6 +99,39 @@ invalid.toUTCString(); //$string 'Invalid Date'
 +d3; //$ number 946730096789
 )");
 
+    if (tested_version() < version::es3) {
+            RUN_TEST_SPEC(R"(
+        dp = Date.prototype; dp.toDateString||dp.toTimeString||dp.toLocaleDateString||dp.toLocaleTimeString;//$undefined
+        )");
+    } else {
+        RUN_TEST_SPEC(R"(
+d = new Date(1546632840054);
+d.toDateString(); //$string 'Fri Jan 04 2019'
+d.toLocaleDateString(); //$string 'Fri Jan 04 2019'
+d.toTimeString(); //$string '20:14:00'
+d.toLocaleTimeString(); //$string '20:14:00'
+
+invalid = new Date(NaN);
+invalid.toDateString();       //$string 'Invalid Date'
+invalid.toLocaleDateString(); //$string 'Invalid Date'
+invalid.toTimeString();       //$string 'Invalid Date'
+invalid.toLocaleTimeString(); //$string 'Invalid Date'
+
+// ES3, 15.9.5, 15.9.5.9, 15.9.5.27
+
+function e(func) { try { Date.prototype[func].call({}); } catch (e) { return e.toString(); } };
+e('toString'); //$string 'TypeError: Object is not a Date'
+e('getTime'); //$string 'TypeError: Object is not a Date'
+e('setTime'); //$string 'TypeError: Object is not a Date'
+e('toDateString'); //$string 'TypeError: Object is not a Date'
+e('getFullYear'); //$string 'TypeError: Object is not a Date'
+e('setDate'); //$string 'TypeError: Object is not a Date'
+
+)");
+
+    }
+
+
     if (tested_version() < version::es5) {
         RUN_TEST_SPEC(R"(
         Date.now||Date.prototype.toISOString||Date.prototype.toJSON; //$undefined
@@ -117,45 +150,29 @@ Date.parse('2019-01-11T18:56:42.712Z');  //$number 1547233002712
 Date.parse('2019-01-11T18:56:42.712Zz'); //$number NaN
 Date.parse(new Date(4343242362321).toISOString()); //$number 4343242362321
 Date.parse(new Date(1547239125092).toISOString()); //$number 1547239125092
+Date.parse(new Date(1547233002000).toISOString()); //$number 1547233002000
 
 n2 = Date.now();
 Date.parse(new Date(n2).toISOString()) === n2; //$boolean true
+
+new Date(NaN).toJSON();         //$null
+new Date(1231231).toJSON();     //$string '1970-01-01T00:20:31.231Z'
+
+function mkd(x) { this.x = x; }
+mkd.prototype.valueOf = function() { return this.x; }
+mkd.prototype.toISOString = function() { return new Date(this.x).toISOString(); }
+mkd.prototype.toJSON = Date.prototype.toJSON;
+
+new mkd(NaN).toJSON();          //$null
+try { new mkd('abc').toJSON(); } catch (e) { e.toString(); } //$string 'RangeError: Invalid Date'
+new mkd(1234).toJSON();         //$string '1970-01-01T00:00:01.234Z'
+new mkd(123456789876).toJSON(); //$string '1973-11-29T21:33:09.876Z'
         )");
 
-        // TODO: Date.prototype.toJSON
+        // TODO: FIXME: Needs ES5.1, 15.3.4.3 changes to work
+#if 0
+        try { Date.prototype.toJSON.call(undefined); } catch (e) { e.toString(); } //$string 'TypeError: Cannot convert undefined to object'
+        try { Date.prototype.toJSON.call(null); } catch (e) { e.toString(); } //$string 'TypeError: Cannot convert null to object'
+#endif
     }
-
-    if (tested_version() < version::es3) {
-            RUN_TEST_SPEC(R"(
-        dp = Date.prototype; dp.toDateString||dp.toTimeString||dp.toLocaleDateString||dp.toLocaleTimeString;//$undefined
-        )");
-            return;
-    }
-
-    RUN_TEST_SPEC(R"(
-d = new Date(1546632840054);
-d.toDateString(); //$string 'Fri Jan 04 2019'
-d.toLocaleDateString(); //$string 'Fri Jan 04 2019'
-d.toTimeString(); //$string '20:14:00'
-d.toLocaleTimeString(); //$string '20:14:00'
-
-invalid = new Date(NaN);
-invalid.toDateString();       //$string 'Invalid Date'
-invalid.toLocaleDateString(); //$string 'Invalid Date'
-invalid.toTimeString();       //$string 'Invalid Date'
-invalid.toLocaleTimeString(); //$string 'Invalid Date'
-)");
-
-    // ES3, 15.9.5, 15.9.5.9, 15.9.5.27
-    RUN_TEST_SPEC(R"(
-function e(func) { try { Date.prototype[func].call({}); } catch (e) { return e.toString(); } };
-e('toString'); //$string 'TypeError: Object is not a Date'
-e('getTime'); //$string 'TypeError: Object is not a Date'
-e('setTime'); //$string 'TypeError: Object is not a Date'
-e('toDateString'); //$string 'TypeError: Object is not a Date'
-e('getFullYear'); //$string 'TypeError: Object is not a Date'
-e('setDate'); //$string 'TypeError: Object is not a Date'
-
-
-)");
 }
