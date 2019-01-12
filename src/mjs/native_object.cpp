@@ -56,13 +56,13 @@ void native_object::do_add_native_property(const char* name, property_attribute 
     native_properties_.dereference(heap()).push_back(native_object_property(name, attributes, get, put));
 }
 
-void native_object::add_property_names(std::vector<string>& names) const {
+void native_object::add_own_property_names(std::vector<string>& names, bool check_enumerable) const {
     for (const auto& p: native_properties_.dereference(heap())) {
-        if (!p.has_attribute(property_attribute::dont_enum)) {
+        if (!check_enumerable || !p.has_attribute(property_attribute::dont_enum)) {
             names.emplace_back(heap(), p.name);
         }
     }
-    object::add_property_names(names);
+    object::add_own_property_names(names, check_enumerable);
 }
 
 native_object::native_object_property::native_object_property(const char* name, property_attribute attributes, get_func get, put_func put)

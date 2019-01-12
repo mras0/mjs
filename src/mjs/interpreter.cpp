@@ -894,7 +894,7 @@ public:
             }
             auto o = global_->to_object(ev);
             const auto& lhs_expression = static_cast<const expression_statement&>(s.init()).e();
-            for (const auto& n: o->property_names()) {
+            for (const auto& n: o->enumerable_property_names()) {
                 put_value(eval(lhs_expression), value{n});
                 c = eval(s.s());
                 if (handle_completion(c, ls)) {
@@ -920,7 +920,7 @@ public:
             }
             auto o = global_->to_object(ev);
 
-            for (const auto& n: o->property_names()) {
+            for (const auto& n: o->enumerable_property_names()) {
                 assign(value{n});
                 c = eval(s.s());
                 if (handle_completion(c, ls)) {

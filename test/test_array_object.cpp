@@ -45,9 +45,9 @@ a[2] = 42;
 a.length; //$number 3
 a[7] = 100;
 a.length; //$number 8
-var s = ''; for (var k in a) s += k + ','; s //$string 'false,2,7,'
+var s = ''; for (var k in a) s += k + ','; s //$string '2,7,false,'
 a.length=4;
-s = ''; for (var k in a) s += k + ','; s //$string 'false,2,'
+s = ''; for (var k in a) s += k + ','; s //$string '2,false,'
 delete a[2];
 a.length; //$number 4
 s = ''; for (var k in a) s += k + ','; s //$string 'false,'

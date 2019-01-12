@@ -1,9 +1,23 @@
 #include "object_object.h"
 #include "function_object.h"
+#include "array_object.h"
 
 namespace mjs {
 
 namespace {
+
+value get_property_names(const gc_heap_ptr<global_object>& global, const value& o, bool check_enumerable) {
+    global->validate_object(o);
+    const auto n = o.object_value()->own_property_names(check_enumerable);
+    const auto ns = static_cast<uint32_t>(n.size());
+    auto a = make_array(global, ns);
+    auto& h = global.heap();
+    for (uint32_t i = 0; i < ns; ++i) {
+        a->put(string{h,index_string(i)}, value{n[i]});
+    }
+    return value{a};
+}
+
 
 inline const value& get_arg(const std::vector<value>& args, int index) {
     return index < static_cast<int>(args.size()) ? args[index] : value::undefined;
@@ -51,8 +65,17 @@ global_object_create_result make_object_object(global_object& global) {
 
     if (global.language_version() >= version::es5) {
         put_native_function(global, o, "getPrototypeOf", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
-            auto o = global->to_object(get_arg(args, 0));
-            return value{o->prototype()};
+            auto o = get_arg(args, 0);
+            global->validate_object(o);
+            return value{o.object_value()->prototype()};
+        }, 1);
+
+        put_native_function(global, o, "getOwnPropertyNames", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
+            return get_property_names(global, get_arg(args, 0), false);
+        }, 1);
+
+        put_native_function(global, o, "keys", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
+            return get_property_names(global, get_arg(args, 0), true);
         }, 1);
     }
 

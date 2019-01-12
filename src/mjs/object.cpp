@@ -21,20 +21,26 @@ void object::fixup() {
     value_.fixup(heap_);
 }
 
-std::vector<string> object::property_names() const {
+std::vector<string> object::enumerable_property_names() const {
     std::vector<string> names;
-    add_property_names(names);
+    add_own_property_names(names, true);
+    if (prototype_) {
+        prototype_.dereference(heap()).add_own_property_names(names, true);
+    }
     return names;
 }
 
-void object::add_property_names(std::vector<string>& names) const {
+std::vector<string> object::own_property_names(bool check_enumerable) const {
+    std::vector<string> names;
+    add_own_property_names(names, check_enumerable);
+    return names;
+}
+
+void object::add_own_property_names(std::vector<string>& names, bool check_enumerable) const {
     for (auto& p : properties_.dereference(heap_)) { 
-        if (!p.has_attribute(property_attribute::dont_enum)) {
+        if (!check_enumerable || !p.has_attribute(property_attribute::dont_enum)) {
             names.push_back(p.key.track(heap_));
         }
-    }
-    if (prototype_) {
-        prototype_.dereference(heap()).add_property_names(names);
     }
 }
 

@@ -80,8 +80,7 @@ private:
         internal_value(value{val});
     }
 
-    void add_property_names(std::vector<string>& names) const override {
-        native_object::add_property_names(names);
+    void add_own_property_names(std::vector<string>& names, bool check_enumerable) const override {
         if (is_v5_or_later_) {
             const auto s = view();
             auto& h = heap();
@@ -89,6 +88,7 @@ private:
                 names.push_back(string{h, index_string(i)});
             }
         }
+        native_object::add_own_property_names(names, check_enumerable);
     }
 
 };

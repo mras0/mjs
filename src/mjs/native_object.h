@@ -94,7 +94,7 @@ protected:
         }, put);
     }
 
-    void add_property_names(std::vector<string>& names) const override;
+    void add_own_property_names(std::vector<string>& names, bool check_enumerable) const override;
 
     void update_property_attributes(const char* name, property_attribute attributes) {
         auto it = find(name);

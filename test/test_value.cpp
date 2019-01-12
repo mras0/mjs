@@ -48,7 +48,7 @@ void test_object() {
     gc_heap h{1<<8};
     {
         auto o = h.make<object>(string{h, "Object"}, nullptr);
-        REQUIRE_EQ(o->property_names(), (std::vector<string>{}));
+        REQUIRE_EQ(o->enumerable_property_names(), (std::vector<string>{}));
         const auto n = string{h,"test"};
         const auto n2 = string{h,"foo"};
         REQUIRE(!o->has_property(n.view()));
@@ -62,7 +62,7 @@ void test_object() {
         REQUIRE(!o->can_put(n2.view()));
         REQUIRE_EQ(o->get(n.view()), value{42.0});
         REQUIRE_EQ(o->get(n2.view()), value{n2});
-        REQUIRE_EQ(o->property_names(), (std::vector<string>{n}));
+        REQUIRE_EQ(o->enumerable_property_names(), (std::vector<string>{n}));
         o->put(n, value{n});
         REQUIRE_EQ(o->get(n.view()), value{n});
         REQUIRE(o->delete_property(n.view()));
@@ -73,7 +73,7 @@ void test_object() {
         REQUIRE(!o->delete_property(n2.view()));
         REQUIRE(o->has_property(n2.view()));
         REQUIRE_EQ(o->get(n2.view()), value{n2});
-        REQUIRE_EQ(o->property_names(), (std::vector<string>{}));
+        REQUIRE_EQ(o->enumerable_property_names(), (std::vector<string>{}));
     }
 
     h.garbage_collect();

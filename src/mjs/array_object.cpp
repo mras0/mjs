@@ -139,8 +139,7 @@ private:
         native_object::fixup();
     }
 
-    void add_property_names(std::vector<string>& names) const override {
-        native_object::add_property_names(names);
+    void add_own_property_names(std::vector<string>& names, bool check_enumerable) const override {
         if (length_) {
             auto& h = heap();
             const auto pm = present_mask_.dereference(h).data();
@@ -150,6 +149,7 @@ private:
                 }
             }
         }
+        native_object::add_own_property_names(names, check_enumerable);
     }
 
     void do_debug_print_extra(std::wostream& os, int indent_incr, int max_nest, int indent) const override {
