@@ -7,6 +7,7 @@
 #include "function_object.h"
 #include "regexp_object.h"
 #include "error_object.h"
+#include "boolean_object.h"
 #include "string_object.h"
 #include "number_object.h"
 #include "date_object.h"
@@ -26,46 +27,6 @@ namespace {
 
 inline const value& get_arg(const std::vector<value>& args, int index) {
     return index < static_cast<int>(args.size()) ? args[index] : value::undefined;
-}
-
-//
-// Boolean
-//
-
-object_ptr new_boolean(const object_ptr& prototype, bool val) {
-    auto o = prototype.heap().make<object>(prototype->class_name(), prototype);
-    o->internal_value(value{val});
-    return o;
-}
-
-global_object_create_result make_boolean_object(global_object& global) {
-    auto& h = global.heap();
-    auto bool_str = global.common_string("Boolean");
-    auto prototype = h.make<object>(bool_str, global.object_prototype());
-    prototype->internal_value(value{false});
-
-    auto c = make_function(global, [](const value&, const std::vector<value>& args) {
-        return value{!args.empty() && to_boolean(args.front())};
-    },  bool_str.unsafe_raw_get(), 1);
-    make_constructable(global, c, [prototype](const value&, const std::vector<value>& args) {
-        return value{new_boolean(prototype, !args.empty() && to_boolean(args.front()))};
-    });
-
-    auto check_type = [global = global.self_ptr(), prototype](const value& this_) {
-        global->validate_type(this_, prototype, "Boolean");
-    };
-
-    put_native_function(global, prototype, global.common_string("toString"), [check_type](const value& this_, const std::vector<value>&){
-        check_type(this_);
-        return value{string{this_.object_value().heap(), this_.object_value()->internal_value().boolean_value() ? L"true" : L"false"}};
-    }, 0);
-
-    put_native_function(global, prototype, global.common_string("valueOf"), [check_type](const value& this_, const std::vector<value>&){
-        check_type(this_);
-        return this_.object_value()->internal_value();
-    }, 0);
-
-    return { c, prototype };
 }
 
 double parse_int(std::wstring_view s, int radix, version ver) {

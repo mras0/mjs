@@ -43,6 +43,8 @@ target_link_libraries(mjs_value mjs_core mjs_gc)
 add_library(mjs_global STATIC
     mjs/array_object.cpp
     mjs/array_object.h
+    mjs/boolean_object.cpp
+    mjs/boolean_object.h
     mjs/date_object.cpp
     mjs/date_object.h
     mjs/error_object.cpp

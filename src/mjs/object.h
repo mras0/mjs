@@ -35,10 +35,6 @@ public:
     // property; it is used internally to distinguish different kinds of built-in objects
     string class_name() const { return class_.track(heap_); }
 
-    // [[Value]] ()
-    value internal_value() const { return value_.get_value(heap_); }
-    void internal_value(const value& v) { value_ = value_representation{v}; }
-
     // [[Get]] (PropertyName)
     virtual value get(const std::wstring_view& name) const {
         auto it = deep_find(name).first;
@@ -111,7 +107,6 @@ private:
     gc_heap_ptr_untracked<gc_string>           class_;
     gc_heap_ptr_untracked<object>              prototype_;
     gc_heap_ptr_untracked<gc_vector<property>> properties_;
-    value_representation                       value_;
 
     std::pair<property*, gc_vector<property>*> find(const std::wstring_view& key) const {
         auto& props = properties_.dereference(heap_);

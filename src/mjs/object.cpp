@@ -9,8 +9,7 @@ object::object(const string& class_name, const object_ptr& prototype)
     : heap_(class_name.heap()) // A class will always have a class_name - grab heap from that
     , class_(class_name.unsafe_raw_get())
     , prototype_(prototype)
-    , properties_(gc_vector<property>::make(heap_, 32))
-    , value_(value::undefined) {
+    , properties_(gc_vector<property>::make(heap_, 32)) {
 }
 
 
@@ -18,7 +17,6 @@ void object::fixup() {
     class_.fixup(heap_);
     prototype_.fixup(heap_);
     properties_.fixup(heap_);
-    value_.fixup(heap_);
 }
 
 std::vector<string> object::enumerable_property_names() const {
@@ -58,10 +56,6 @@ void object::debug_print(std::wostream& os, int indent_incr, int max_nest, int i
     os << "{\n";
     print_prop("[[Class]]", class_name(), true);
     print_prop("[[Prototype]]", prototype_ ? value{prototype_.track(heap())} : value::null, true);
-    auto val = internal_value();
-    if (val.type() != value_type::undefined) {
-        print_prop("[[Value]]", val, true);
-    }
     for (auto& p: properties_.dereference(heap_)) {
         const auto key = p.key.dereference(heap_).view();
         print_prop(key, p.value.get_value(heap_), key == L"constructor");

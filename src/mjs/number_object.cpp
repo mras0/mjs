@@ -15,21 +15,37 @@ int get_int_arg(const std::vector<value>& args) {
 
 } // unnamed namespace
 
+class number_object : public object {
+public:
+    friend gc_type_info_registration<number_object>;
+
+    double number_value() const {
+        return value_;
+    }
+
+private:
+    double value_;
+
+    explicit number_object(const string& class_name, const object_ptr& prototype, double val) : object{class_name, prototype}, value_{val} {
+    }
+
+    void do_debug_print_extra(std::wostream& os, int, int, int indent) const override {
+        os << std::wstring(indent, ' ') << "[[Value]]: " << number_to_string(value_) << "\n";
+    }
+};
+
 object_ptr new_number(const object_ptr& prototype,  double val) {
-    auto o = prototype.heap().make<object>(prototype->class_name(), prototype);
-    o->internal_value(value{val});
+    auto o = prototype.heap().make<number_object>(prototype->class_name(), prototype, val);
     return o;
 }
 
 global_object_create_result make_number_object(global_object& global) {
     auto& h = global.heap();
-    auto Number_str_ = global.common_string("Number");
-    auto prototype = h.make<object>(Number_str_, global.object_prototype());
-    prototype->internal_value(value{0.});
+    auto prototype = h.make<number_object>(string{h, "Number"}, global.object_prototype(), 0.);
 
     auto c = make_function(global, [](const value&, const std::vector<value>& args) {
         return value{args.empty() ? 0.0 : to_number(args.front())};
-    }, Number_str_.unsafe_raw_get(), 1);
+    }, prototype->class_name().unsafe_raw_get(), 1);
     make_constructable(global, c, [prototype](const value&, const std::vector<value>& args) {
         return value{new_number(prototype, args.empty() ? 0.0 : to_number(args.front()))};
     });
@@ -43,7 +59,7 @@ global_object_create_result make_number_object(global_object& global) {
     auto make_number_function = [&](const char* name, int num_args, auto f) {
         put_native_function(global, prototype, string{h, name}, [prototype, global = global.self_ptr(), f](const value& this_, const std::vector<value>& args){
             global->validate_type(this_, prototype, "Number");
-            return value{f(this_.object_value()->internal_value().number_value(), args)};
+            return value{f(static_cast<const number_object&>(*this_.object_value()).number_value(), args)};
         }, num_args);
     };
 

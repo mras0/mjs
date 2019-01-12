@@ -51,8 +51,13 @@ public:
         return native_object::check_own_property_attribute(name, mask, expected);
     }
 
+    string string_value() const {
+        return value_.track(heap());
+    }
+
 private:
     friend gc_type_info_registration<string_object>;
+    gc_heap_ptr_untracked<gc_string> value_;
     bool is_v5_or_later_;
 
     std::wstring_view handle_array_like_access(const std::wstring_view property_name) const {
@@ -68,16 +73,24 @@ private:
     }
 
     std::wstring_view view() const {
-        return internal_value().string_value().view();
+        return value_.dereference(heap()).view();
     }
 
     value get_length() const {
         return value{static_cast<double>(view().length())};
     }
 
-    explicit string_object(const object_ptr& prototype, const string& val, bool is_v5_or_later) : native_object(prototype->class_name(), prototype), is_v5_or_later_(is_v5_or_later) {
+    explicit string_object(const string& class_name, const object_ptr& prototype, const string& val, bool is_v5_or_later)
+        : native_object{class_name, prototype}
+        , value_{val.unsafe_raw_get()}
+        , is_v5_or_later_{is_v5_or_later} {
         DEFINE_NATIVE_PROPERTY_READONLY(string_object, length);
-        internal_value(value{val});
+    }
+
+    void fixup() {
+        auto& h = heap();
+        value_.fixup(h);
+        native_object::fixup();
     }
 
     void add_own_property_names(std::vector<string>& names, bool check_enumerable) const override {
@@ -91,17 +104,18 @@ private:
         native_object::add_own_property_names(names, check_enumerable);
     }
 
+    void do_debug_print_extra(std::wostream& os, int, int, int indent) const override {
+        os << std::wstring(indent, ' ') << "[[Value]]: \"" << cpp_quote(view()) << "\"\n";
+    }
 };
 
 global_object_create_result make_string_object(global_object& global) {
     auto& h = global.heap();
-    auto String_str_ = global.common_string("String");
-    auto prototype = h.make<object>(String_str_, global.object_prototype());
-    prototype->internal_value(value{string{h, ""}});
+    auto prototype = h.make<string_object>(string{h, "String"}, global.object_prototype(), string{h, ""}, global.language_version() >= version::es5);
 
     auto c = make_function(global, [&h](const value&, const std::vector<value>& args) {
         return value{args.empty() ? string{h, ""} : to_string(h, args.front())};
-    }, String_str_.unsafe_raw_get(), 1);
+    }, prototype->class_name().unsafe_raw_get(), 1);
     make_constructable(global, c, [global = global.self_ptr()](const value&, const std::vector<value>& args) {
         auto& h = global.heap();
         return value{new_string(global, args.empty() ? string{h, ""} : to_string(h, args.front()))};
@@ -121,11 +135,11 @@ global_object_create_result make_string_object(global_object& global) {
 
     put_native_function(global, prototype, global.common_string("toString"), [check_type](const value& this_, const std::vector<value>&){
         check_type(this_);
-        return this_.object_value()->internal_value();
+        return value{static_cast<const string_object&>(*this_.object_value()).string_value()};
     }, 0);
     put_native_function(global, prototype, global.common_string("valueOf"), [check_type](const value& this_, const std::vector<value>&){
         check_type(this_);
-        return this_.object_value()->internal_value();
+        return value{static_cast<const string_object&>(*this_.object_value()).string_value()};
     }, 0);
 
 
@@ -281,7 +295,8 @@ global_object_create_result make_string_object(global_object& global) {
 }
 
 object_ptr new_string(const gc_heap_ptr<global_object>& global, const string& val) {
-    return global.heap().make<string_object>(global->string_prototype(), val, global->language_version() >= version::es5);
+    auto proto = global->string_prototype();
+    return global.heap().make<string_object>(proto->class_name(), proto, val, global->language_version() >= version::es5);
 }
 
 std::wstring_view ltrim(std::wstring_view s, version ver) {
