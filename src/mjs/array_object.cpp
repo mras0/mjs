@@ -372,7 +372,7 @@ value array_splice(const gc_heap_ptr<global_object>& global, const object_ptr& o
 
 } // unnamed namespace
 
-create_result make_array_object(global_object& global) {
+global_object_create_result make_array_object(global_object& global) {
     auto Array_str_ = global.common_string("Array");
     auto prototype = array_object::make(global.self_ptr(), Array_str_, global.object_prototype(), 0);
 

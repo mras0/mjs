@@ -277,7 +277,7 @@ private:
 // Date
 //
 
-create_result make_date_object(global_object& global) {
+global_object_create_result make_date_object(global_object& global) {
     auto& h = global.heap();
     auto Date_str_ = global.common_string("Date");
 

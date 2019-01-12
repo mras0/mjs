@@ -5,8 +5,7 @@
 
 namespace mjs {
 
-void add_object_prototype_functions(global_object& global, const object_ptr& prototype);
-create_result make_object_object(global_object& global);
+global_object_create_result make_object_object(global_object& global);
 
 } // namespace mjs
 

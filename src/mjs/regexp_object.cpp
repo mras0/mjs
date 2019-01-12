@@ -200,7 +200,7 @@ gc_heap_ptr<regexp_object> check_type(const gc_heap_ptr<global_object>& global, 
 
 } // unnamed namespace
 
-create_result make_regexp_object(global_object& global) {
+global_object_create_result make_regexp_object(global_object& global) {
     // In ES5+ the prototype object is a RegExp object
     auto prototype = global.language_version() < version::es5 ? global.make_object() : global.heap().make<regexp_object>(global.self_ptr(), global.object_prototype(), string{global.heap(), empty_string_regexp}, regexp_flag::none);
     auto regexp_str = global.common_string("RegExp");

@@ -88,7 +88,7 @@ private:
 };
 
 gc_heap_ptr<function_object> make_raw_function(global_object& global);
-create_result make_function_object(global_object& global);
+global_object_create_result make_function_object(global_object& global);
 
 template<typename F>
 gc_heap_ptr<function_object> make_function(global_object& global, const F& f, const gc_heap_ptr<gc_string>& name, int named_args) {

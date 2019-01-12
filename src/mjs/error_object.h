@@ -9,7 +9,7 @@ enum class native_error_type {
     generic, eval, range, reference, syntax, type, uri, assertion
 };
 
-create_result make_error_object(global_object& global);
+global_object_create_result make_error_object(global_object& global);
 
 class eval_exception : public std::runtime_error {
 public:

@@ -68,8 +68,7 @@ private:
 extern std::wstring index_string(uint32_t index);
 extern bool is_global_object(const object_ptr& o);
 
-// TODO: Need better name
-struct create_result {
+struct global_object_create_result {
     object_ptr obj;
     object_ptr prototype;
 };

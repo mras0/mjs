@@ -38,7 +38,7 @@ object_ptr new_boolean(const object_ptr& prototype, bool val) {
     return o;
 }
 
-create_result make_boolean_object(global_object& global) {
+global_object_create_result make_boolean_object(global_object& global) {
     auto& h = global.heap();
     auto bool_str = global.common_string("Boolean");
     auto prototype = h.make<object>(bool_str, global.object_prototype());
@@ -327,7 +327,7 @@ auto show_duration(Duration d) {
 // Math
 //
 
-create_result make_math_object(global_object& global) {
+global_object_create_result make_math_object(global_object& global) {
     auto& h = global.heap();
     auto math = global.make_object();
 
@@ -396,7 +396,7 @@ create_result make_math_object(global_object& global) {
 // Console
 //
 
-create_result make_console_object(global_object& global) {
+global_object_create_result make_console_object(global_object& global) {
     auto& h = global.heap();
     auto console = global.make_object();
 
@@ -641,10 +641,8 @@ private:
     //
     void popuplate_global() {
         // The object and function prototypes are special
-        auto obj_proto = heap().make<object>(common_string("Object"), nullptr);
-        object_prototype_   = obj_proto;
-        function_prototype_ = static_cast<object_ptr>(heap().make<function_object>(common_string("Function"), obj_proto));
-
+        object_prototype_   = prototype(); // This way the global object will have the same functions as a normal object
+        function_prototype_ = static_cast<object_ptr>(heap().make<function_object>(common_string("Function"), object_prototype()));
          
         auto add = [&](const char* name, auto create_func, gc_heap_ptr_untracked<object>* prototype = nullptr) {
             auto res = create_func(*this);
@@ -734,15 +732,13 @@ private:
 
         // Add this class as the global object
         put(common_string("global"), value{self}, property_attribute::dont_delete | property_attribute::read_only);
-        // Give it the same properties as a normal object
-        add_object_prototype_functions(*this, self);
     }
 
     string common_string(const char* str) override {
         return string_cache_.get(heap(), str);
     }
 
-    explicit global_object_impl(gc_heap& h, version ver) : global_object(string{h, "Global"}, object_ptr{}), string_cache_(h, 16) {
+    explicit global_object_impl(gc_heap& h, version ver) : global_object(string{h, "Global"}, h.make<object>(string{h, "Object"}, nullptr)), string_cache_(h, 16) {
         version_ = ver;
     }
 

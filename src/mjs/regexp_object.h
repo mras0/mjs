@@ -7,7 +7,7 @@ namespace mjs {
 
 class regexp;
 
-create_result make_regexp_object(global_object& global);
+global_object_create_result make_regexp_object(global_object& global);
 
 object_ptr make_regexp(const gc_heap_ptr<global_object>& global, const regexp& re);
 

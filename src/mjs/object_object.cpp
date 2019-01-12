@@ -11,9 +11,19 @@ inline const value& get_arg(const std::vector<value>& args, int index) {
 
 } // unnamed namespace
 
-// TODO: This is a bit of a hacky way to get the global object to have the same behavior as a normal object.
-//       Could probably share the functions..
-void add_object_prototype_functions(global_object& global, const object_ptr& prototype) {
+global_object_create_result make_object_object(global_object& global) {
+    auto prototype = global.object_prototype();
+    auto o = make_function(global, [global = global.self_ptr()](const value&, const std::vector<value>& args) {
+        if (args.empty() || args.front().type() == value_type::undefined || args.front().type() == value_type::null) {
+            return value{global->make_object()};
+        }
+        return value{global->to_object(args.front())};
+    }, prototype->class_name().unsafe_raw_get(), 1);
+    o->default_construct_function();
+
+    // §15.2.4
+    prototype->put(global.common_string("constructor"), value{o}, global_object::default_attributes);
+
     auto& h = global.heap();
     put_native_function(global, prototype, "toString", [&h](const value& this_, const std::vector<value>&){
         return value{string{h, "[object "} + this_.object_value()->class_name() + string{h, "]"}};
@@ -38,22 +48,6 @@ void add_object_prototype_functions(global_object& global, const object_ptr& pro
             return value{o->check_own_property_attribute(to_string(o.heap(), get_arg(args, 0)).view(), property_attribute::dont_enum, property_attribute::none)};
         }, 1);
     }
-}
-
-create_result make_object_object(global_object& global) {
-    auto prototype = global.object_prototype();
-    auto o = make_function(global, [global = global.self_ptr()](const value&, const std::vector<value>& args) {
-        if (args.empty() || args.front().type() == value_type::undefined || args.front().type() == value_type::null) {
-            return value{global->make_object()};
-        }
-        return value{global->to_object(args.front())};
-    }, prototype->class_name().unsafe_raw_get(), 1);
-    o->default_construct_function();
-
-    // §15.2.4
-    prototype->put(global.common_string("constructor"), value{o}, global_object::default_attributes);
-
-    add_object_prototype_functions(global, prototype);
 
     return { o, prototype };
 }

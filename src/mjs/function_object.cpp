@@ -63,7 +63,7 @@ static value get_this_arg(const gc_heap_ptr<global_object>& global, const std::v
     }
 }
 
-create_result make_function_object(global_object& global) {
+global_object_create_result make_function_object(global_object& global) {
     auto prototype = global.function_prototype();
 
     // §15.3.4

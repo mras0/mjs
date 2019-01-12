@@ -92,7 +92,7 @@ constexpr auto message_attributes = property_attribute::dont_delete | property_a
 } // unnamed namespace
 
 
-create_result make_error_object(global_object& global) {
+global_object_create_result make_error_object(global_object& global) {
     auto prototype = global.heap().make<error_object>(native_error_type::generic, global.common_string("Error"), global.object_prototype(), string{global.heap(), ""});
 
     gc_heap_ptr<function_object> error_constructor;

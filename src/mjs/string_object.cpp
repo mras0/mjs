@@ -93,7 +93,7 @@ private:
 
 };
 
-create_result make_string_object(global_object& global) {
+global_object_create_result make_string_object(global_object& global) {
     auto& h = global.heap();
     auto String_str_ = global.common_string("String");
     auto prototype = h.make<object>(String_str_, global.object_prototype());
