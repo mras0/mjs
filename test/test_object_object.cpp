@@ -21,10 +21,8 @@ o.valueOf() == o; //$boolean true
         RUN_TEST_SPEC(R"(
         op=Object.prototype; op.toLocaleString||op.hasOwnProperty||op.propertyIsEnumerable;//$undefined
         )");
-        return;
-    }
-
-    RUN_TEST_SPEC(R"(
+    } else {
+        RUN_TEST_SPEC(R"(
 Object.prototype.toLocaleString.length; //$number 0
 Object.prototype.toLocaleString.call(new Number(42)); //$string '42'
 Object.prototype.toLocaleString.call(new String('test')); //$string 'test'
@@ -69,5 +67,36 @@ try { (undefined).toString(); } catch (e) { e.toString(); } //$string 'TypeError
 try { (null).toString(); } catch (e) { e.toString(); } //$string 'TypeError: Cannot convert null to object'
 
 )");
+    }
+
+    //
+    // ES5
+    //
+
+    if (tested_version() < version::es5) {
+        RUN_TEST_SPEC(R"(
+Object.getPrototypeOf || Object.getOwnPrObjectertyDescriptor || Object.getOwnPrObjectertyNames ||
+Object.create ||  Object.definePrObjecterty || Object.definePrObjecterties || Object.seal ||
+Object.freeze || Object.preventExtensions || Object.isSealed || Object.isFrozen ||
+Object.isExtensible || Object.keys; //$undefined
+        )");
+    } else {
+
+        RUN_TEST_SPEC(R"(
+Object.getPrototypeOf.length; //$number 1
+try { Object.getPrototypeOf(); } catch (e) { e.toString(); } //$string 'TypeError: Cannot convert undefined to object'
+try { Object.getPrototypeOf(undefined); } catch (e) { e.toString(); } //$string 'TypeError: Cannot convert undefined to object'
+try { Object.getPrototypeOf(null); } catch (e) { e.toString(); } //$string 'TypeError: Cannot convert null to object'
+Object.getPrototypeOf(42) === Number.prototype; //$boolean true
+Object.getPrototypeOf('x') === Number.prototype; //$boolean false
+Object.getPrototypeOf('x') === String.prototype; //$boolean true
+Object.getPrototypeOf({}) === Object.prototype; //$boolean true
+
+Object.getOwnPrObjectertyDescriptor || Object.getOwnPrObjectertyNames ||
+Object.create ||  Object.definePrObjecterty || Object.definePrObjecterties || Object.seal ||
+Object.freeze || Object.preventExtensions || Object.isSealed || Object.isFrozen ||
+Object.isExtensible || Object.keys; //$undefined
+)");
+    }
 }
 

@@ -7,7 +7,6 @@ Annex D, E and F contain lists of the necessary changes.
 - `get` / `set`
 - Annex E: 15.3.4.3,4: Change in handling of `null`/`undefined` when passed to `apply/call` (Note: most e.g. Object.prototype functions have been changed to call `ToObject` on the this argument)
 - Annex E: 15.12: `JSON` object
-- Object.getPrototypeOf
 - Object.getOwnPropertyDescriptor
 - Object.getOwnPropertyNames
 - Object.create
@@ -59,6 +58,7 @@ Annex D, E and F contain lists of the necessary changes.
 - Date.prototype.toISOString
 - Annex E: 15.9.4.2: `Date.parse` should attempt to parse as ISO format string
 - Date.prototype.toJSON
+- Object.getPrototypeOf
 
 ## Notes:
 - 7.1 Form Control Characters changed from ES1 -> ES3 -> ES5

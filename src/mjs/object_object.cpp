@@ -49,6 +49,13 @@ global_object_create_result make_object_object(global_object& global) {
         }, 1);
     }
 
+    if (global.language_version() >= version::es5) {
+        put_native_function(global, o, "getPrototypeOf", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
+            auto o = global->to_object(get_arg(args, 0));
+            return value{o->prototype()};
+        }, 1);
+    }
+
     return { o, prototype };
 }
 
