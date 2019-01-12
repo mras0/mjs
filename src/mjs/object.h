@@ -38,7 +38,7 @@ public:
     // [[Get]] (PropertyName)
     virtual value get(const std::wstring_view& name) const {
         auto it = deep_find(name).first;
-        return it ? it->value.get_value(heap_) : value::undefined;
+        return it ? it->get(heap_) : value::undefined;
     }
 
     // [[Put]] (PropertyName, Value)
@@ -47,7 +47,7 @@ public:
     // [[CanPut]] (PropertyName)
     virtual bool can_put(const std::wstring_view& name) const {
         auto it = deep_find(name).first;
-        return it ? !it->has_attribute(property_attribute::read_only) : true;
+        return it ? !has_attributes(it->attributes(), property_attribute::read_only) : true;
     }
 
     // [[HasProperty]] (PropertyName)
@@ -83,21 +83,35 @@ protected:
     }
 
 private:
-    struct property {
-        gc_heap_ptr_untracked<gc_string> key;
-        property_attribute               attributes;
-        value_representation             value;
-
-        explicit property(const string& key, const mjs::value& v, property_attribute attr) : key(key.unsafe_raw_get()), attributes(attr), value(v) {}
-
-        void fixup(gc_heap& h) {
-            key.fixup(h);
-            value.fixup(h);
+    class property {
+    public:
+        explicit property(const string& key, const mjs::value& v, property_attribute attr)
+            : key_{key.unsafe_raw_get()}
+            , attributes_{attr}
+            , value_{v} {
         }
 
-        bool has_attribute(property_attribute a) const {
-            return (attributes & a) == a;
-        }
+        void fixup(gc_heap& h);
+        bool is_accessor() const { return has_attributes(attributes_, property_attribute::accessor); }
+        property_attribute attributes() const { return attributes_; }
+        string key(gc_heap& h) const { return key_.track(h); }
+
+        value get(gc_heap& h) const;
+        void put(const value& val);
+
+        bool key_matches(gc_heap& h, const std::wstring_view k) { return key_.dereference(h).view() == k; }
+
+    private:
+        gc_heap_ptr_untracked<gc_string>    key_;
+        property_attribute                  attributes_;
+        struct accessor {
+            value_representation get;
+            value_representation set;
+        };
+        union {
+            value_representation            value_;
+            accessor                        accessor_;
+        };
     };
 
     gc_heap&                                   heap_;
@@ -105,10 +119,10 @@ private:
     gc_heap_ptr_untracked<object>              prototype_;
     gc_heap_ptr_untracked<gc_vector<property>> properties_;
 
-    std::pair<property*, gc_vector<property>*> find(const std::wstring_view& key) const {
+    std::pair<property*, gc_vector<property>*> find(const std::wstring_view key) const {
         auto& props = properties_.dereference(heap_);
         for (auto& p: props) {
-            if (p.key.dereference(heap_).view() == key) {
+            if (p.key_matches(heap_, key)) {
                 return { &p, &props };
             }
         }

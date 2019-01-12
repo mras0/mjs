@@ -9,7 +9,7 @@ object::object(const string& class_name, const object_ptr& prototype)
     : heap_(class_name.heap()) // A class will always have a class_name - grab heap from that
     , class_(class_name.unsafe_raw_get())
     , prototype_(prototype)
-    , properties_(gc_vector<property>::make(heap_, 32)) {
+    , properties_(gc_vector<property>::make(heap_, 4)) {
 }
 
 
@@ -43,15 +43,15 @@ std::vector<string> object::own_property_names(bool check_enumerable) const {
 
 property_attribute object::do_own_property_attributes(const std::wstring_view& name) const {
     if (auto it = find(name).first; it) {
-        return it->attributes;
+        return it->attributes();
     }
     return property_attribute::invalid;
 }
 
 void object::add_own_property_names(std::vector<string>& names, bool check_enumerable) const {
     for (auto& p : properties_.dereference(heap_)) { 
-        if (!check_enumerable || !p.has_attribute(property_attribute::dont_enum)) {
-            names.push_back(p.key.track(heap_));
+        if (!check_enumerable || !has_attributes(p.attributes(), property_attribute::dont_enum)) {
+            names.push_back(p.key(heap_));
         }
     }
 }
@@ -71,8 +71,8 @@ void object::debug_print(std::wostream& os, int indent_incr, int max_nest, int i
     print_prop("[[Class]]", class_name(), true);
     print_prop("[[Prototype]]", prototype_ ? value{prototype_.track(heap())} : value::null, true);
     for (auto& p: properties_.dereference(heap_)) {
-        const auto key = p.key.dereference(heap_).view();
-        print_prop(key, p.value.get_value(heap_), key == L"constructor");
+        const auto key = p.key(heap_).view();
+        print_prop(key, p.get(heap_), key == L"constructor");
     }
     do_debug_print_extra(os, indent_incr, max_nest, indent+indent_incr);
     os << std::wstring(indent, ' ') << "}";
@@ -83,13 +83,13 @@ void object::put(const string& name, const value& val, property_attribute attr) 
     auto& props = properties_.dereference(heap_);
     if (auto [it, pp] = deep_find(name.view()); it) {
         // CanPut?
-        if (it->has_attribute(property_attribute::read_only)) {
+        if (has_attributes(it->attributes(), property_attribute::read_only)) {
             return;
         }
         // Did the property come from this object's property list?
         if (pp == &props) {
             // Yes, update
-            it->value = value_representation{val};
+            it->put(val);
             return;
         }
         // Handle as insertion
@@ -103,11 +103,33 @@ bool object::delete_property(const std::wstring_view& name) {
         return true;
 
     }
-    if (it->has_attribute(property_attribute::dont_delete)) {
+    if (has_attributes(it->attributes(), property_attribute::dont_delete)) {
         return false;
     }
     props->erase(it);
     return true;
 }
+
+void object::property::fixup(gc_heap& h) {
+    key_.fixup(h);
+    if (is_accessor()) {
+        accessor_.get.fixup(h);
+        accessor_.set.fixup(h);
+    } else {
+        value_.fixup(h);
+    }
+}
+
+value object::property::get(gc_heap& h) const {
+    assert(!is_accessor());
+    return value_.get_value(h);
+}
+
+void object::property::put(const value& val) {
+    assert(!is_accessor());
+    value_ = value_representation{val};
+}
+
+
 
 } // namespace mjs

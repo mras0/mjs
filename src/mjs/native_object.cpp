@@ -15,7 +15,7 @@ void native_object::fixup() {
 
 bool native_object::delete_property(const std::wstring_view& name) {
     if (auto it = find(name)) {
-        if (it->has_attribute(property_attribute::dont_delete)) {
+        if (has_attributes(it->attributes, property_attribute::dont_delete)) {
             return false;
         }
         native_properties_.dereference(heap()).erase(it);
@@ -58,7 +58,7 @@ void native_object::do_add_native_property(const char* name, property_attribute 
 
 void native_object::add_own_property_names(std::vector<string>& names, bool check_enumerable) const {
     for (const auto& p: native_properties_.dereference(heap())) {
-        if (!check_enumerable || !p.has_attribute(property_attribute::dont_enum)) {
+        if (!check_enumerable || !has_attributes(p.attributes, property_attribute::dont_enum)) {
             names.emplace_back(heap(), p.name);
         }
     }

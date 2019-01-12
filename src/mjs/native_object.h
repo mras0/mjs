@@ -25,7 +25,7 @@ public:
 
     bool can_put(const std::wstring_view& name) const override {
         if (auto it = find(name)) {
-            return !it->has_attribute(property_attribute::read_only);
+            return !has_attributes(it->attributes, property_attribute::read_only);
         }
         return object::can_put(name);
     }
@@ -41,8 +41,6 @@ private:
         property_attribute attributes;
         get_func           get;
         put_func           put;
-
-        bool has_attribute(property_attribute a) const { return (attributes & a) == a; }
 
         native_object_property(const char* name, property_attribute attributes, get_func get, put_func put);
     };
@@ -91,7 +89,7 @@ protected:
 
     bool do_native_put(const string& name, const value& val) {
         if (auto it = find(name.view())) {
-            if (!it->has_attribute(property_attribute::read_only)) {
+            if (!has_attributes(it->attributes, property_attribute::read_only)) {
                 it->put(*this, val);
             }
             return true;
