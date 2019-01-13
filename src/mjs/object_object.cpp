@@ -169,6 +169,28 @@ void define_own_property_checked(const gc_heap_ptr<global_object>& global, const
     throw native_error_exception{native_error_type::type, global->stack_trace(), woss.str()};
 }
 
+bool is_sealed(const object_ptr& o) {
+    if (o->is_extensible()) {
+        return false;
+    }
+    for (const auto& p : o->own_property_names(false)) {
+        if (!has_attributes(o->own_property_attributes(p.view()), property_attribute::dont_delete)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void seal(const object_ptr& o) {
+    for (const auto& p : o->own_property_names(false)) {
+        const auto attrs = o->own_property_attributes(p.view());
+        if (!has_attributes(attrs, property_attribute::dont_delete)) {
+            o->redefine_own_property(p, o->get(p.view()), attrs | property_attribute::dont_delete);
+        }
+    }
+    o->prevent_extensions();
+}
+
 } // unnamed namespace
 
 global_object_create_result make_object_object(global_object& global) {
@@ -267,6 +289,16 @@ global_object_create_result make_object_object(global_object& global) {
         put_native_function(global, o, "preventExtensions", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
             auto o = global->validate_object(get_arg(args, 0));
             o->prevent_extensions();
+            return value{o};
+        }, 1);
+
+        put_native_function(global, o, "isSealed", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
+            return value{is_sealed(global->validate_object(get_arg(args, 0)))};
+        }, 1);
+
+        put_native_function(global, o, "seal", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
+            auto o = global->validate_object(get_arg(args, 0));
+            seal(o);
             return value{o};
         }, 1);
     }

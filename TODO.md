@@ -50,6 +50,7 @@
 * REPL
     - Add tests
     - Add support for specifying the wanted ECMAScript version as a commandline argument
+    - Fix use of var (need to hoist variables)
 * Create example(s)
     - Embedding mjs (I.e. adding user-defined classes)
 * Make `string` easier to use - without going back to having a static `local_heap`
