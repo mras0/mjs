@@ -169,23 +169,23 @@ void define_own_property_checked(const gc_heap_ptr<global_object>& global, const
     throw native_error_exception{native_error_type::type, global->stack_trace(), woss.str()};
 }
 
-bool is_sealed(const object_ptr& o) {
+bool check_for_immutability(const object_ptr& o, property_attribute attr) {
     if (o->is_extensible()) {
         return false;
     }
     for (const auto& p : o->own_property_names(false)) {
-        if (!has_attributes(o->own_property_attributes(p.view()), property_attribute::dont_delete)) {
+        if (!has_attributes(o->own_property_attributes(p.view()), attr)) {
             return false;
         }
     }
     return true;
 }
 
-void seal(const object_ptr& o) {
+void make_immutable(const object_ptr& o, property_attribute attr) {
     for (const auto& p : o->own_property_names(false)) {
         const auto attrs = o->own_property_attributes(p.view());
-        if (!has_attributes(attrs, property_attribute::dont_delete)) {
-            o->redefine_own_property(p, o->get(p.view()), attrs | property_attribute::dont_delete);
+        if (!has_attributes(attrs, attr)) {
+            o->redefine_own_property(p, o->get(p.view()), attrs | attr);
         }
     }
     o->prevent_extensions();
@@ -293,12 +293,22 @@ global_object_create_result make_object_object(global_object& global) {
         }, 1);
 
         put_native_function(global, o, "isSealed", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
-            return value{is_sealed(global->validate_object(get_arg(args, 0)))};
+            return value{check_for_immutability(global->validate_object(get_arg(args, 0)), property_attribute::dont_delete)};
         }, 1);
 
         put_native_function(global, o, "seal", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
             auto o = global->validate_object(get_arg(args, 0));
-            seal(o);
+            make_immutable(o, property_attribute::dont_delete);
+            return value{o};
+        }, 1);
+
+        put_native_function(global, o, "isFrozen", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
+            return value{check_for_immutability(global->validate_object(get_arg(args, 0)), property_attribute::read_only | property_attribute::dont_delete)};
+        }, 1);
+
+        put_native_function(global, o, "freeze", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
+            auto o = global->validate_object(get_arg(args, 0));
+            make_immutable(o, property_attribute::read_only | property_attribute::dont_delete);
             return value{o};
         }, 1);
     }

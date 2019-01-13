@@ -299,7 +299,38 @@ Object.isSealed(z); //$boolean false
 Object.preventExtensions(z);
 Object.isSealed(z); //$boolean true
 
-Object.create || Object.freeze || Object.isFrozen;//$undefined
+
+
+Object.freeze.length;//$number 1
+Object.isFrozen.length;//$number 1
+
+try { Object.freeze(); } catch (e) { e.toString(); } //$string 'TypeError: undefined is not an object'
+try { Object.freeze(null); } catch (e) { e.toString(); } //$string 'TypeError: null is not an object'
+try { Object.freeze('x'); } catch (e) { e.toString(); } //$string 'TypeError: \'x\' is not an object'
+
+try { Object.isFrozen(); } catch (e) { e.toString(); } //$string 'TypeError: undefined is not an object'
+try { Object.isFrozen(null); } catch (e) { e.toString(); } //$string 'TypeError: null is not an object'
+try { Object.isFrozen('x'); } catch (e) { e.toString(); } //$string 'TypeError: \'x\' is not an object'
+
+var o = {x:42,y:12};
+Object.isExtensible(o); //$boolean true
+Object.isSealed(o); //$boolean false
+Object.isFrozen(o); //$boolean false
+allProps(o); //$string '{x:{value:42,writable:true,enumerable:true,configurable:true,}y:{value:12,writable:true,enumerable:true,configurable:true,}}'
+Object.freeze(o) === o; //$boolean true
+Object.isExtensible(o); //$boolean false
+Object.isSealed(o); //$boolean true
+Object.isFrozen(o); //$boolean true
+allProps(o); //$string '{x:{value:42,writable:false,enumerable:true,configurable:false,}y:{value:12,writable:false,enumerable:true,configurable:false,}}'
+
+var z = Object.defineProperty({}, 'q', {value:42,writable:false,enumerable:true,configurable:false});
+allProps(z); //$string '{q:{value:42,writable:false,enumerable:true,configurable:false,}}'
+Object.isFrozen(z); //$boolean false
+Object.preventExtensions(z);
+Object.isFrozen(z); //$boolean true
+allProps(z); //$string '{q:{value:42,writable:false,enumerable:true,configurable:false,}}'
+
+Object.create;//$undefined
 )");
 
         // TODO: When implementing get/set remember to check getOwnPropertyDescriptor, defineProperty, etc.

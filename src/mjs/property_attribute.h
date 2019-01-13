@@ -33,7 +33,7 @@ constexpr bool is_valid(property_attribute a) {
 }
 
 constexpr bool has_attributes(property_attribute attributes, property_attribute check) {
-    assert(check == property_attribute::read_only || check == property_attribute::dont_enum || check == property_attribute::dont_delete || check == property_attribute::accessor);
+    assert(is_valid(attributes) && is_valid(check) && check != property_attribute::none);
     return (attributes & check) == check;
 }
 
