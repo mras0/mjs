@@ -139,6 +139,14 @@ bool define_own_property(const object_ptr& o, const string& p, const object_ptr&
     return o->redefine_own_property(p, has_own_property(desc, L"value") ? desc->get(L"value") : o->get(p.view()), a);
 }
 
+void define_own_property_checked(const gc_heap_ptr<global_object>& global, const object_ptr& o, const string& p, const value& desc) {
+    if (!define_own_property(o, p, global->validate_object(desc))) {
+        std::wostringstream woss;
+        woss << "cannot redefine property: " << p.view();
+        throw native_error_exception{native_error_type::type, global->stack_trace(), woss.str()};
+    }
+}
+
 } // unnamed namespace
 
 global_object_create_result make_object_object(global_object& global) {
@@ -217,14 +225,18 @@ global_object_create_result make_object_object(global_object& global) {
             auto& h = global.heap();
             auto o = global->validate_object(get_arg(args, 0));
             auto p = to_string(h, get_arg(args, 1));
-            auto desc = global->validate_object(get_arg(args, 2));
-            if (!define_own_property(o, p, desc)) {
-                std::wostringstream woss;
-                woss << "cannot redefine property: " << p.view();
-                throw native_error_exception{native_error_type::type, global->stack_trace(), woss.str()};
-            }
+            define_own_property_checked(global, o, p, get_arg(args, 2));
             return value{o};
         }, 3);
+
+        put_native_function(global, o, "defineProperties", [global= global.self_ptr()](const value&, const std::vector<value>& args) {
+            auto o = global->validate_object(get_arg(args, 0));
+            auto props = global->to_object(get_arg(args, 1));
+            for (const auto& p : props->own_property_names(false)) {
+                define_own_property_checked(global, o, p, props->get(p.view()));
+            }
+            return value{o};
+        }, 2);
     }
 
     return { o, prototype };

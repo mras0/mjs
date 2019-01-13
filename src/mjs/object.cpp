@@ -131,12 +131,7 @@ bool object::delete_property(const std::wstring_view& name) {
 
 void object::property::fixup(gc_heap& h) {
     key_.fixup(h);
-    if (is_accessor()) {
-        accessor_.get.fixup(h);
-        accessor_.set.fixup(h);
-    } else {
-        value_.fixup(h);
-    }
+    value_.fixup(h);
 }
 
 value object::property::get(gc_heap& h) const {

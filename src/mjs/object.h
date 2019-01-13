@@ -110,14 +110,7 @@ private:
     private:
         gc_heap_ptr_untracked<gc_string>    key_;
         property_attribute                  attributes_;
-        struct accessor {
-            value_representation get;
-            value_representation set;
-        };
-        union {
-            value_representation            value_;
-            accessor                        accessor_;
-        };
+        value_representation                value_; // holds object with get/set methods if is_accessor()
     };
 
     gc_heap&                                   heap_;

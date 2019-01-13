@@ -203,9 +203,40 @@ Object.defineProperty(s, 'length', {value:3});
 try { Object.defineProperty(s, 'length', {value:4}); } catch (e) { e.toString(); } //$string 'TypeError: cannot redefine property: length'
 try { Object.defineProperty(s, '0', {value:3}); } catch (e) { e.toString(); } //$string 'TypeError: cannot redefine property: 0'
 
-Object.create ||  Object.defineProperties || Object.seal ||
-Object.freeze || Object.preventExtensions || Object.isSealed || Object.isFrozen ||
-Object.isExtensible; //$undefined
+
+
+Object.defineProperties.length;//$number 2
+try { Object.defineProperties(); } catch (e) { e.toString(); } //$string 'TypeError: undefined is not an object'
+try { Object.defineProperties(null); } catch (e) { e.toString(); } //$string 'TypeError: null is not an object'
+try { Object.defineProperties(42); } catch (e) { e.toString(); } //$string 'TypeError: 42 is not an object'
+try { Object.defineProperties({},null); } catch (e) { e.toString(); } //$string 'TypeError: Cannot convert null to object'
+try { Object.defineProperties({},{foo:42}); } catch (e) { e.toString(); } //$string 'TypeError: 42 is not an object'
+
+function allProps(o) {
+    var res = '{';
+    var ps = Object.getOwnPropertyNames(o);
+    for (var i = 0; i < ps.length; ++i) {
+        var k = ps[i];
+        res += k + ':{';
+        var d = Object.getOwnPropertyDescriptor(o, k);
+        for (var k2 in d) {
+            res += k2 + ':' + d[k2] + ',';
+        }
+        res += '}';
+    }
+    return res + '}';
+}
+
+allProps(Object.defineProperties({},42)); //$string '{}'
+allProps(Object.defineProperties({},{foo:{value:42}})); //$string '{foo:{value:42,writable:false,enumerable:false,configurable:false,}}'
+o = {};
+allProps(Object.defineProperties(o,{foo:{value:'x',writable:true,enumerable:true,configurable:true}})); //$string '{foo:{value:x,writable:true,enumerable:true,configurable:true,}}'
+allProps(Object.defineProperties(o,{bar:{value:'z'}})); //$string '{foo:{value:x,writable:true,enumerable:true,configurable:true,}bar:{value:z,writable:false,enumerable:false,configurable:false,}}'
+allProps(Object.defineProperties(o,{baz:{value:'q'},foo:{value:42}})); //$string '{foo:{value:42,writable:true,enumerable:true,configurable:true,}bar:{value:z,writable:false,enumerable:false,configurable:false,}baz:{value:q,writable:false,enumerable:false,configurable:false,}}'
+allProps(Object.defineProperties(o,{})); //$string '{foo:{value:42,writable:true,enumerable:true,configurable:true,}bar:{value:z,writable:false,enumerable:false,configurable:false,}baz:{value:q,writable:false,enumerable:false,configurable:false,}}'
+try { allProps(Object.defineProperties(o,{bar:{value:'w'}})); } catch(e) { e.toString(); } //$string 'TypeError: cannot redefine property: bar'
+
+Object.create || Object.seal || Object.freeze || Object.preventExtensions || Object.isSealed || Object.isFrozen || Object.isExtensible; //$undefined
 )");
 
         // TODO: When implementing get/set remember to check getOwnPropertyDescriptor, defineProperty, etc.
