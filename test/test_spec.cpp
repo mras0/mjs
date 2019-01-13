@@ -203,7 +203,7 @@ private:
 #ifdef TEST_SPEC_DEBUG
             std::wcout << pos_w << check_pos << ": Checking pos " << pos_w << s.position << " at " << s.extend << " expecting " << debug_string(s.expected) << "\n";
 #endif
-            if (last_result_) {
+            if (last_result_ && last_result_.type != completion_type::return_) { // Allow return for the sake of function expressions
                 std::wostringstream oss;
                 oss << source_->filename() << " failed: " << last_result_.type << " " << debug_string(last_result_.result) << " at " << s.extend << "\n" << s.extend.source_view();
                 THROW_RUNTIME_ERROR(oss.str());

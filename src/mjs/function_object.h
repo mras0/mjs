@@ -41,10 +41,11 @@ public:
 
 private:
     friend gc_type_info_registration<function_object>;
-    gc_heap_ptr_untracked<gc_function> construct_;
-    gc_heap_ptr_untracked<gc_function> call_;
-    gc_heap_ptr_untracked<gc_string>   text_;
-    value_representation               prototype_prop_;
+    gc_heap_ptr_untracked<global_object> global_;
+    gc_heap_ptr_untracked<gc_function>   construct_;
+    gc_heap_ptr_untracked<gc_function>   call_;
+    gc_heap_ptr_untracked<gc_string>     text_;
+    value_representation                 prototype_prop_;
     int named_args_ = 0;
     bool is_native_ = false;
 
@@ -60,7 +61,7 @@ private:
         prototype_prop_ = value_representation{val};
     }
 
-    explicit function_object(const string& class_name, const object_ptr& prototype) : native_object(class_name, prototype) {
+    explicit function_object(const gc_heap_ptr<global_object>& global, const string& class_name, const object_ptr& prototype) : native_object(class_name, prototype), global_(global) {
         DEFINE_NATIVE_PROPERTY_READONLY(function_object, length);
         DEFINE_NATIVE_PROPERTY_READONLY(function_object, arguments);
         DEFINE_NATIVE_PROPERTY(function_object, prototype);
@@ -69,14 +70,7 @@ private:
         static_assert(gc_type_info_registration<function_object>::needs_fixup);
     }
 
-    void fixup() {
-        auto& h = heap();
-        construct_.fixup(h);
-        call_.fixup(h);
-        text_.fixup(h);
-        prototype_prop_.fixup(h);
-        native_object::fixup();
-    }
+    void fixup();
 
     void put_function(const gc_heap_ptr<gc_function>& f, const gc_heap_ptr<gc_string>& name, const gc_heap_ptr<gc_string>& body_text, int named_args);
 

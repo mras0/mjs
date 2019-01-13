@@ -161,8 +161,28 @@ Array.prototype.lastIndexOf.call('test', 's'); //$number 2
 [1,undefined].lastIndexOf(); //$number 1
 
 
+Array.prototype.every.length;//$number 1
+
+try { [].every(); } catch (e) { e.toString(); } //$string 'TypeError: undefined is not a function'
+try { [].every(42); } catch (e) { e.toString(); } //$string 'TypeError: 42 is not a function'
+
+function fmt(v) { return typeof(v)+':'+v; }
+function fmtall(t,a,b,c) { return 'this='+fmt(t)+',a='+fmt(a)+',b='+fmt(b)+',c='+fmt(c); }
+s=''; [].every(function(a,b,c) { s+=fmtall(this,a,b,c)+'\n'; return true; }); //$boolean true
+s; //string ''
+s=''; [1,2,3].every(function(a,b,c) { s+=fmtall(this,a,b,c)+'\n'; return true; }); //$boolean true
+s; //$string 'this=object:[object Global],a=number:1,b=number:0,c=object:1,2,3\nthis=object:[object Global],a=number:2,b=number:1,c=object:1,2,3\nthis=object:[object Global],a=number:3,b=number:2,c=object:1,2,3\n'
+s=''; [1,2,3].every(function(a,b,c) { s+=fmtall(this,a,b,c)+'\n'; return true; }, ['z']); //$boolean true
+s; //$string 'this=object:z,a=number:1,b=number:0,c=object:1,2,3\nthis=object:z,a=number:2,b=number:1,c=object:1,2,3\nthis=object:z,a=number:3,b=number:2,c=object:1,2,3\n'
+s=''; [1,2,3].every(function(a,b,c) { s+=fmtall(this,a,b,c)+'\n'; return false; }); //$boolean false
+s; //$string 'this=object:[object Global],a=number:1,b=number:0,c=object:1,2,3\n'
+s=''; b=[1,2,3].every(function(a,b,c) { s+=fmtall(this,a,b,c)+'\n'; return b!==2; }); b //$boolean false
+s; //$string 'this=object:[object Global],a=number:1,b=number:0,c=object:1,2,3\nthis=object:[object Global],a=number:2,b=number:1,c=object:1,2,3\nthis=object:[object Global],a=number:3,b=number:2,c=object:1,2,3\n'
+s=''; Array.prototype.every.call({length:4,1:'a',3:'c',5:'d'}, function(a,b,c) { s+=fmtall(this,a,b,c)+'\n'; return true; }, ['z']); //$boolean true
+s; //$string 'this=object:z,a=string:a,b=number:1,c=object:[object Object]\nthis=object:z,a=string:c,b=number:3,c=object:[object Object]\n'
+
 ap = Array.prototype;
-ap['every'] || ap['some'] || ap['forEach'] || ap['map'] || ap['filter'] || ap['reduce'] || ap['reduceRight']; //$undefined
+ap['some'] || ap['forEach'] || ap['map'] || ap['filter'] || ap['reduce'] || ap['reduceRight']; //$undefined
 )");
     }
 

@@ -603,7 +603,7 @@ private:
     void popuplate_global() {
         // The object and function prototypes are special
         object_prototype_   = prototype(); // This way the global object will have the same functions as a normal object
-        function_prototype_ = static_cast<object_ptr>(heap().make<function_object>(common_string("Function"), object_prototype()));
+        function_prototype_ = static_cast<object_ptr>(heap().make<function_object>(self_ptr(), common_string("Function"), object_prototype()));
          
         auto add = [&](const char* name, auto create_func, gc_heap_ptr_untracked<object>* prototype = nullptr) {
             auto res = create_func(*this);

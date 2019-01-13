@@ -4,6 +4,28 @@
 
 namespace mjs {
 
+namespace {
+static value get_this_arg(const gc_heap_ptr<global_object>& global, const value& this_arg) {
+    // TODO: Check ES5.1, 10.4.3
+    if (this_arg.type() == value_type::undefined || this_arg.type() == value_type::null) {
+        return value{global};
+    } else {
+        return value{global->to_object(this_arg)};
+    }
+}
+
+} // unnamed namespace
+
+void function_object::fixup() {
+    auto& h = heap();
+    global_.fixup(h);
+    construct_.fixup(h);
+    call_.fixup(h);
+    text_.fixup(h);
+    prototype_prop_.fixup(h);
+    native_object::fixup();
+}
+
 void function_object::put_function(const gc_heap_ptr<gc_function>& f, const gc_heap_ptr<gc_string>& name, const gc_heap_ptr<gc_string>& body_text, int named_args) {
     assert(!call_ && !text_ && !named_args_ && !is_native_);
     call_ = f;
@@ -35,7 +57,7 @@ string function_object::to_string() const {
 
 value function_object::call(const value& this_, const std::vector<value>& args) const {
     if (!call_) throw not_callable_exception{};
-    return call_.dereference(heap()).call(this_, args);
+    return call_.dereference(heap()).call(get_this_arg(global_.track(heap()), this_), args);
 }
 
 value function_object::construct(const value& this_, const std::vector<value>& args) const {
@@ -45,22 +67,13 @@ value function_object::construct(const value& this_, const std::vector<value>& a
 
 gc_heap_ptr<function_object> make_raw_function(global_object& global) {
     auto fp = global.function_prototype();
-    auto o = global.heap().make<function_object>(fp->class_name(), fp);
+    auto o = global.heap().make<function_object>(global.self_ptr(), fp->class_name(), fp);
     const auto ver = global.language_version();
     const auto attrs =
         (ver != version::es3 ? property_attribute::dont_enum : property_attribute::none)
         | (ver >= version::es3 ? property_attribute::dont_delete : property_attribute::none);
     o->put_prototype_with_attributes(global.make_object(),  attrs);
     return o;
-}
-
-static value get_this_arg(const gc_heap_ptr<global_object>& global, const std::vector<value>& args) {
-    value this_arg = args.size() < 1 ? value::undefined : args[0];
-    if (this_arg.type() == value_type::undefined || this_arg.type() == value_type::null) {
-        return value{global};
-    } else {
-        return value{global->to_object(this_arg)};
-    }
 }
 
 global_object_create_result make_function_object(global_object& global) {
@@ -88,7 +101,7 @@ global_object_create_result make_function_object(global_object& global) {
             if (args.size() > 1) {
                 new_args.insert(new_args.end(), args.cbegin() + 1, args.cend());
             }
-            return static_cast<const function_object&>(*this_.object_value()).call(get_this_arg(global, args), new_args);
+            return static_cast<const function_object&>(*this_.object_value()).call(!args.empty() ? args.front() : value::undefined, new_args);
         }, 1);
 
         put_native_function(global, prototype, "apply", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
@@ -118,7 +131,7 @@ global_object_create_result make_function_object(global_object& global) {
                 throw native_error_exception(native_error_type::type, global->stack_trace(), woss.str());
             }
 do_call:
-            return static_cast<const function_object&>(*this_.object_value()).call(get_this_arg(global, args), new_args);
+            return static_cast<const function_object&>(*this_.object_value()).call(!args.empty() ? args.front() : value::undefined, new_args);
         }, 2);
     }
 

@@ -3,6 +3,7 @@
 #include "function_object.h"
 #include "error_object.h"
 #include <sstream>
+#include <cmath>
 
 namespace mjs {
 
@@ -397,7 +398,7 @@ double array_index_of(const gc_heap_ptr<global_object>& global, const value& thi
     if (n >= len) {
         return -1.0;
     }
-    auto k = n >= 0 ? static_cast<uint32_t>(n) : len - abs(n) < 0 ? 0 : static_cast<uint32_t>(len - abs(n));
+    auto k = n >= 0 ? static_cast<uint32_t>(n) : len - std::fabs(n) < 0 ? 0 : static_cast<uint32_t>(len - std::fabs(n));
     for (; k < len; ++k) {
         const auto is = index_string(k);
         if (o->has_property(is) && o->get(is) == search_element) {
@@ -415,7 +416,7 @@ double array_last_index_of(const gc_heap_ptr<global_object>& global, const value
     }
     const auto search_element = args.size() > 0 ? args[0] : value::undefined;
     const auto n = args.size() > 1 ? to_integer(args[1]) : len-1;
-    auto k = n >= 0 ? std::min(n, len-1.) : len - abs(n);
+    auto k = n >= 0 ? std::min(n, len-1.) : len - std::fabs(n);
     for (; k >= 0; --k) {
         const auto is = index_string(static_cast<uint32_t>(k));
         if (o->has_property(is) && o->get(is) == search_element) {
@@ -423,6 +424,26 @@ double array_last_index_of(const gc_heap_ptr<global_object>& global, const value
         }
     }
     return -1.0;
+}
+
+bool array_every(const gc_heap_ptr<global_object>& global, const value& this_, const std::vector<value>& args) {
+    auto o = global->to_object(this_);
+    const auto len = to_uint32(o->get(L"length"));
+    const auto callback = !args.empty() ? args[0] : value::undefined;
+    global->validate_type(callback, global->function_prototype(), "function");
+    const auto this_arg = args.size() > 1 ? args[1] : value::undefined;
+
+    for (uint32_t k = 0; k < len; ++k) {
+        const auto is = index_string(static_cast<uint32_t>(k));
+        if (o->has_property(is)) {
+            auto kval = o->get(is);
+            if (!to_boolean(call_function(callback, this_arg, { kval, value{static_cast<double>(k)}, value{o} }))) {
+                return false;
+            }
+        }
+    }
+
+    return true;
 }
 
 } // unnamed namespace
@@ -550,6 +571,10 @@ global_object_create_result make_array_object(global_object& global) {
 
         put_native_function(global, prototype, "lastIndexOf", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
             return value{array_last_index_of(global, this_, args)};
+        }, 1);
+
+        put_native_function(global, prototype, "every", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+            return value{array_every(global, this_, args)};
         }, 1);
     }
 
