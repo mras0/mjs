@@ -233,7 +233,8 @@ global_object_create_result make_object_object(global_object& global) {
     if (global.language_version() >= version::es5) {
         put_native_function(global, o, "getPrototypeOf", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
             auto o = global->validate_object(get_arg(args, 0));
-            return value{o->prototype()};
+            auto p = o->prototype();
+            return p ? value{p} : value::null;
         }, 1);
 
         put_native_function(global, o, "getOwnPropertyNames", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
@@ -311,6 +312,20 @@ global_object_create_result make_object_object(global_object& global) {
             make_immutable(o, property_attribute::read_only | property_attribute::dont_delete);
             return value{o};
         }, 1);
+
+        put_native_function(global, o, "create", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
+            if (args.empty() || (args[0].type() != value_type::null && args[0].type() != value_type::object)) {
+                throw native_error_exception{native_error_type::type, global->stack_trace(), L"Invalid object prototype"};
+            }
+            auto o = global.heap().make<object>(global->object_prototype()->class_name(), args[0].type() == value_type::object ? args[0].object_value() : nullptr);
+            if (args.size() > 1) {
+                auto props = global->to_object(args[1]);
+                for (const auto& p : props->own_property_names(false)) {
+                    define_own_property_checked(global, o, p, props->get(p.view()));
+                }
+            }
+            return value{o};
+        }, 2);
     }
 
     return { o, prototype };

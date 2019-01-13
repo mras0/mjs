@@ -93,6 +93,7 @@ Object.getPrototypeOf(new Number(42)) === Number.prototype; //$boolean true
 Object.getPrototypeOf(new String('x')) === Number.prototype; //$boolean false
 Object.getPrototypeOf(new String('x')) === String.prototype; //$boolean true
 Object.getPrototypeOf({}) === Object.prototype; //$boolean true
+Object.getPrototypeOf(Object.prototype); //$null
 
 Object.getOwnPropertyNames.length; //$number 1
 function opn(o) { return Object.getOwnPropertyNames(o).toString(); }
@@ -330,7 +331,22 @@ Object.preventExtensions(z);
 Object.isFrozen(z); //$boolean true
 allProps(z); //$string '{q:{value:42,writable:false,enumerable:true,configurable:false,}}'
 
-Object.create;//$undefined
+
+
+Object.create.length;//$number 2
+try { Object.create(); } catch (e) { e.toString(); } //$string 'TypeError: Invalid object prototype'
+try { Object.create(true); } catch (e) { e.toString(); } //$string 'TypeError: Invalid object prototype'
+try { Object.create(42); } catch (e) { e.toString(); } //$string 'TypeError: Invalid object prototype'
+try { Object.create(null,null); } catch (e) { e.toString(); } //$string 'TypeError: Cannot convert null to object'
+
+o = Object.create(null);
+Object.getPrototypeOf(o); //$null
+allProps(o); //$string '{}'
+
+o2={};
+o = Object.create(o2, {x:{value:42}});
+Object.getPrototypeOf(o) === o2; //$boolean true
+allProps(o); //$string '{x:{value:42,writable:false,enumerable:false,configurable:false,}}'
 )");
 
         // TODO: When implementing get/set remember to check getOwnPropertyDescriptor, defineProperty, etc.
