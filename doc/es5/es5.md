@@ -8,7 +8,6 @@ Annex D, E and F contain lists of the necessary changes.
 - Annex E: 15.3.4.3,4: Change in handling of `null`/`undefined` when passed to `apply/call` (Note: most e.g. Object.prototype functions have been changed to call `ToObject` on the this argument)
 - Annex E: 15.12: `JSON` object
 - Object.create
-- Object.defineProperty
 - Object.defineProperties
 - Object.seal
 - Object.freeze
@@ -59,6 +58,7 @@ Annex D, E and F contain lists of the necessary changes.
 - Object.getOwnPropertyNames
 - Object.keys
 - Object.getOwnPropertyDescriptor
+- Object.defineProperty
 
 ## Notes:
 - 7.1 Form Control Characters changed from ES1 -> ES3 -> ES5
@@ -66,3 +66,5 @@ Annex D, E and F contain lists of the necessary changes.
 - `IdentifierName` allowed in various places (i.e. `ReservedWord`s can be used as property names)
 - Annex D: Can't reproduce expected standard behavior for (12.4: Exception object and 15.10.6)
 - 10.4.2 Direct calls to `eval` behave differently than indirect calls!
+- Many changes listed as new functions on `Object` actually require major changes (e.g. `defineProperty`). Property attributes can now change at runtime.
+- Ugly that array properties can also be getter/setters

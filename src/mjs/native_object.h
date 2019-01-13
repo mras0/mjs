@@ -23,13 +23,6 @@ public:
         }
     }
 
-    bool can_put(const std::wstring_view& name) const override {
-        if (auto it = find(name)) {
-            return !has_attributes(it->attributes, property_attribute::read_only);
-        }
-        return object::can_put(name);
-    }
-
     bool delete_property(const std::wstring_view& name) override;
 
 private:
@@ -70,6 +63,8 @@ protected:
         }, put);
     }
 
+    bool do_redefine_own_property(const string& name, const value& val, property_attribute attr) override;
+
     void add_own_property_names(std::vector<string>& names, bool check_enumerable) const override;
 
     property_attribute do_own_property_attributes(const std::wstring_view& name) const override {
@@ -78,7 +73,6 @@ protected:
         }
         return object::do_own_property_attributes(name);
     }
-
 
     void update_property_attributes(const char* name, property_attribute attributes) {
         auto it = find(name);

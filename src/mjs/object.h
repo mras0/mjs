@@ -41,14 +41,15 @@ public:
         return it ? it->get(heap_) : value::undefined;
     }
 
+    bool redefine_own_property(const string& name, const value& val, property_attribute attr) {
+        return do_redefine_own_property(name, val, attr);
+    }
+
     // [[Put]] (PropertyName, Value)
     virtual void put(const string& name, const value& val, property_attribute attr = property_attribute::none);
 
     // [[CanPut]] (PropertyName)
-    virtual bool can_put(const std::wstring_view& name) const {
-        auto it = deep_find(name).first;
-        return it ? !has_attributes(it->attributes(), property_attribute::read_only) : true;
-    }
+    bool can_put(const std::wstring_view& name) const;
 
     // [[HasProperty]] (PropertyName)
     bool has_property(const std::wstring_view& name) const;
@@ -76,6 +77,7 @@ protected:
     object(object&& o) = default;
     void fixup();
 
+    virtual bool do_redefine_own_property(const string& name, const value& val, property_attribute attr);
     virtual property_attribute do_own_property_attributes(const std::wstring_view& name) const;
     virtual void add_own_property_names(std::vector<string>& names, bool check_enumerable) const;
     virtual void do_debug_print_extra(std::wostream& os, int indent_incr, int max_nest, int indent) const {
@@ -92,8 +94,12 @@ private:
         }
 
         void fixup(gc_heap& h);
+        
         bool is_accessor() const { return has_attributes(attributes_, property_attribute::accessor); }
+        
         property_attribute attributes() const { return attributes_; }
+        void attributes(property_attribute a) { attributes_ = a; }
+
         string key(gc_heap& h) const { return key_.track(h); }
 
         value get(gc_heap& h) const;

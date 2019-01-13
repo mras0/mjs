@@ -157,12 +157,58 @@ o = {};
 o2 = {x:o};
 Object.getOwnPropertyDescriptor(o2,'x').value === o; //$boolean true
 
-Object.create ||  Object.defineProperty || Object.defineProperties || Object.seal ||
+Object.defineProperty.length;//$number 3
+try { Object.defineProperty(); } catch (e) { e.toString(); } //$string 'TypeError: undefined is not an object'
+try { Object.defineProperty(null); } catch (e) { e.toString(); } //$string 'TypeError: null is not an object'
+try { Object.defineProperty(42); } catch (e) { e.toString(); } //$string 'TypeError: 42 is not an object'
+try { Object.defineProperty('x'); } catch (e) { e.toString(); } //$string 'TypeError: \'x\' is not an object'
+try { Object.defineProperty({},'x'); } catch (e) { e.toString(); } //$string 'TypeError: undefined is not an object'
+try { Object.defineProperty({},'x',60); } catch (e) { e.toString(); } //$string 'TypeError: 60 is not an object'
+gopd(Object.defineProperty({},'x',{}),'x'); //$string '{value: undefined,writable: false,enumerable: false,configurable: false,}'
+gopd(Object.defineProperty({},'x',{value:42,writable:true}),'x'); //$string '{value: 42,writable: true,enumerable: false,configurable: false,}'
+gopd(Object.defineProperty({},'x',{value:42,enumerable:true}),'x'); //$string '{value: 42,writable: false,enumerable: true,configurable: false,}'
+gopd(Object.defineProperty({},'x',{value:42,configurable:true}),'x'); //$string '{value: 42,writable: false,enumerable: false,configurable: true,}'
+o = {};
+'a' in o; //$boolean false
+Object.defineProperty(o,'a',{value:'aVal',writable:true,enumerable:true,configurable:true}) === o; //$boolean true
+'a' in o; //$boolean true
+gopd(o,'a'); //$string '{value: aVal,writable: true,enumerable: true,configurable: true,}'
+
+o2={};
+Object.defineProperty(o2,'x',{value:0,writable:0,enumerable:'',configurable:null}); o2.x;//$number 0
+Object.defineProperty(o2,'x',{value:0,writable:false,enumerable:false,configurable:false}); o2.x;//$number 0
+Object.defineProperty(o2,'x',{}); o2.x;//$number 0
+try { Object.defineProperty(o2,'x',{value:1,writable:false,enumerable:false,configurable:false});} catch (e) { e.toString(); } //$string 'TypeError: cannot redefine property: x'
+try { Object.defineProperty(o2,'x',{value:0,writable:false,enumerable:false,configurable:true}); } catch (e) { e.toString(); } //$string 'TypeError: cannot redefine property: x'
+try { Object.defineProperty(o2,'x',{value:0,writable:false,enumerable:true,configurable:false}); } catch (e) { e.toString(); } //$string 'TypeError: cannot redefine property: x'
+try { Object.defineProperty(o2,'x',{value:0,writable:true,enumerable:false,configurable:false}); } catch (e) { e.toString(); } //$string 'TypeError: cannot redefine property: x'
+try { Object.defineProperty(o2,'x',{get:function(){},set:function(){}}); } catch (e) { e.toString(); } //$string 'TypeError: cannot redefine property: x'
+o2.x;//$number 0
+
+o3={};
+Object.defineProperty(o3,42,{value:42,writable:true,enumerable:true,configurable:true}); o3[42];//$number 42
+Object.defineProperty(o3,42,{value:60,writable:true,enumerable:true,configurable:true}); o3[42];//$number 60
+Object.defineProperty(o3,42,{value:90,writable:false,enumerable:false,configurable:false}); o3[42];//$number 90
+gopd(o3,42); //$string '{value: 90,writable: false,enumerable: false,configurable: false,}'
+
+a = [1,2,3];
+Object.defineProperty(a,'length',{value:5}).toString(); //$string '1,2,3,,'
+Object.defineProperty(a,'0',{value:42}).toString(); //$string '42,2,3,,'
+gopd(a, 'length'); //$string '{value: 5,writable: true,enumerable: false,configurable: false,}'
+
+s = new String('abc');
+gopd(s, 'length'); //$string '{value: 3,writable: false,enumerable: false,configurable: false,}'
+Object.defineProperty(s, 'length', {});
+Object.defineProperty(s, 'length', {value:3});
+try { Object.defineProperty(s, 'length', {value:4}); } catch (e) { e.toString(); } //$string 'TypeError: cannot redefine property: length'
+try { Object.defineProperty(s, '0', {value:3}); } catch (e) { e.toString(); } //$string 'TypeError: cannot redefine property: 0'
+
+Object.create ||  Object.defineProperties || Object.seal ||
 Object.freeze || Object.preventExtensions || Object.isSealed || Object.isFrozen ||
 Object.isExtensible; //$undefined
 )");
 
-        // TODO: When implementing get/set remember to check getOwnPropertyDescriptor, etc.
+        // TODO: When implementing get/set remember to check getOwnPropertyDescriptor, defineProperty, etc.
     }
 }
 

@@ -28,8 +28,6 @@ public:
         return native_object::get(name);
     }
 
-    // can_put needed?
-
     bool delete_property(const std::wstring_view& name) override {
         if (const auto s = handle_array_like_access(name); !s.empty()) {
             return false;
@@ -77,6 +75,13 @@ private:
         auto& h = heap();
         value_.fixup(h);
         native_object::fixup();
+    }
+
+    bool do_redefine_own_property(const string& name, const value& val, property_attribute attr) override {
+        if (const auto s = handle_array_like_access(name.view()); !s.empty()) {
+            return false;
+        }
+        return native_object::do_redefine_own_property(name, val, attr);
     }
 
     property_attribute do_own_property_attributes(const std::wstring_view& name) const override {

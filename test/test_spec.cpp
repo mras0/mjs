@@ -54,20 +54,27 @@ char16_t get_escape_sequence(std::istream& in) {
 value parse_value(gc_heap& h, const std::string& s) {
     std::istringstream iss{s};
     std::string type;
+
+    auto require_complete = [&]() {
+        if (iss.rdbuf()->in_avail()) {
+            throw std::runtime_error("Invalid test spec. Parse not complete in \"" + s + "\" Unparsed: \"" + s.substr(iss.tellg()) + "\"");
+        }
+    };
+
     if (iss >> type) {
         while (iss.rdbuf()->in_avail() && isblank(iss.peek()))
             iss.get();
 
         if (type == "undefined") {
-            assert(!iss.rdbuf()->in_avail());
+            require_complete();
             return value::undefined;
         } else if (type == "null") {
-            assert(!iss.rdbuf()->in_avail());
+            require_complete();
             return value::null;
         } else if (type == "boolean") {
             std::string val;
             if ((iss >> val) && (val == "true" || val == "false")) {
-                assert(!iss.rdbuf()->in_avail());
+                require_complete();
                 return mjs::value{val == "true"};
             }
         }
@@ -75,7 +82,7 @@ value parse_value(gc_heap& h, const std::string& s) {
             if (isalpha(iss.peek())) {
                 std::string name;
                 if (iss >> name) {
-                    assert(!iss.rdbuf()->in_avail());
+                    require_complete();
                     for (auto& c: name) c = static_cast<char>(tolower(c));
                     if (name == "infinity") return mjs::value{INFINITY};
                     if (name == "nan") return mjs::value{NAN};
@@ -83,7 +90,7 @@ value parse_value(gc_heap& h, const std::string& s) {
             } else {
                 double val;
                 if (iss >> val) {
-                    assert(!iss.rdbuf()->in_avail());
+                    require_complete();
                     return value{val};
                 }
             }
@@ -112,7 +119,7 @@ value parse_value(gc_heap& h, const std::string& s) {
                 } else if (ch == '\\') {
                     escape = true;
                 } else if (ch == '\'') {
-                    assert(!iss.rdbuf()->in_avail());
+                    require_complete();
                     return value{mjs::string{h, res}};
                 } else {
                     res.push_back(ch);

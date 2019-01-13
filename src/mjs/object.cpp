@@ -41,6 +41,17 @@ std::vector<string> object::own_property_names(bool check_enumerable) const {
     return names;
 }
 
+bool object::do_redefine_own_property(const string& name, const value& val, property_attribute attr) {
+    if (auto it = find(name.view()).first; it) {
+        it->put(val);
+        it->attributes(attr);
+        return true;
+    }
+    assert(!has_property(name.view()));
+    put(name, val, attr);
+    return true;
+}
+
 property_attribute object::do_own_property_attributes(const std::wstring_view& name) const {
     if (auto it = find(name).first; it) {
         return it->attributes();
@@ -76,6 +87,14 @@ void object::debug_print(std::wostream& os, int indent_incr, int max_nest, int i
     }
     do_debug_print_extra(os, indent_incr, max_nest, indent+indent_incr);
     os << std::wstring(indent, ' ') << "}";
+}
+
+bool object::can_put(const std::wstring_view& name) const {
+    auto a = own_property_attributes(name);
+    if (is_valid(a)) {
+        return !has_attributes(a, property_attribute::read_only);
+    }
+    return !prototype_ || prototype_.dereference(heap()).can_put(name);
 }
 
 void object::put(const string& name, const value& val, property_attribute attr) {

@@ -56,13 +56,6 @@ public:
         }
     }
 
-    bool can_put(const std::wstring_view& name) const override {
-        if (const uint32_t index = index_value_from_string(name); index != invalid_index_value) {
-            return true;
-        }
-        return native_object::can_put(name);
-    }
-
     bool delete_property(const std::wstring_view& name) override {
         if (const uint32_t index = index_value_from_string(name); index != invalid_index_value) {
             if (index_present(index)) {
@@ -83,6 +76,7 @@ private:
     gc_heap_ptr_untracked<global_object> global_;
     uint32_t length_;
     gc_heap_ptr_untracked<gc_vector<value_representation>> values_;
+    gc_heap_ptr_untracked<gc_vector<property_attribute>> attributes_;
     gc_heap_ptr_untracked<gc_vector<uint64_t>> present_mask_;
 
     value get_length() const {
@@ -106,28 +100,48 @@ private:
     void resize(uint32_t len) {
         if (len == 0) {
             values_ = nullptr;
+            attributes_ = nullptr;
             present_mask_ = nullptr;
         } else  {
+            auto& h = heap();
             if (!values_) {
-                values_ = gc_vector<value_representation>::make(heap(), len);
-                present_mask_ = gc_vector<uint64_t>::make(heap(), (len+63) / 64);
+                values_ = gc_vector<value_representation>::make(h, len);
+                attributes_ = gc_vector<property_attribute>::make(h, len);
+                present_mask_ = gc_vector<uint64_t>::make(h, (len+63) / 64);
             }
-            values_.dereference(heap()).resize(len);
-            present_mask_.dereference(heap()).resize((len + 63) / 64);
+            values_.dereference(h).resize(len);
+            attributes_.dereference(h).resize(len);
+            present_mask_.dereference(h).resize((len + 63) / 64);
         }
         length_ = len;
     }
 
     void fixup() {
-        global_.fixup(heap());
-        values_.fixup(heap());
-        present_mask_.fixup(heap());
+        auto& h = heap();
+        global_.fixup(h);
+        values_.fixup(h);
+        attributes_.fixup(h);
+        present_mask_.fixup(h);
         native_object::fixup();
+    }
+
+    bool do_redefine_own_property(const string& name, const value& val, property_attribute attr) override {
+        if (const uint32_t index = index_value_from_string(name.view()); index != invalid_index_value) {
+            if (index_present(index)) {
+                auto& h = heap();
+                values_.dereference(h)[index] = value_representation{val};
+                attributes_.dereference(h)[index] = attr;
+            } else {
+                put(name, val, attr);
+            }
+            return true;
+        }
+        return native_object::do_redefine_own_property(name, val, attr);
     }
 
     property_attribute do_own_property_attributes(const std::wstring_view& name) const override {
         if (const uint32_t index = index_value_from_string(name); index != invalid_index_value) {
-            return index_present(index) ? property_attribute::none : property_attribute::invalid;
+            return index_present(index) ? attributes_.dereference(heap())[index] : property_attribute::invalid;
         }
         return native_object::do_own_property_attributes(name);
     }
@@ -136,9 +150,12 @@ private:
         if (length_) {
             auto& h = heap();
             const auto pm = present_mask_.dereference(h).data();
+            const auto attrs = attributes_.dereference(h).data();
             for (uint32_t i = 0; i < length_; ++i) {
                 if (pm[i/64] & (1ULL << (i%64))) {
-                    names.push_back(string{h, index_string(i)});
+                    if (!check_enumerable || !has_attributes(attrs[i], property_attribute::dont_enum)) {
+                        names.push_back(string{h, index_string(i)});
+                    }
                 }
             }
         }

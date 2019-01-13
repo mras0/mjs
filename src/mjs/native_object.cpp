@@ -1,5 +1,6 @@
 #include "native_object.h"
 #include <cstring>
+#include <sstream>
 
 namespace mjs {
 
@@ -81,6 +82,17 @@ void native_object::do_debug_print_extra(std::wostream& os, int indent_incr, int
         os << "\n";
     }
     object::do_debug_print_extra(os, indent_incr, max_nest, indent);
+}
+
+bool native_object::do_redefine_own_property(const string& name, const value& val, property_attribute attr) {
+    if (auto it = find(name.view())) {
+        if (do_native_put(name, val)) {
+            it->attributes = attr;
+            return true;
+        }
+        return false;
+    }
+    return object::do_redefine_own_property(name, val, attr);
 }
 
 } // namespace mjs

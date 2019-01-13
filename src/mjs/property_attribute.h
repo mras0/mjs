@@ -1,6 +1,9 @@
 #ifndef MJS_PROPERTY_ATTRIBUTE
 #define MJS_PROPERTY_ATTRIBUTE
 
+#include <iosfwd>
+#include <cassert>
+
 namespace mjs {
 
 enum class property_attribute {
@@ -33,6 +36,9 @@ constexpr bool has_attributes(property_attribute attributes, property_attribute 
     assert(check == property_attribute::read_only || check == property_attribute::dont_enum || check == property_attribute::dont_delete || check == property_attribute::accessor);
     return (attributes & check) == check;
 }
+
+template<typename CharT>
+std::basic_ostream<CharT>& operator<<(std::basic_ostream<CharT>& os, property_attribute a);
 
 } // namespace mjs
 

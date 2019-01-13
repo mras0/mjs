@@ -48,6 +48,7 @@ add_library(mjs_global STATIC
     mjs/object.h
     mjs/object_object.cpp
     mjs/object_object.h
+    mjs/property_attribute.cpp
     mjs/property_attribute.h
     mjs/regexp_object.cpp
     mjs/regexp_object.h
