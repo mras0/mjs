@@ -386,6 +386,45 @@ value array_splice(const gc_heap_ptr<global_object>& global, const object_ptr& o
     return value{res};
 }
 
+double array_index_of(const gc_heap_ptr<global_object>& global, const value& this_, const std::vector<value>& args) {
+    auto o = global->to_object(this_);
+    const auto len = to_uint32(o->get(L"length"));
+    if (!len) {
+        return -1.0;
+    }
+    const auto search_element = args.size() > 0 ? args[0] : value::undefined;
+    const auto n = args.size() > 1 ? to_integer(args[1]) : 0.;
+    if (n >= len) {
+        return -1.0;
+    }
+    auto k = n >= 0 ? static_cast<uint32_t>(n) : len - abs(n) < 0 ? 0 : static_cast<uint32_t>(len - abs(n));
+    for (; k < len; ++k) {
+        const auto is = index_string(k);
+        if (o->has_property(is) && o->get(is) == search_element) {
+            return static_cast<double>(k);
+        }
+    }
+    return -1.0;
+}
+
+double array_last_index_of(const gc_heap_ptr<global_object>& global, const value& this_, const std::vector<value>& args) {
+    auto o = global->to_object(this_);
+    const auto len = to_uint32(o->get(L"length"));
+    if (!len) {
+        return -1.0;
+    }
+    const auto search_element = args.size() > 0 ? args[0] : value::undefined;
+    const auto n = args.size() > 1 ? to_integer(args[1]) : len-1;
+    auto k = n >= 0 ? std::min(n, len-1.) : len - abs(n);
+    for (; k >= 0; --k) {
+        const auto is = index_string(static_cast<uint32_t>(k));
+        if (o->has_property(is) && o->get(is) == search_element) {
+            return k;
+        }
+    }
+    return -1.0;
+}
+
 } // unnamed namespace
 
 global_object_create_result make_array_object(global_object& global) {
@@ -502,6 +541,18 @@ global_object_create_result make_array_object(global_object& global) {
         }
         return this_;
     }, 1);
+
+
+    if (version >= version::es5) {
+        put_native_function(global, prototype, "indexOf", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+            return value{array_index_of(global, this_, args)};
+        }, 1);
+
+        put_native_function(global, prototype, "lastIndexOf", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+            return value{array_last_index_of(global, this_, args)};
+        }, 1);
+    }
+
     return { c, prototype };
 }
 

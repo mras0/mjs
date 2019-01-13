@@ -65,6 +65,13 @@ a = new Array(); a[4294967296]=1; a.length //$number 0
  s = ''; for (var k in a) s += k + ','; s //$string '4294967296,'
 )");
 
+    if (tested_version() < version::es5) {
+        RUN_TEST_SPEC(R"(
+ap = Array.prototype;
+ap['indexOf'] || ap['lastIndexOf'] || ap['every'] || ap['some'] || ap['forEach'] || ap['map'] || ap['filter'] || ap['reduce'] || ap['reduceRight']; //$undefined
+)");
+    }
+
     if (tested_version() < version::es3) {
         RUN_TEST_SPEC(R"(
 ap = Array.prototype;
@@ -112,6 +119,51 @@ t.prototype.toLocaleString = function() { return this.x; };
 a=[new t(1), new t(2), undefined, new t(3), null]; a[null]=new t(4); a.toLocaleString(); //$string '1,2,,3,'
 Array.prototype.toLocaleString.call({length:3,0:42,2:'x'}); //$string '42,,x'
         )");
+
+        // TODO: Requires 15.3.4.3 changes
+        // try { Array.prototype.indexOf.call(); } catch (e) { e.toString(); } //$string 'TypeError: cannot convert undefined to object'
+
+        RUN_TEST_SPEC(R"(
+
+Array.prototype.indexOf.length;//$number 1
+Array.prototype.indexOf.call({}, 1); //$number -1
+Array.prototype.indexOf.call({length:3,2:1}, 1); //$number 2
+Array.prototype.indexOf.call({length:3,2:1}, 2); //$number -1
+Array.prototype.indexOf.call({length:4,2:1,3:1}, 1); //$number 2
+Array.prototype.indexOf.call({length:4,2:1,3:1}, 1, 1); //$number 2
+Array.prototype.indexOf.call({length:4,2:1,3:1}, 1, 3); //$number 3
+Array.prototype.indexOf.call({length:4,2:1,3:1}, 1, 4); //$number -1
+Array.prototype.indexOf.call({length:4,2:1,3:1}, 1, -1); //$number 3
+Array.prototype.indexOf.call({length:4,2:1,3:1}, 1, -2); //$number 2
+Array.prototype.indexOf.call({length:4,2:1,3:1}, 1, -3); //$number 2
+Array.prototype.indexOf.call({length:4,2:1,3:1}, 1, -12); //$number 2
+['a','bb','b','c'].indexOf('b'); //$number 2
+Array.prototype.indexOf.call('test', 's'); //$number 2
+[1,2,3].indexOf(); //$number -1
+[1,undefined].indexOf(); //$number 1
+
+Array.prototype.lastIndexOf.length;//$number 1
+Array.prototype.lastIndexOf.call({}, 1); //$number -1
+Array.prototype.lastIndexOf.call({length:3,2:1}, 1); //$number 2
+Array.prototype.lastIndexOf.call({length:3,2:1}, 2); //$number -1
+Array.prototype.lastIndexOf.call({length:4,2:1,3:1}, 1); //$number 3
+Array.prototype.lastIndexOf.call({length:4,2:1,3:1}, 1, 1); //$number -1
+Array.prototype.lastIndexOf.call({length:4,2:1,3:1}, 1, 2); //$number 2
+Array.prototype.lastIndexOf.call({length:4,2:1,3:1}, 1, 3); //$number 3
+Array.prototype.lastIndexOf.call({length:4,2:1,3:1}, 1, 4); //$number 3
+Array.prototype.lastIndexOf.call({length:4,2:1,3:1}, 1, -1); //$number 3
+Array.prototype.lastIndexOf.call({length:4,2:1,3:1}, 1, -2); //$number 2
+Array.prototype.lastIndexOf.call({length:4,2:1,3:1}, 1, -3); //$number -1
+Array.prototype.lastIndexOf.call({length:4,2:1,3:1}, 1, -12); //$number -1
+['a','bb','b','c'].lastIndexOf('b'); //$number 2
+Array.prototype.lastIndexOf.call('test', 's'); //$number 2
+[1,2,3].lastIndexOf(); //$number -1
+[1,undefined].lastIndexOf(); //$number 1
+
+
+ap = Array.prototype;
+ap['every'] || ap['some'] || ap['forEach'] || ap['map'] || ap['filter'] || ap['reduce'] || ap['reduceRight']; //$undefined
+)");
     }
 
     RUN_TEST_SPEC(R"(
