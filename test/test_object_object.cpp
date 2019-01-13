@@ -236,7 +236,43 @@ allProps(Object.defineProperties(o,{baz:{value:'q'},foo:{value:42}})); //$string
 allProps(Object.defineProperties(o,{})); //$string '{foo:{value:42,writable:true,enumerable:true,configurable:true,}bar:{value:z,writable:false,enumerable:false,configurable:false,}baz:{value:q,writable:false,enumerable:false,configurable:false,}}'
 try { allProps(Object.defineProperties(o,{bar:{value:'w'}})); } catch(e) { e.toString(); } //$string 'TypeError: cannot redefine property: bar'
 
-Object.create || Object.seal || Object.freeze || Object.preventExtensions || Object.isSealed || Object.isFrozen || Object.isExtensible; //$undefined
+
+
+Object.preventExtensions.length;//$number 1
+Object.isExtensible.length;//$number 1
+
+try { Object.preventExtensions(); } catch (e) { e.toString(); } //$string 'TypeError: undefined is not an object'
+try { Object.preventExtensions(null); } catch (e) { e.toString(); } //$string 'TypeError: null is not an object'
+try { Object.preventExtensions('x'); } catch (e) { e.toString(); } //$string 'TypeError: \'x\' is not an object'
+
+try { Object.isExtensible(); } catch (e) { e.toString(); } //$string 'TypeError: undefined is not an object'
+try { Object.isExtensible(null); } catch (e) { e.toString(); } //$string 'TypeError: null is not an object'
+try { Object.isExtensible('x'); } catch (e) { e.toString(); } //$string 'TypeError: \'x\' is not an object'
+
+o = {x:42};
+Object.isExtensible(o); //$boolean true
+o === Object.preventExtensions(o); //$boolean true
+Object.isExtensible(o); //$boolean false
+'x' in o; //$boolean true
+o.x=60;
+o.x;//$number 60
+allProps(o); //$string '{x:{value:60,writable:true,enumerable:true,configurable:true,}}'
+delete o.x; //$boolean true
+'x' in o; //$boolean false
+o.y = 12;
+o.y; //$undefined
+'y' in o; //$boolean false
+try { Object.defineProperty(o,'x',{value:42}); } catch (e) { e.toString(); } //$string 'TypeError: cannot define property: x, object is not extensible'
+
+a = Object.preventExtensions([1,2,3]);
+a.length = 10;
+a.toString(); //$string '1,2,3,,,,,,,'
+1 in a; //$boolean true
+3 in a; //$boolean false
+a[3] = 42;
+3 in a; //$boolean false
+
+Object.create || Object.seal || Object.freeze || Object.isSealed || Object.isFrozen;//$undefined
 )");
 
         // TODO: When implementing get/set remember to check getOwnPropertyDescriptor, defineProperty, etc.

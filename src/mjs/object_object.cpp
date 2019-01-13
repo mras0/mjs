@@ -51,16 +51,26 @@ property_attribute attributes_from_descriptor(const object_ptr& desc) {
     return a;
 }
 
+enum class define_own_property_result {
+    ok,
+    cannot_redefine,
+    not_extensible,
+};
+
 // ES5.1, 8.12.9
-bool define_own_property(const object_ptr& o, const string& p, const object_ptr& desc) {
+define_own_property_result define_own_property(const object_ptr& o, const string& p, const object_ptr& desc) {
     const auto current_attributes = o->own_property_attributes(p.view());
     const auto new_attributes = attributes_from_descriptor(desc);
 
     if (!is_valid(current_attributes)) {
+        if (!o->is_extensible()) {
+            return define_own_property_result::not_extensible;
+        }
+
         // property not already present
         if (is_generic_descriptor(desc) || is_data_descriptor(desc)) {
             o->put(p, desc->get(L"value"), new_attributes);
-            return true;
+            return define_own_property_result::ok;
         } else {
             NOT_IMPLEMENTED("accessor descriptor not supported");
         }
@@ -75,9 +85,9 @@ bool define_own_property(const object_ptr& o, const string& p, const object_ptr&
         && !has_own_property(desc, L"value")
         && !has_own_property(desc, L"get")
         && !has_own_property(desc, L"set")) {
-        return true;
+        return define_own_property_result::ok;
     } else if (current_attributes == new_attributes && o->get(p.view()) == desc->get(L"value")) {
-        return true;
+        return define_own_property_result::ok;
     }
 
     if (has_attributes(current_attributes, property_attribute::dont_delete)) {
@@ -85,11 +95,11 @@ bool define_own_property(const object_ptr& o, const string& p, const object_ptr&
 
         if (!has_attributes(new_attributes, property_attribute::dont_delete)) {
             // Reject, if the [[Configurable]] field of Desc is true.
-            return false;
+            return define_own_property_result::cannot_redefine;
         }
         if (has_own_property(desc, L"enumerable") && has_attributes(current_attributes, property_attribute::dont_enum) != has_attributes(new_attributes, property_attribute::dont_enum)) {
             // Reject, if the [[Enumerable]] field of Desc is present and the [[Enumerable]] fields of current and Desc are the Boolean negation of each other.
-            return false;
+            return define_own_property_result::cannot_redefine;
         }
     }
 
@@ -100,7 +110,7 @@ bool define_own_property(const object_ptr& o, const string& p, const object_ptr&
         // 9 Else, if IsDataDescriptor(current) and IsDataDescriptor(Desc) have different results, then 
         if (has_attributes(current_attributes, property_attribute::dont_delete)) {
             // 9.a Reject, if the [[Configurable]] field of current is false.
-            return false;
+            return define_own_property_result::cannot_redefine;
         }
         NOT_IMPLEMENTED("changing descriptor type");
     } else if (!has_attributes(current_attributes, property_attribute::accessor)) {
@@ -109,11 +119,11 @@ bool define_own_property(const object_ptr& o, const string& p, const object_ptr&
             if (has_attributes(current_attributes, property_attribute::read_only)) {
                 if (!has_attributes(new_attributes, property_attribute::read_only)) {
                     // 10.a.i
-                    return false;
+                    return define_own_property_result::cannot_redefine;
                 }
                 if (has_own_property(desc, L"value") && o->get(p.view()) != desc->get(L"value")) {
                     // 10.a.ii
-                    return false;
+                    return define_own_property_result::cannot_redefine;
                 }
             }
         }
@@ -136,15 +146,27 @@ bool define_own_property(const object_ptr& o, const string& p, const object_ptr&
     apply_flag(L"writable", property_attribute::read_only);
     apply_flag(L"enumerable", property_attribute::dont_enum);
     apply_flag(L"configurable", property_attribute::dont_delete);
-    return o->redefine_own_property(p, has_own_property(desc, L"value") ? desc->get(L"value") : o->get(p.view()), a);
+    if (o->redefine_own_property(p, has_own_property(desc, L"value") ? desc->get(L"value") : o->get(p.view()), a)) {
+        return define_own_property_result::ok;
+    } else {
+        return define_own_property_result::cannot_redefine;
+    }
 }
 
 void define_own_property_checked(const gc_heap_ptr<global_object>& global, const object_ptr& o, const string& p, const value& desc) {
-    if (!define_own_property(o, p, global->validate_object(desc))) {
-        std::wostringstream woss;
-        woss << "cannot redefine property: " << p.view();
-        throw native_error_exception{native_error_type::type, global->stack_trace(), woss.str()};
+    const auto res = define_own_property(o, p, global->validate_object(desc));
+    if (res == define_own_property_result::ok) {
+        return;
     }
+
+    std::wostringstream woss;
+    if (res == define_own_property_result::cannot_redefine) {
+        woss << "cannot redefine property: " << p.view();
+    } else {
+        assert(res == define_own_property_result::not_extensible);
+        woss << "cannot define property: " << p.view() << ", object is not extensible";
+    }
+    throw native_error_exception{native_error_type::type, global->stack_trace(), woss.str()};
 }
 
 } // unnamed namespace
@@ -237,6 +259,16 @@ global_object_create_result make_object_object(global_object& global) {
             }
             return value{o};
         }, 2);
+
+        put_native_function(global, o, "isExtensible", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
+            return value{global->validate_object(get_arg(args, 0))->is_extensible()};
+        }, 1);
+
+        put_native_function(global, o, "preventExtensions", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
+            auto o = global->validate_object(get_arg(args, 0));
+            o->prevent_extensions();
+            return value{o};
+        }, 1);
     }
 
     return { o, prototype };

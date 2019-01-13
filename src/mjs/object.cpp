@@ -6,10 +6,11 @@ static_assert(gc_type_info_registration<object>::needs_fixup);
 static_assert(!gc_type_info_registration<object>::needs_destroy);
 
 object::object(const string& class_name, const object_ptr& prototype)
-    : heap_(class_name.heap()) // A class will always have a class_name - grab heap from that
-    , class_(class_name.unsafe_raw_get())
-    , prototype_(prototype)
-    , properties_(gc_vector<property>::make(heap_, 4)) {
+    : heap_{class_name.heap()} // A class will always have a class_name - grab heap from that
+    , class_{class_name.unsafe_raw_get()}
+    , prototype_{prototype}
+    , properties_{gc_vector<property>::make(heap_, 4)}
+    , extensible_{true} {
 }
 
 
@@ -92,9 +93,13 @@ void object::debug_print(std::wostream& os, int indent_incr, int max_nest, int i
 bool object::can_put(const std::wstring_view& name) const {
     auto a = own_property_attributes(name);
     if (is_valid(a)) {
+        assert(!has_attributes(a, property_attribute::accessor));
         return !has_attributes(a, property_attribute::read_only);
     }
-    return !prototype_ || prototype_.dereference(heap()).can_put(name);
+    if (!prototype_) {
+        return extensible_;
+    }
+    return prototype_.dereference(heap()).can_put(name);
 }
 
 void object::put(const string& name, const value& val, property_attribute attr) {
@@ -112,6 +117,9 @@ void object::put(const string& name, const value& val, property_attribute attr) 
             return;
         }
         // Handle as insertion
+    }
+    if (!extensible_) {
+        return;
     }
     props.emplace_back(name, val, attr);
 }

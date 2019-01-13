@@ -47,6 +47,9 @@ public:
 
         const uint32_t index = index_value_from_string(name.view());
         if (index != invalid_index_value) {
+            if (!is_extensible() && !index_present(index)) {
+                return;
+            }
             if (index >= length_) {
                 resize(index + 1);
             }
@@ -132,6 +135,9 @@ private:
                 values_.dereference(h)[index] = value_representation{val};
                 attributes_.dereference(h)[index] = attr;
             } else {
+                if (!is_extensible()) {
+                    return false;
+                }
                 put(name, val, attr);
             }
             return true;

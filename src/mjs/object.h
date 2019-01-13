@@ -70,6 +70,9 @@ public:
     std::vector<string> enumerable_property_names() const;
     std::vector<string> own_property_names(bool check_enumerable) const;
 
+    bool is_extensible() { return extensible_; }
+    void prevent_extensions() { extensible_ = false; }
+
     void debug_print(std::wostream& os, int indent_incr, int max_nest = INT_MAX, int indent = 0) const;
 
 protected:
@@ -117,6 +120,7 @@ private:
     gc_heap_ptr_untracked<gc_string>           class_;
     gc_heap_ptr_untracked<object>              prototype_;
     gc_heap_ptr_untracked<gc_vector<property>> properties_;
+    bool                                       extensible_;
 
     std::pair<property*, gc_vector<property>*> find(const std::wstring_view key) const {
         auto& props = properties_.dereference(heap_);
