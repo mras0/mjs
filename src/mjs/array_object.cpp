@@ -426,20 +426,21 @@ double array_last_index_of(const gc_heap_ptr<global_object>& global, const value
     return -1.0;
 }
 
-template<typename F>
-void for_each_helper(const gc_heap_ptr<global_object>& global, const value& this_, const std::vector<value>& args, const F& f) {
+template<typename Init, typename Iter>
+void for_each_helper(const gc_heap_ptr<global_object>& global, const value& this_, const std::vector<value>& args, const Init& init, const Iter& iter) {
     auto o = global->to_object(this_);
     const auto len = to_uint32(o->get(L"length"));
     const auto callback = !args.empty() ? args[0] : value::undefined;
     global->validate_type(callback, global->function_prototype(), "function");
     const auto this_arg = args.size() > 1 ? args[1] : value::undefined;
 
+    init(len);
     for (uint32_t k = 0; k < len; ++k) {
         const auto is = index_string(static_cast<uint32_t>(k));
         if (o->has_property(is)) {
             auto kval = o->get(is);
             auto res = call_function(callback, this_arg, { kval, value{static_cast<double>(k)}, value{o} });
-            if (!f(res)) {
+            if (!iter(k, res)) {
                 break;
             }
         }
@@ -448,7 +449,7 @@ void for_each_helper(const gc_heap_ptr<global_object>& global, const value& this
 
 bool array_every(const gc_heap_ptr<global_object>& global, const value& this_, const std::vector<value>& args) {
     bool every = true;
-    for_each_helper(global, this_, args, [&every](const value& v) {
+    for_each_helper(global, this_, args, [](uint32_t){}, [&every](uint32_t, const value& v) {
         if (!to_boolean(v)) {
             every = false;
             return false;
@@ -461,7 +462,7 @@ bool array_every(const gc_heap_ptr<global_object>& global, const value& this_, c
 
 bool array_some(const gc_heap_ptr<global_object>& global, const value& this_, const std::vector<value>& args) {
     bool some = false;
-    for_each_helper(global, this_, args, [&some](const value& v) {
+    for_each_helper(global, this_, args, [](uint32_t){}, [&some](uint32_t, const value& v) {
         if (to_boolean(v)) {
             some = true;
             return false;
@@ -472,7 +473,18 @@ bool array_some(const gc_heap_ptr<global_object>& global, const value& this_, co
 }
 
 void array_for_each(const gc_heap_ptr<global_object>& global, const value& this_, const std::vector<value>& args) {
-    for_each_helper(global, this_, args, [](const value&) { return true; });
+    for_each_helper(global, this_, args, [](uint32_t){}, [](uint32_t, const value&) { return true; });
+}
+
+object_ptr array_map(const gc_heap_ptr<global_object>& global, const value& this_, const std::vector<value>& args) {
+    object_ptr a;
+    for_each_helper(global, this_, args, [&a, global](uint32_t length) {
+        a = make_array(global, length);
+    }, [&h=global.heap(), &a](uint32_t k, const value& v) {
+        a->put(string{h, index_string(k)}, v);
+        return true;
+    });
+    return a;
 }
 
 } // unnamed namespace
@@ -613,6 +625,10 @@ global_object_create_result make_array_object(global_object& global) {
         put_native_function(global, prototype, "forEach", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
             array_for_each(global, this_, args);
             return value::undefined;
+        }, 1);
+
+        put_native_function(global, prototype, "map", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+            return value{array_map(global, this_, args)};
         }, 1);
     }
 

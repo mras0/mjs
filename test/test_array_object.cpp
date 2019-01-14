@@ -205,8 +205,35 @@ s; //$string 'this=object:[object Global],a=number:1,b=number:0,c=object:1,2,3\n
 s=''; r=Array.prototype.forEach.call({length:4,1:'a',3:'c',5:'d'}, function(a,b,c) { s+=fmtall(this,a,b,c)+'\n'; return true; }, ['z']); r;//$undefined
 s; //$string 'this=object:z,a=string:a,b=number:1,c=object:[object Object]\nthis=object:z,a=string:c,b=number:3,c=object:[object Object]\n'
 
+
+Array.prototype.map.length;//$number 1
+try {[].map();}catch(e){e.toString();} //$string 'TypeError: undefined is not a function'
+
+b = [].map(function(a,b,c){});
+b instanceof Array;//$boolean true
+b.toString();//$string ''
+
+a = [1,2,3];
+b = a.map(function(a,b,c){return fmtall(this,a,b,c);});
+b instanceof Array; //$boolean true
+a===b;//$boolean false
+a.toString();//$string '1,2,3'
+b.toString();//$string 'this=object:[object Global],a=number:1,b=number:0,c=object:1,2,3,this=object:[object Global],a=number:2,b=number:1,c=object:1,2,3,this=object:[object Global],a=number:3,b=number:2,c=object:1,2,3'
+
+['x'].map(function(a,b,c){return fmtall(this,a,b,c);}, new Number(42)).toString(); //$string 'this=object:42,a=string:x,b=number:0,c=object:x'
+
+a = {length:5,0:2,3:4};
+b = Array.prototype.map.call(a, function(a,b) { return a+':'+b; });
+a instanceof Array; //$boolean false
+a.length;//$number 5
+a[1];//$undefined
+b instanceof Array; //$boolean true
+b.length;//$number 5
+b[1];//$undefined
+b.toString();//$string '2:0,,,4:3,'
+
 ap = Array.prototype;
-ap['map'] || ap['filter'] || ap['reduce'] || ap['reduceRight']; //$undefined
+ap['filter'] || ap['reduce'] || ap['reduceRight']; //$undefined
 )");
     }
 
