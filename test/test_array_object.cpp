@@ -266,8 +266,32 @@ x.toString(); //$string '1,2'
 s; //$string 'this=object:[object Global],a=number:1,b=number:0,c=object:[object Object]\nthis=object:[object Global],a=number:2,b=number:3,c=object:[object Object]\n'
 
 
-ap = Array.prototype;
-ap['reduce'] || ap['reduceRight']; //$undefined
+Array.prototype.reduce.length; //$number 1
+Array.prototype.reduceRight.length; //$number 1
+try {[].reduce();}catch(e){e.toString();} //$string 'TypeError: undefined is not a function'
+try {[].reduceRight();}catch(e){e.toString();} //$string 'TypeError: undefined is not a function'
+try {[].reduce(function(){});}catch(e){e.toString();} //$string 'TypeError: cannot reduce empty array'
+try {[].reduceRight(function(){});}catch(e){e.toString();} //$string 'TypeError: cannot reduce empty array'
+try {Array.prototype.reduce.call({length:10,10:42},function(){});}catch(e){e.toString();} //$string 'TypeError: cannot reduce empty array'
+[].reduce(function(){},42);//$number 42
+[].reduceRight(function(){},'x');//$string 'x'
+[].reduce(function(){},undefined);//$undefined
+[].reduceRight(function(){},undefined);//$undefined
+
+function r(a,b,c,d){s+=fmt(this)+','+fmt(a)+','+fmt(b)+','+fmt(c)+','+fmt(d)+'\n';return a-b;};
+a = [2,4,10];
+s='';a.reduce(r); //$number -12
+s; //$string 'object:[object Global],number:2,number:4,number:1,object:2,4,10\nobject:[object Global],number:-2,number:10,number:2,object:2,4,10\n'
+s='';a.reduceRight(r); //$number 4
+s; //$string 'object:[object Global],number:10,number:4,number:1,object:2,4,10\nobject:[object Global],number:6,number:2,number:0,object:2,4,10\n'
+a instanceof Array; //$boolean true
+a.toString(); //$string '2,4,10'
+
+o={length:3,0:10,2:40};
+r=Array.prototype.reduce.call(o, function(a,v){return ''+a+v;}, 30); r;//$string '301040'
+o={length:4,0:10,1:undefined,2:40};
+r=Array.prototype.reduceRight.call(o, function(a,v){return ''+a+v;}, 30); r;//$string '3040undefined10'
+
 )");
     }
 

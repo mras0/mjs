@@ -499,6 +499,47 @@ object_ptr array_filter(const gc_heap_ptr<global_object>& global, const value& t
     return a;
 }
 
+value array_reduce(const gc_heap_ptr<global_object>& global, const value& this_, const std::vector<value>& args, bool reduce_right) {
+    auto o = global->to_object(this_);
+    const auto len = to_uint32(o->get(L"length"));
+    const auto callback = !args.empty() ? args[0] : value::undefined;
+    global->validate_type(callback, global->function_prototype(), "function");
+
+    value accumulator = value::undefined;
+    // i always counts from 0 to len-1 (inclusive)
+    uint32_t i = 0;
+    // k() is the index to use (same as i if left reducing)
+    auto k = [&i, len, reduce_right]() { return reduce_right ? len - 1 - i : i; };
+
+    if (args.size() > 1) {
+        // 7. initialValue is present
+        accumulator = args[1];
+    } else {
+        // 6. len is 0 and initialValue is not present
+        // 8. initialValue is not present
+        for (;;) {
+            if (i == len) {
+                throw native_error_exception{native_error_type::type, global->stack_trace(), "cannot reduce empty array"};
+            }
+            const auto is = index_string(k());
+            ++i; // increase i after having called k() for this loop but before breaking (since the value was consumed)
+            if (o->has_property(is)) {
+                accumulator = o->get(is);
+                break;
+            }
+        }
+    }
+
+    for (; i < len; ++i) {
+        const auto is = index_string(k());
+        if (o->has_property(is)) {
+            accumulator = call_function(callback, value::undefined, { accumulator, o->get(is), value{static_cast<double>(k())}, value{o} });
+        }
+    }
+
+    return accumulator;
+}
+
 } // unnamed namespace
 
 global_object_create_result make_array_object(global_object& global) {
@@ -645,6 +686,14 @@ global_object_create_result make_array_object(global_object& global) {
 
         put_native_function(global, prototype, "filter", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
             return value{array_filter(global, this_, args)};
+        }, 1);
+
+        put_native_function(global, prototype, "reduce", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+            return value{array_reduce(global, this_, args, false)};
+        }, 1);
+
+        put_native_function(global, prototype, "reduceRight", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+            return value{array_reduce(global, this_, args, true)};
         }, 1);
     }
 
