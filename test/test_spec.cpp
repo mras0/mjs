@@ -1,11 +1,13 @@
 #include "test_spec.h"
-#include "test.h" // for parser_version
+#include "test.h"
 #include <mjs/parser.h>
 #include <mjs/interpreter.h>
 #include <mjs/printer.h>
 
 #include <sstream>
 #include <cmath>
+
+// FIXME: test_spec has issue with one-liner expression statements
 
 //#define TEST_SPEC_DEBUG
 

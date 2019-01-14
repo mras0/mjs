@@ -161,15 +161,15 @@ Array.prototype.lastIndexOf.call('test', 's'); //$number 2
 [1,undefined].lastIndexOf(); //$number 1
 
 
-Array.prototype.every.length;//$number 1
-
 try { [].every(); } catch (e) { e.toString(); } //$string 'TypeError: undefined is not a function'
 try { [].every(42); } catch (e) { e.toString(); } //$string 'TypeError: 42 is not a function'
 
 function fmt(v) { return typeof(v)+':'+v; }
 function fmtall(t,a,b,c) { return 'this='+fmt(t)+',a='+fmt(a)+',b='+fmt(b)+',c='+fmt(c); }
+
+Array.prototype.every.length;//$number 1
 s=''; [].every(function(a,b,c) { s+=fmtall(this,a,b,c)+'\n'; return true; }); //$boolean true
-s; //string ''
+s; //$string ''
 s=''; [1,2,3].every(function(a,b,c) { s+=fmtall(this,a,b,c)+'\n'; return true; }); //$boolean true
 s; //$string 'this=object:[object Global],a=number:1,b=number:0,c=object:1,2,3\nthis=object:[object Global],a=number:2,b=number:1,c=object:1,2,3\nthis=object:[object Global],a=number:3,b=number:2,c=object:1,2,3\n'
 s=''; [1,2,3].every(function(a,b,c) { s+=fmtall(this,a,b,c)+'\n'; return true; }, ['z']); //$boolean true
@@ -181,8 +181,32 @@ s; //$string 'this=object:[object Global],a=number:1,b=number:0,c=object:1,2,3\n
 s=''; Array.prototype.every.call({length:4,1:'a',3:'c',5:'d'}, function(a,b,c) { s+=fmtall(this,a,b,c)+'\n'; return true; }, ['z']); //$boolean true
 s; //$string 'this=object:z,a=string:a,b=number:1,c=object:[object Object]\nthis=object:z,a=string:c,b=number:3,c=object:[object Object]\n'
 
+Array.prototype.some.length;//$number 1
+s=''; [].some(function(a,b,c) { s+=fmtall(this,a,b,c)+'\n'; return true; }); //$boolean false
+s; //$string ''
+s=''; [1,2,3].some(function(a,b,c) { s+=fmtall(this,a,b,c)+'\n'; return true; }); //$boolean true
+s; //$string 'this=object:[object Global],a=number:1,b=number:0,c=object:1,2,3\n'
+s=''; [1,2,3].some(function(a,b,c) { s+=fmtall(this,a,b,c)+'\n'; return false; }); //$boolean false
+s; //$string 'this=object:[object Global],a=number:1,b=number:0,c=object:1,2,3\nthis=object:[object Global],a=number:2,b=number:1,c=object:1,2,3\nthis=object:[object Global],a=number:3,b=number:2,c=object:1,2,3\n'
+s=''; b=[1,2,3].some(function(a,b,c) { s+=fmtall(this,a,b,c)+'\n'; return b===1; }); b;//$boolean true
+s; //$string 'this=object:[object Global],a=number:1,b=number:0,c=object:1,2,3\nthis=object:[object Global],a=number:2,b=number:1,c=object:1,2,3\n'
+s=''; Array.prototype.some.call({length:4,1:'a',3:'c',5:'d'}, function(a,b,c) { s+=fmtall(this,a,b,c)+'\n'; return true; }, ['z']); //$boolean true
+s; //$string 'this=object:z,a=string:a,b=number:1,c=object:[object Object]\n'
+
+Array.prototype.forEach.length;//$number 1
+s=''; r=[].forEach(function(a,b,c) { s+=fmtall(this,a,b,c)+'\n'; return true; }); r;//$undefined
+s; //$string ''
+s=''; r=[1,2,3].forEach(function(a,b,c) { s+=fmtall(this,a,b,c)+'\n'; return true; }); r;//$undefined
+s; //$string 'this=object:[object Global],a=number:1,b=number:0,c=object:1,2,3\nthis=object:[object Global],a=number:2,b=number:1,c=object:1,2,3\nthis=object:[object Global],a=number:3,b=number:2,c=object:1,2,3\n'
+s=''; r=[1,2,3].forEach(function(a,b,c) { s+=fmtall(this,a,b,c)+'\n'; return false; }); r;//$undefined
+s; //$string 'this=object:[object Global],a=number:1,b=number:0,c=object:1,2,3\nthis=object:[object Global],a=number:2,b=number:1,c=object:1,2,3\nthis=object:[object Global],a=number:3,b=number:2,c=object:1,2,3\n'
+s=''; r=[1,2,3].forEach(function(a,b,c) { s+=fmtall(this,a,b,c)+'\n'; return b===1; }); r;//$undefined
+s; //$string 'this=object:[object Global],a=number:1,b=number:0,c=object:1,2,3\nthis=object:[object Global],a=number:2,b=number:1,c=object:1,2,3\nthis=object:[object Global],a=number:3,b=number:2,c=object:1,2,3\n'
+s=''; r=Array.prototype.forEach.call({length:4,1:'a',3:'c',5:'d'}, function(a,b,c) { s+=fmtall(this,a,b,c)+'\n'; return true; }, ['z']); r;//$undefined
+s; //$string 'this=object:z,a=string:a,b=number:1,c=object:[object Object]\nthis=object:z,a=string:c,b=number:3,c=object:[object Object]\n'
+
 ap = Array.prototype;
-ap['some'] || ap['forEach'] || ap['map'] || ap['filter'] || ap['reduce'] || ap['reduceRight']; //$undefined
+ap['map'] || ap['filter'] || ap['reduce'] || ap['reduceRight']; //$undefined
 )");
     }
 

@@ -8,8 +8,6 @@ Annex D, E and F contain lists of the necessary changes.
 - Annex E: 15.3.4.3,4: Change in handling of `null`/`undefined` when passed to `apply/call` (Note: most e.g. Object.prototype functions have been changed to call `ToObject` on the this argument, need to retest many functions...)
 - Annex E: 15.12: `JSON` object
 - Function.prototype.bind
-- Array.prototype.some
-- Array.prototype.forEach
 - Array.prototype.map
 - Array.prototype.filter
 - Array.prototype.reduce
@@ -59,6 +57,8 @@ Annex D, E and F contain lists of the necessary changes.
 - Array.prototype.indexOf
 - Array.prototype.lastIndexOf
 - Array.prototype.every
+- Array.prototype.some
+- Array.prototype.forEach
 
 ## Notes:
 - 7.1 Form Control Characters changed from ES1 -> ES3 -> ES5
