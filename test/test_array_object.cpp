@@ -232,8 +232,42 @@ b.length;//$number 5
 b[1];//$undefined
 b.toString();//$string '2:0,,,4:3,'
 
+
+Array.prototype.filter.length;//$number 1
+x=[].filter(function(){});
+x instanceof Array;
+x.length; //$number 0
+
+a = [1,2,3,4];
+b = a.filter(function(a){return a%2==0;});
+b instanceof Array;
+a.toString(); //$string '1,2,3,4'
+b.toString(); //$string '2,4'
+
+a = [1,2,3,4];
+b = a.filter(function(a){return false;});
+b instanceof Array;
+a.toString(); //$string '1,2,3,4'
+b.toString(); //$string ''
+
+a = [0,1,2];
+s = '';
+x = a.filter(function(a,b,c){s+=fmtall(this,a,b,c)+'\n'; return b===1;},1234);
+x.toString(); //$string '1'
+s; //$string 'this=object:1234,a=number:0,b=number:0,c=object:0,1,2\nthis=object:1234,a=number:1,b=number:1,c=object:0,1,2\nthis=object:1234,a=number:2,b=number:2,c=object:0,1,2\n'
+
+ao = { length: 4, 0: 1, 3:2 };
+s = '';
+x = Array.prototype.filter.call(ao, function(a,b,c){s+=fmtall(this,a,b,c)+'\n'; return true;});
+x instanceof Array; //$boolean true
+ao instanceof Array; //$boolean false
+x.length; //$number 2
+x.toString(); //$string '1,2'
+s; //$string 'this=object:[object Global],a=number:1,b=number:0,c=object:[object Object]\nthis=object:[object Global],a=number:2,b=number:3,c=object:[object Object]\n'
+
+
 ap = Array.prototype;
-ap['filter'] || ap['reduce'] || ap['reduceRight']; //$undefined
+ap['reduce'] || ap['reduceRight']; //$undefined
 )");
     }
 

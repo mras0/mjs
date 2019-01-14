@@ -480,8 +480,20 @@ object_ptr array_map(const gc_heap_ptr<global_object>& global, const value& this
     object_ptr a;
     for_each_helper(global, this_, args, [&a, global](uint32_t length) {
         a = make_array(global, length);
-    }, [&h=global.heap(), &a](uint32_t k, const value& v) {
-        a->put(string{h, index_string(k)}, v);
+    }, [&a](uint32_t k, const value& v) {
+        a->put(string{a.heap(), index_string(k)}, v);
+        return true;
+    });
+    return a;
+}
+
+object_ptr array_filter(const gc_heap_ptr<global_object>& global, const value& this_, const std::vector<value>& args) {
+    object_ptr a = make_array(global, 0);
+    uint32_t len = 0;
+    for_each_helper(global, this_, args, [](uint32_t) {}, [&this_, &a, &len](uint32_t k, const value& v) {
+        if (to_boolean(v)) {
+            a->put(string{a.heap(), index_string(len++)}, this_.object_value()->get(index_string(k)));
+        }
         return true;
     });
     return a;
@@ -629,6 +641,10 @@ global_object_create_result make_array_object(global_object& global) {
 
         put_native_function(global, prototype, "map", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
             return value{array_map(global, this_, args)};
+        }, 1);
+
+        put_native_function(global, prototype, "filter", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+            return value{array_filter(global, this_, args)};
         }, 1);
     }
 
