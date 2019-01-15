@@ -38,6 +38,8 @@ add_library(mjs_global STATIC
     mjs/gc_vector.h
     mjs/global_object.cpp
     mjs/global_object.h
+    mjs/json_object.cpp
+    mjs/json_object.h
     mjs/native_object.cpp
     mjs/native_object.h
     mjs/number_object.cpp

@@ -11,6 +11,7 @@
 #include "string_object.h"
 #include "number_object.h"
 #include "date_object.h"
+#include "json_object.h"
 #include "char_conversions.h"
 #include <sstream>
 #include <chrono>
@@ -629,6 +630,9 @@ private:
         add("Math", make_math_object);
         add("Date", make_date_object);
         add("console", make_console_object);
+        if (version_ >= version::es5) {
+            add("JSON", make_json_object);
+        }
 
         if (language_version() >= version::es3) {
             add("RegExp", make_regexp_object, &regexp_prototype_);
