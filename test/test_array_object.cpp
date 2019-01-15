@@ -67,6 +67,7 @@ a = new Array(); a[4294967296]=1; a.length //$number 0
 
     if (tested_version() < version::es5) {
         RUN_TEST_SPEC(R"(
+Array.isArray; //$undefined
 ap = Array.prototype;
 ap['indexOf'] || ap['lastIndexOf'] || ap['every'] || ap['some'] || ap['forEach'] || ap['map'] || ap['filter'] || ap['reduce'] || ap['reduceRight']; //$undefined
 )");
@@ -292,6 +293,15 @@ r=Array.prototype.reduce.call(o, function(a,v){return ''+a+v;}, 30); r;//$string
 o={length:4,0:10,1:undefined,2:40};
 r=Array.prototype.reduceRight.call(o, function(a,v){return ''+a+v;}, 30); r;//$string '3040undefined10'
 
+
+Array.isArray.length; //$number 1
+Array.isArray();//$boolean false
+Array.isArray(undefined);//$boolean false
+Array.isArray(null);//$boolean false
+Array.isArray(42);//$boolean false
+Array.isArray('x');//$boolean false
+Array.isArray({length:1,0:42});//$boolean false
+Array.isArray([]);//$boolean true
 )");
     }
 
@@ -435,6 +445,7 @@ a.toString(); //$string '0,1,2'
 var a = [0,1,2];
 a.splice(1).toString(); //$string '1,2'
 a.toString(); //$string '0'
+
 )");
 
     // Check that `RangeError` is thrown (15.4.2.2, 15.4.5.1)

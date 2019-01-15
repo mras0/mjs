@@ -695,6 +695,10 @@ global_object_create_result make_array_object(global_object& global) {
         put_native_function(global, prototype, "reduceRight", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
             return value{array_reduce(global, this_, args, true)};
         }, 1);
+
+        put_native_function(global, c, "isArray", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
+            return value{!args.empty() && args.front().type() == value_type::object && args.front().object_value().has_type<array_object>()};
+        }, 1);
     }
 
     return { c, prototype };
