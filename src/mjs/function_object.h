@@ -39,6 +39,8 @@ public:
     value call(const value& this_, const std::vector<value>& args) const;
     value construct(const value& this_, const std::vector<value>& args) const;
 
+    static object_ptr bind(const gc_heap_ptr<function_object>& f, const std::vector<value>& args);
+
 private:
     friend gc_type_info_registration<function_object>;
     gc_heap_ptr_untracked<global_object> global_;

@@ -854,121 +854,6 @@ s; //$string 'e:1fe2:43f2'
     RUN_TEST(L"(function() { try { throw function() { return !('a' in this); }; } catch(e) { var a = true; return e(); } })()", value{true});
 }
 
-void test_function_object() {
-    gc_heap h{256};
-    // In ES3 prototype only has attributes DontDelete, in ES1 it's DontEnum
-    const string expected_keys{h, tested_version() != version::es3 ? "" : "prototype,"};
-    RUN_TEST(L"s=''; function a(){}; for(k in a) { s+=k+','; }; s", value{expected_keys});
-    // length and are arguments should be DontDelete|DontEnum|ReadOnly
-    RUN_TEST_SPEC(R"(
-    function a(x,y,z){};
-    delete a.length; //$boolean false
-    a.length;//$number 3
-    delete a.arguments; //$boolean false
-    a.arguments; //$null
-    delete a.prototype.constructor; //$boolean true
-    Function.prototype(1,2,3); //$undefined
-    Function.toString(); //$string 'function Function() { [native code] }'
-    Function.prototype.toString(); //$string 'function () { [native code] }'
-)");
-
-    // ES5.1, 15.3.5.2 "In Edition 5, the prototype property of Function instances is not enumerable. In Edition 3, this property was enumerable"
-    RUN_TEST(L"function a(){}; s=''; for(k in a)s+=k+','; s", value{string{h, tested_version() != version::es3 ? "" : "prototype,"}});
-
-    if (tested_version() < version::es3) {
-        // In ES1 prototype should be DontEnum only
-        RUN_TEST(L"function a(){}; (delete a.prototype)", value{true});
-        // Shouldn't have call/apply
-        RUN_TEST(L"fp = Function.prototype; fp['call'] || fp['apply']", value::undefined);
-        return;
-    }
-
-    // In ES3 prototype is DontDelete
-    RUN_TEST(L"function a(){}; (delete a.prototype)", value{false});
-
-    RUN_TEST_SPEC(R"(
-Function.prototype.apply.length; //$number 2
-function f(a,b,c) { return ''+this['x']+a+b+c; }
-x=42;
-f.apply(); //$string '42undefinedundefinedundefined'
-f.apply(null); //$string '42undefinedundefinedundefined'
-f.apply({}); //$string 'undefinedundefinedundefinedundefined'
-f.apply({x:60},['a','b']); //$string '60abundefined'
-f.apply({x:'z'},[1,2,3,4]); //$string 'z123'
-
-String.prototype.charAt.apply('test',[2]); //$string 's'
-
-String.prototype.apply = Function.prototype.apply;
-try { ('h').apply(); } catch (e) {
-    e.toString(); //$ string 'TypeError: String is not a function'
-}
-)");
-
-    RUN_TEST_SPEC(R"(
-Function.prototype.call.length; //$number 1
-function f(a,b,c) { return ''+this['x']+a+b+c; }
-x=42;
-f.call(); //$string '42undefinedundefinedundefined'
-f.call(null); //$string '42undefinedundefinedundefined'
-f.call({}); //$string 'undefinedundefinedundefinedundefined'
-f.call({x:60},'a','b'); //$string '60abundefined'
-f.call({x:'z'},1,2,3,4); //$string 'z123'
-
-String.prototype.charAt.call('test',2); //$string 's'
-
-String.prototype.call = Function.prototype.call;
-try { ('h').call(); } catch (e) {
-    e.toString(); //$ string 'TypeError: String is not a function'
-}
-)");
-
-    RUN_TEST_SPEC(R"(
-// ES3, 15.3.2.1
-try {new Function('a;b','return a+b');} catch (e) { e.toString(); } //$string 'SyntaxError: Invalid argument to function constructor'
-try {new Function('a,b','*a');} catch (e) { e.toString(); } //$string 'SyntaxError: Invalid argument to function constructor'
-
-// ES3, 11.2.2, 11.2.3
-try {new 42;} catch (e) { e.toString(); } //$string 'TypeError: 42 is not an object'
-try {({})();} catch (e) { e.toString(); } //$string 'TypeError: object is not a function'
-try {42();} catch (e) { e.toString(); } //$string 'TypeError: 42 is not a function'
-
-// ES3, 15.3.4.2
-try { Function.prototype.toString.call(42); } catch (e) { e.toString(); } //$string 'TypeError: Number is not a function'
-
-// ES3, 15.3.4.3
-o = {}
-o.apply = Function.prototype.apply;
-try { o.apply(); } catch (e) { e.toString(); } //$string 'TypeError: Object is not a function'
-
-function g(a,b) { return '('+a+';'+b+')'; }
-function f() { return g.apply(null, arguments); }
-f(1,2); //$string '(1;2)'
-g.apply(null, [3,4]); //$string '(3;4)'
-
-// ES3, 15.3.4.4
-o = {}
-o.call = Function.prototype.call;
-try { o.call(); } catch (e) { e.toString(); } //$string 'TypeError: Object is not a function'
-
-// ES3, 15.3.5.3
-function f() {}
-fi = new f();
-fi instanceof f; //$boolean true
-f.prototype = undefined;
-try { fi instanceof f; } catch (e) { e.toString(); } //$string 'TypeError: Function has non-object prototype of type undefined in instanceof check'
-)");
-
-    const wchar_t* const apply_normal_object = L"try { Number.prototype.toString.apply(42, {'length':1,0:16}); } catch (e) { e.toString(); }";
-    if (tested_version() < version::es5) {
-        // In ES3 the second argument to Function.prototype.apply must be an Arguments object or an Array.
-        RUN_TEST(apply_normal_object, value{string{h, "TypeError: Object is not an (arguments) array"}});
-    } else {
-        // ES5.1, 15.3.4.3 the second argument to apply can be any object with a length property
-        RUN_TEST(apply_normal_object, value{string{h, "2a"}});
-    }
-
-}
-
 void test_error_object() {
     if (tested_version() == version::es1) {
         expect_eval_exception(L"new Error();");
@@ -1259,7 +1144,6 @@ void test_main() {
     if (tested_version() >= version::es3) {
         test_es3_statements();
     }
-    test_function_object();
     test_boolean_object();
     test_number_object();
     test_global_functions();

@@ -7,7 +7,7 @@ Annex D, E and F contain lists of the necessary changes.
 - `get` / `set`
 - Annex E: 15.3.4.3,4: Change in handling of `null`/`undefined` when passed to `apply/call` (Note: most e.g. Object.prototype functions have been changed to call `ToObject` on the this argument, need to retest many functions...)
 - Annex E: 15.12: `JSON` object
-- Function.prototype.bind
+- Array.isArray
 
 ## Done:
 - 11.1.5: Object Initialiser: Allow trailing comma and reserved words as keys
@@ -59,6 +59,7 @@ Annex D, E and F contain lists of the necessary changes.
 - Array.prototype.filter
 - Array.prototype.reduce
 - Array.prototype.reduceRight
+- Function.prototype.bind
 
 ## Notes:
 - 7.1 Form Control Characters changed from ES1 -> ES3 -> ES5

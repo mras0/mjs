@@ -16,6 +16,65 @@ static value get_this_arg(const gc_heap_ptr<global_object>& global, const value&
 
 } // unnamed namespace
 
+class bound_function_args {
+public:
+    value bound_this() const {
+        return bound_this_.get_value(heap_);
+    }
+
+    uint32_t bound_args_len() const {
+        return bound_args_ ? bound_args_.dereference(heap_).length() : 0;
+    }
+
+    value bound_arg(uint32_t index) const {
+        assert(index < bound_args_len());
+        return bound_args_.dereference(heap_)[index].get_value(heap_);
+    }
+
+    std::vector<value> build_args(const std::vector<value>& extra_args) const {
+        if (!bound_args_) {
+            return extra_args;
+        }
+        std::vector<value> res;
+        auto& ba = bound_args_.dereference(heap_);
+        for (uint32_t i = 0; i < ba.length(); ++i) {
+            res.push_back(ba[i].get_value(heap_));
+        }
+        res.insert(res.end(), extra_args.begin(), extra_args.end());
+        return res;
+    }
+
+private:
+    friend class gc_type_info_registration<bound_function_args>;
+    gc_heap&                                               heap_;
+    value_representation                                   bound_this_;
+    gc_heap_ptr_untracked<gc_vector<value_representation>> bound_args_;
+
+    explicit bound_function_args(gc_heap& h, const std::vector<value>& args)
+        : heap_{h}
+        , bound_this_{value::undefined}
+        , bound_args_{nullptr} {
+        if (!args.empty()) {
+            bound_this_ = value_representation{args[0]};
+            if (args.size() > 1) {
+                bound_args_ =  gc_vector<value_representation>::make(heap_, static_cast<uint32_t>(args.size() - 1));
+                auto a = bound_args_.dereference(heap_);
+                for (uint32_t i = 1; i < static_cast<uint32_t>(args.size()); ++i) {
+                    a.push_back(value_representation{args[i]});
+                }
+            }
+        }
+    }
+
+    void fixup() {
+        bound_this_.fixup(heap_);
+        bound_args_.fixup(heap_);
+    }
+};
+static_assert(!gc_type_info_registration<bound_function_args>::needs_destroy);
+static_assert(gc_type_info_registration<bound_function_args>::needs_fixup);
+
+
 void function_object::fixup() {
     auto& h = heap();
     global_.fixup(h);
@@ -63,6 +122,26 @@ value function_object::call(const value& this_, const std::vector<value>& args) 
 value function_object::construct(const value& this_, const std::vector<value>& args) const {
     if (!construct_) throw not_callable_exception{};
     return construct_.dereference(heap()).call(this_, args);
+}
+
+object_ptr function_object::bind(const gc_heap_ptr<function_object>& f, const std::vector<value>& args) {
+    auto& h = f.heap();
+    auto global = f->global_.track(h);
+    auto bound_args = h.make<bound_function_args>(h, args);
+
+    // Actually need to create object to store "args" (thisArg and the extra (needed?) arguments)
+    // Put it in a special pointer in function? (will help with the type checks)
+
+    // ES5.1, 15.3.4.5
+    auto res = make_function(*global, [f, bound_args](const value&, const std::vector<value>& args) {
+        return f->call(bound_args->bound_this(), bound_args->build_args(args));
+    }, string{h,""}.unsafe_raw_get(), std::max(0,  f->named_args_ - static_cast<int>(bound_args->bound_args_len())));
+
+    make_constructable(*global, res, [f, bound_args](const value&, const std::vector<value>& args) {
+        return f->construct(value::undefined, bound_args->build_args(args));
+    });
+    
+    return res;
 }
 
 gc_heap_ptr<function_object> make_raw_function(global_object& global) {
@@ -133,6 +212,13 @@ global_object_create_result make_function_object(global_object& global) {
 do_call:
             return static_cast<const function_object&>(*this_.object_value()).call(!args.empty() ? args.front() : value::undefined, new_args);
         }, 2);
+    }
+
+    if (global.language_version() >= version::es5) {
+        put_native_function(global, prototype, "bind", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+            global->validate_type(this_, global->function_prototype(), "function");
+            return value{function_object::bind(gc_heap_ptr<function_object>{this_.object_value()}, args)};
+        }, 1);
     }
 
     auto obj = make_raw_function(global); // Note: function constructor is added by interpreter
