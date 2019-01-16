@@ -34,9 +34,9 @@ std::wostream& operator<<(std::wostream& os, const completion& c) {
 
 class hoisting_visitor {
 public:
-    static std::vector<std::wstring> scan(const block_statement& bs) {
+    static std::vector<std::wstring> scan(const statement& s) {
         hoisting_visitor hv{};
-        hv(bs);
+        accept(s, hv);
         return hv.ids_;
     }
 
@@ -301,6 +301,10 @@ public:
 
     ~impl() {
         assert(active_scope_ && !active_scope_->get_prev());
+    }
+
+    gc_heap_ptr<global_object> global() const {
+        return global_;
     }
 
     void current_extend(const source_extend& e) {
@@ -1290,6 +1294,14 @@ completion interpreter::eval(const statement& s) {
 
 value interpreter::eval_program() {
     return impl_->eval_program();
+}
+
+completion interpreter::hoist_and_eval(const statement& s) {
+    auto global = impl_->global();
+    for (const auto& id: hoisting_visitor::scan(s)) {
+        global->put(string{global.heap(), id}, value::undefined, property_attribute::dont_delete);
+    }
+    return impl_->eval(s);
 }
 
 } // namespace mjs

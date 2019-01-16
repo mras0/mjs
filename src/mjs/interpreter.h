@@ -55,6 +55,7 @@ public:
 
     value eval(const expression& e);
     completion eval(const statement& s);
+    completion hoist_and_eval(const statement& s); // For use in repl
     value eval_program();
 
 private:

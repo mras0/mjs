@@ -34,8 +34,10 @@ void platform_init() {
 #endif
 
 #ifdef _WIN32
-    if (_isatty(_fileno(stdout))) {
+    if (_isatty(_fileno(stdin))) {
         _setmode(_fileno(stdin), _O_U16TEXT);
+    }
+    if (_isatty(_fileno(stdout))) {
         _setmode(_fileno(stdout), _O_U16TEXT);
         _setmode(_fileno(stderr), _O_U16TEXT);
     }

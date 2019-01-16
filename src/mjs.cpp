@@ -72,7 +72,7 @@ int main(int argc, char* argv[]) {
             mjs::value res{};
             auto bs = mjs::parse(make_source(line, ver));
             for (const auto& s: bs->l()) {
-                auto c = i.eval(*s);
+                auto c = i.hoist_and_eval(*s);
                 if (c) {
                     std::wcout << "abrupt completion: " << c << "\n";
                     continue;
