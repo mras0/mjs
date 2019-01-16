@@ -52,7 +52,32 @@ std::wstring json_quote(const std::wstring_view& s) {
 
 class stringify_state {
 public:
-    explicit stringify_state(const gc_heap_ptr<global_object>& global) : global_(global) {
+    explicit stringify_state(const gc_heap_ptr<global_object>& global, const std::vector<value>& args) : global_(global) {
+        assert(!args.empty());
+        if (args.size() > 1 && args[1].type() == value_type::object) {
+            // TODO: Handle PropertyList and ReplacerFunction
+            throw_not_implement("stringify", global, args);
+        }
+        if (args.size() > 2) {
+            auto space = args[2];
+            if (space.type() == value_type::object) {
+                // FIXME: As below this is a bad way to determine the type...
+                auto o = space.object_value();
+                const auto class_name = o->class_name();
+                if (class_name.view() == L"Number") {
+                    space = value{to_number(space)};
+                } else if (class_name.view() == L"String") {
+                    space = value{to_string(heap(), space)};
+                }
+            }
+
+            if (space.type() == value_type::number) {
+                gap_ = std::wstring(std::min(10, static_cast<int>(to_integer(space.number_value()))), ' ');
+            } else if (space.type() == value_type::string) {
+                auto s = space.string_value().view(); 
+                gap_ = s.substr(0, std::min(size_t{10}, s.length()));
+            }
+        }
     }
 
     ~stringify_state() {
@@ -70,18 +95,40 @@ public:
     public:
         explicit nest(stringify_state& state, const object_ptr& o) : state_(state) {
             state_.push(o);
+            step_back_ = state.indent_;
+            state.indent_ += state_.gap_;
         }
         ~nest() {
             state_.pop();
+            state_.indent_ = step_back_;
         }
+
+        std::wstring start_gap() const {
+            return state_.gap_.empty() ? L"" : L"\n" + state_.indent_;
+        }
+
+        std::wstring end_gap() const {
+            return state_.gap_.empty() ? L"" : L"\n" + step_back_;
+        }
+
+        std::wstring sep() const {
+            return state_.gap_.empty() ? L"," : L",\n" + state_.indent_;
+        }
+
+        std::wstring spacing() const {
+            return state_.gap_.empty() ? L"" : L" ";
+        }
+
     private:
         stringify_state& state_;
+        std::wstring step_back_;
     };
 
 private:
     gc_heap_ptr<global_object> global_;
     gc_heap_ptr<gc_vector<gc_heap_ptr_untracked<object>>> stack_ = nullptr;
-    // TODO: indent, gap, sapce
+    std::wstring indent_;
+    std::wstring gap_;
 
     void push(const object_ptr& obj) {
         if (!stack_) {
@@ -112,7 +159,7 @@ string json_str_object(stringify_state& state, const object_ptr& o) {
         auto str_p = json_str(state, p.view(), o);
         if (str_p.type() != value_type::undefined) {
             assert(str_p.type() == value_type::string);
-            partial.push_back(json_quote(p.view()) + L":" + std::wstring{str_p.string_value().view()});
+            partial.push_back(json_quote(p.view()) + L":" + nest.spacing() + std::wstring{str_p.string_value().view()});
         }
     }
 
@@ -122,10 +169,16 @@ string json_str_object(stringify_state& state, const object_ptr& o) {
 
     std::wstring res;
     res.push_back('{');
+    res += nest.start_gap();
+    bool first = true;
     for (const auto& s: partial) {
-        if (res.size() > 1) res.push_back(',');
+        if (!first) {
+            res += nest.sep();
+        }
         res += s;
+        first = false;
     }
+    res += nest.end_gap();
     res.push_back('}');
     return string{state.heap(), res};
 }
@@ -151,10 +204,16 @@ string json_str_array(stringify_state& state, const object_ptr& a) {
 
     std::wstring res;
     res.push_back('[');
+    res += nest.start_gap();
+    bool first = true;
     for (const auto& s: partial) {
-        if (res.size() > 1) res.push_back(',');
+        if (!first) {
+            res += nest.sep();
+        }
         res += s.view();
+        first = false;
     }
+    res += nest.end_gap();
     res.push_back(']');
     return string{state.heap(), res};
 }
@@ -184,7 +243,6 @@ value json_str(stringify_state& state, const std::wstring_view key, const object
     // 4. If Type(value) is Object then, 
     if (v.type() == value_type::object) {
         auto o = v.object_value();
-
         // FIXME: Check actual class or handle differently
         const auto class_name = o->class_name();
         if (class_name.view() == L"Number") {
@@ -233,14 +291,12 @@ value json_parse(const gc_heap_ptr<global_object>& global, const std::vector<val
 value json_stringify(const gc_heap_ptr<global_object>& global, const std::vector<value>& args) {
     if (args.empty()) {
         return value::undefined;
-    } else if (args.size() > 1) {
-        throw_not_implement("stringify", global, args);
     }
 
     auto wrapper = global->make_object();
     wrapper->put(global->common_string(""), args.front());
 
-    stringify_state s{global};
+    stringify_state s{global, args};
 
     return json_str(s, L"", wrapper);
 }

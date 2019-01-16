@@ -60,5 +60,41 @@ JSON.stringify(o); //$string '{"x":42,"y":60}'
 
 JSON.stringify({if:{a:42},x:{b:'x'}}); //$string '{"if":{"a":42},"x":{"b":"x"}}'
 
+JSON.stringify([], null, null);                 //$string '[]'
+JSON.stringify([], null, {});                   //$string '[]'
+JSON.stringify([], null, 42);                   //$string '[]'
+JSON.stringify([], null, true);                 //$string '[]'
+JSON.stringify([], null, new Number(42));       //$string '[]'
+JSON.stringify([], null, ' ');                  //$string '[]'
+JSON.stringify([], null, new String(' '));      //$string '[]'
+
+JSON.stringify([1,2], null, null);              //$string '[1,2]'
+JSON.stringify([1,2], null, true);              //$string '[1,2]'
+JSON.stringify([1,2], null, {});                //$string '[1,2]'
+JSON.stringify([1,2], null, 3);                 //$string '[\n   1,\n   2\n]'
+JSON.stringify([1,2], null, 42);                //$string '[\n          1,\n          2\n]'
+JSON.stringify([1,2], null, new Number(42));    //$string '[\n          1,\n          2\n]'
+JSON.stringify([1,2], null, 'x \n \f');         //$string '[\nx \n \f1,\nx \n \f2\n]'
+JSON.stringify([1,2], null, new String(' '));   //$string '[\n 1,\n 2\n]'
+JSON.stringify([1,2], null, new String('0123456789abcdef'));   //$string '[\n01234567891,\n01234567892\n]'
+
+JSON.stringify([[1,2],[3,4]], undefined, 4);    //$string '[\n    [\n        1,\n        2\n    ],\n    [\n        3,\n        4\n    ]\n]'
+
+JSON.stringify({}, null, null);                 //$string '{}'
+JSON.stringify({}, null, {});                   //$string '{}'
+JSON.stringify({}, null, 42);                   //$string '{}'
+JSON.stringify({}, null, true);                 //$string '{}'
+JSON.stringify({}, null, new Number(42));       //$string '{}'
+JSON.stringify({}, null, ' ');                  //$string '{}'
+JSON.stringify({}, null, new String(' '));      //$string '{}'
+
+JSON.stringify({ a: 42,b:60 }, null, null);                 //$string '{"a":42,"b":60}'
+JSON.stringify({ a: 42,b:60 }, null, {});                   //$string '{"a":42,"b":60}'
+JSON.stringify({ a: 42,b:60 }, null, 42);                   //$string '{\n          "a": 42,\n          "b": 60\n}'
+JSON.stringify({ a: 42,b:60 }, null, true);                 //$string '{"a":42,"b":60}'
+JSON.stringify({ a: 42,b:60 }, null, new Number(42));       //$string '{\n          "a": 42,\n          "b": 60\n}'
+JSON.stringify({ a: 42,b:60 }, null, ' ');                  //$string '{\n "a": 42,\n "b": 60\n}'
+JSON.stringify({ a: 42,b:60 }, null, new String(' '));      //$string '{\n "a": 42,\n "b": 60\n}'
+JSON.stringify({ a: 42,b:60 }, null, new String('\n\r\f\t1234534341231')); //$string '{\n\n\r\f\t123453"a": 42,\n\n\r\f\t123453"b": 60\n}'
     )");
 }
