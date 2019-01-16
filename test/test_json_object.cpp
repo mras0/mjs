@@ -96,5 +96,19 @@ JSON.stringify({ a: 42,b:60 }, null, new Number(42));       //$string '{\n      
 JSON.stringify({ a: 42,b:60 }, null, ' ');                  //$string '{\n "a": 42,\n "b": 60\n}'
 JSON.stringify({ a: 42,b:60 }, null, new String(' '));      //$string '{\n "a": 42,\n "b": 60\n}'
 JSON.stringify({ a: 42,b:60 }, null, new String('\n\r\f\t1234534341231')); //$string '{\n\n\r\f\t123453"a": 42,\n\n\r\f\t123453"b": 60\n}'
-    )");
+
+function fmt(n, v) { return n+'='+v+':'+typeof v;}
+function r(k,v) { return JSON.stringify(this)+','+fmt(k,v); }
+JSON.stringify(undefined, r); //$string '"{},=undefined:undefined"'
+JSON.stringify({}, r); //$string '"{\\"\\":{}},=[object Object]:object"'
+JSON.stringify('x', r); //$string '"{\\"\\":\\"x\\"},=x:string"'
+JSON.stringify({a:1,2:'xz'}, r); //$string '"{\\"\\":{\\"a\\":1,\\"2\\":\\"xz\\"}},=[object Object]:object"'
+JSON.stringify({ax:42,232:'xyz'}, r, 'dssdsds\ndsdsd23213'); //$string '"{\\"\\":{\\"ax\\":42,\\"232\\":\\"xyz\\"}},=[object Object]:object"'
+
+function r2(k,v) { return typeof v !== 'object' ? fmt(v) : v; }
+JSON.stringify({}, r2); //$string '{}'
+JSON.stringify({ax:42,232:'xyz'}, r2, 'dssdsds\ndsdsd23213'); //$string '{\ndssdsds\nds"ax": "42=undefined:undefined",\ndssdsds\nds"232": "xyz=undefined:undefined"\n}'
+JSON.stringify([1,2,{a:3}],r2,2); //$string '[\n  "1=undefined:undefined",\n  "2=undefined:undefined",\n  {\n    "a": "3=undefined:undefined"\n  }\n]'
+JSON.stringify({x:[new Date(686452434213),2],y:'abc'},r2,'   xs'); //$string '{\n   xs"x": [\n   xs   xs"1991-10-03T01:13:54.213Z=undefined:undefined",\n   xs   xs"2=undefined:undefined"\n   xs],\n   xs"y": "abc=undefined:undefined"\n}'
+)");
 }

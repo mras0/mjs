@@ -55,8 +55,13 @@ public:
     explicit stringify_state(const gc_heap_ptr<global_object>& global, const std::vector<value>& args) : global_(global) {
         assert(!args.empty());
         if (args.size() > 1 && args[1].type() == value_type::object) {
-            // TODO: Handle PropertyList and ReplacerFunction
-            throw_not_implement("stringify", global, args);
+            const auto& o = args[1].object_value();
+            if (o.has_type<function_object>()) {
+                replacer_ = o;
+            } else {
+                // TODO: Handle PropertyList and ReplacerFunction
+                throw_not_implement("stringify", global, args);
+            }
         }
         if (args.size() > 2) {
             auto space = args[2];
@@ -84,12 +89,19 @@ public:
         assert(!stack_ || stack_->length() == 0);
     }
 
-
     gc_heap& heap() const { return global_.heap(); }
     const gc_heap_ptr<global_object>& global() { return global_; }
 
     string null_str() const { return global_->common_string("null"); }
     string bool_str(bool val) const { return global_->common_string(val ? "true" : "false"); }
+
+    void call_replacer(value& v, const std::wstring_view key, const object_ptr& holder) {
+        if (!replacer_) {
+            return;
+        }
+        assert(replacer_.has_type<function_object>());
+        v = call_function(value{replacer_}, value{holder}, {value{string{heap(), key}}, v});
+    }
 
     class nest {
     public:
@@ -127,6 +139,7 @@ public:
 private:
     gc_heap_ptr<global_object> global_;
     gc_heap_ptr<gc_vector<gc_heap_ptr_untracked<object>>> stack_ = nullptr;
+    object_ptr replacer_ = nullptr;
     std::wstring indent_;
     std::wstring gap_;
 
@@ -238,7 +251,7 @@ value json_str(stringify_state& state, const std::wstring_view key, const object
     }
 
     // 3. If ReplacerFunction is not undefined, then
-    // TODO
+    state.call_replacer(v, key, holder);
 
     // 4. If Type(value) is Object then, 
     if (v.type() == value_type::object) {
