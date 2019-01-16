@@ -697,7 +697,7 @@ global_object_create_result make_array_object(global_object& global) {
         }, 1);
 
         put_native_function(global, c, "isArray", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
-            return value{!args.empty() && args.front().type() == value_type::object && args.front().object_value().has_type<array_object>()};
+            return value{!args.empty() && args.front().type() == value_type::object && is_array(args.front().object_value())};
         }, 1);
     }
 
@@ -718,6 +718,10 @@ object_ptr make_array(const gc_heap_ptr<global_object>& global, const std::vecto
         arr->unchecked_put(i, args[i]);
     }
     return arr;
+}
+
+bool is_array(const object_ptr& o) {
+    return o.has_type<array_object>();
 }
 
 } // namespace mjs
