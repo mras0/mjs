@@ -117,7 +117,7 @@ JSON.stringify({a:{a:42,b:43},b:{a:59,b:60}}, ['b']); //$string '{"b":{"b":60}}'
 JSON.parse.length;//$number 2
 
 try { JSON.parse(); } catch (e) { e.toString(); }               //$string 'SyntaxError: Unexpected token "u" in JSON at position 0'
-try { JSON.parse(''); } catch (e) { e.toString(); }             //$string 'SyntaxError: Unexpected end of JSON input'
+try { JSON.parse(''); } catch (e) { e.toString(); }             //$string 'SyntaxError: Unexpected end of input at position 0'
 try { JSON.parse('nu'); } catch (e) { e.toString(); }           //$string 'SyntaxError: Unexpected token "n" in JSON at position 0'
 try { JSON.parse('null null'); } catch (e) { e.toString(); }    //$string 'SyntaxError: Unexpected token null in JSON at position 5'
 try { JSON.parse('-'); } catch (e) { e.toString(); }            //$string 'SyntaxError: Invalid number in JSON at position 0'
@@ -132,6 +132,7 @@ try { JSON.parse('0.1e-.'); } catch (e) { e.toString(); }       //$string 'Synta
 try { JSON.parse(' "xxx'); } catch (e) { e.toString(); }        //$string 'SyntaxError: Unterminated string in JSON at position 1'
 try { JSON.parse('"\\"'); } catch (e) { e.toString(); }         //$string 'SyntaxError: Unterminated escape sequence in JSON at position 2'
 try { JSON.parse('"\\u123"'); } catch (e) { e.toString(); }     //$string 'SyntaxError: Unterminated escape sequence in JSON at position 2'
+try { JSON.parse('"\\u123q"'); } catch (e) { e.toString(); }    //$string 'SyntaxError: Invalid escape sequence in JSON at position 2'
 try { JSON.parse('"\\q"'); } catch (e) { e.toString(); }        //$string 'SyntaxError: Invalid escape sequence "\\q" in JSON at position 2'
 
 JSON.parse('null'); //$null
@@ -145,6 +146,38 @@ JSON.parse('-9.23232e-2'); //$number -9.23232e-2
 JSON.parse('""'); //$string ''
 JSON.parse('"Hello world!"'); //$string 'Hello world!'
 JSON.parse('"x\\u001f\\"\\/\\\\\\b\\f\\n\\r\\t \\u1234"'); //$string 'x\u001f"/\\\b\f\n\r\t \u1234'
+
+a=JSON.parse(" [ \n  ]"); Array.isArray(a); //$boolean true
+a.toString(); //$string ''
+
+a=JSON.parse(" [ 1,null,3,\"x\"  ]"); Array.isArray(a); //$boolean true
+a[0];//$number 1
+a[1];//$null
+a[2];//$number 3
+a[3];//$string 'x'
+a.toString(); //$string '1,,3,x'
+
+a=JSON.parse(" [ [], [1,2], [3,4] ] ");
+a.length;//$number 3
+a[0].length;//$number 0
+a[1].length;//$number 2
+a[2].length;//$number 2
+a.toString(); //$string ',1,2,3,4'
+
+try { JSON.parse('[ '); } catch (e) { e.toString(); }        //$string 'SyntaxError: Unexpected end of input at position 2'
+try { JSON.parse('[1,2,] '); } catch (e) { e.toString(); }   //$string 'SyntaxError: Unexpected token rbracket in JSON at position 5'
+
+o = JSON.parse(" {   \n\r\t }"); o instanceof Object;//$boolean true
+Object.getOwnPropertyNames(o).toString(); //$string ''
+
+o = JSON.parse(" {\"a\":42, \"x\": \"abcd\", \"z\" \n: [1,2,3]}"); o instanceof Object;//$boolean true
+Object.getOwnPropertyNames(o).toString(); //$string 'a,x,z'
+o.z.toString();//$string '1,2,3'
+
+try { JSON.parse('{'); } catch (e) { e.toString(); }            //$string 'SyntaxError: Unexpected end of input at position 1'
+try { JSON.parse('{\"x\" 42}'); } catch (e) { e.toString(); }   //$string 'SyntaxError: Unexpected token 42 in JSON at position 5'
+try { JSON.parse('{\"x\":}'); } catch (e) { e.toString(); }     //$string 'SyntaxError: Unexpected token rbrace in JSON at position 5'
+try { JSON.parse('{\"x\":2,}'); } catch (e) { e.toString(); }   //$string 'SyntaxError: Unexpected token rbrace in JSON at position 7'
 )");
 
 }

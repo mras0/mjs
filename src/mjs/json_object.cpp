@@ -22,10 +22,12 @@ enum class json_token_type {
     null,
     false_,
     true_,
-    lbracket_,
-    rbracket_,
-    lbrace_,
-    rbrace_,
+    lbracket,
+    rbracket,
+    lbrace,
+    rbrace,
+    comma,
+    colon,
     eof,
 };
 
@@ -37,10 +39,12 @@ std::wostream& operator<<(std::wostream& os, json_token_type type) {
     case json_token_type::null:         return os << "null";
     case json_token_type::false_:       return os << "false";
     case json_token_type::true_:        return os << "true";
-    case json_token_type::lbracket_:    return os << "lbracket";
-    case json_token_type::rbracket_:    return os << "rbracket";
-    case json_token_type::lbrace_:      return os << "lbrace";
-    case json_token_type::rbrace_:      return os << "rbrace";
+    case json_token_type::lbracket:     return os << "lbracket";
+    case json_token_type::rbracket:     return os << "rbracket";
+    case json_token_type::lbrace:       return os << "lbrace";
+    case json_token_type::rbrace:       return os << "rbrace";
+    case json_token_type::comma:        return os << "comma";
+    case json_token_type::colon:        return os << "colon";
     case json_token_type::eof:          return os << "eof";
     }
     assert(false);
@@ -127,6 +131,18 @@ public:
                 ++end;
             }
             tok_ = json_token{json_token_type::whitespace, start};
+        } else if (ch == '[') {
+            tok_ = json_token{json_token_type::lbracket, start};
+        } else if (ch == ']') {
+            tok_ = json_token{json_token_type::rbracket, start};
+        } else if (ch == '{') {
+            tok_ = json_token{json_token_type::lbrace, start};
+        } else if (ch == '}') {
+            tok_ = json_token{json_token_type::rbrace, start};
+        } else if (ch == ',') {
+            tok_ = json_token{json_token_type::comma, start};
+        } else if (ch == ':') {
+            tok_ = json_token{json_token_type::colon, start};
         } else if (ch == 'n' && text_.compare(end, 3, L"ull") == 0) {
             end += 3;
             tok_ = json_token{json_token_type::null, start};
@@ -204,7 +220,13 @@ public:
                             woss << "Unterminated escape sequence in JSON at position " << end-1;
                             throw native_error_exception{native_error_type::syntax, global_->stack_trace(), woss.str()};
                         }
-                        s.push_back(static_cast<char16_t>(get_hex_value4(&text_[end])));
+                        try {
+                            s.push_back(static_cast<char16_t>(get_hex_value4(&text_[end])));
+                        } catch (const std::runtime_error&) {
+                            std::wostringstream woss;
+                            woss << "Invalid escape sequence in JSON at position " << end-1;
+                            throw native_error_exception{native_error_type::syntax, global_->stack_trace(), woss.str()};
+                        }
                         end+=4;
                         break;
                     default:
@@ -240,6 +262,22 @@ public:
         }
     }
 
+    [[noreturn]] void throw_unexpected(const json_token& token) {
+        std::wostringstream woss;
+        woss << "Unexpected ";
+        if (token.type() == json_token_type::eof) {
+            woss << "end of input";
+        } else {
+            woss << "token " << token << " in JSON";
+        }
+        woss << " at position " << token.pos();
+        throw native_error_exception{native_error_type::syntax, global()->stack_trace(), woss.str()};
+    }
+
+    [[noreturn]] void throw_unexpected() {
+        throw_unexpected(current_token());
+    }
+
 private:
     gc_heap_ptr<global_object> global_;
     std::wstring               text_;
@@ -247,28 +285,80 @@ private:
     json_token                 tok_;
 };
 
+value json_parse_value(json_lexer& lex);
+
+value json_parse_array(json_lexer& lex) {
+    auto a = make_array(lex.global(), 0);
+    auto& h = lex.global().heap();
+    for (uint32_t i = 0;; ++i) {
+        lex.skip_whitespace();
+        if (lex.current_token().type() == json_token_type::rbracket) {
+            lex.next_token();
+            break;
+        }
+        if (i != 0) {
+            if (lex.current_token().type() != json_token_type::comma) {
+                lex.throw_unexpected();
+            }
+            lex.next_token();
+            lex.skip_whitespace();
+        }
+        a->put(string{h, index_string(i)}, json_parse_value(lex));
+    }
+
+    return value{a};
+}
+
+value json_parse_object(json_lexer& lex) {
+    auto o = lex.global()->make_object();
+    auto& h = lex.global().heap();
+    for (uint32_t i = 0;; ++i) {
+        lex.skip_whitespace();
+        if (lex.current_token().type() == json_token_type::rbrace) {
+            lex.next_token();
+            break;
+        }
+        if (i != 0) {
+            if (lex.current_token().type() != json_token_type::comma) {
+                lex.throw_unexpected();
+            }
+            lex.next_token();
+            lex.skip_whitespace();
+        }
+        if (lex.current_token().type() != json_token_type::string) {
+            lex.throw_unexpected();
+        }
+        const auto key = lex.current_token().text();
+        lex.next_token();
+        lex.skip_whitespace();
+        if (lex.current_token().type() != json_token_type::colon) {
+            lex.throw_unexpected();
+        }
+        lex.next_token();
+        lex.skip_whitespace();
+
+        o->put(string{h, key}, json_parse_value(lex));
+    }
+
+    return value{o};
+}
+
 value json_parse_value(json_lexer& lex) {
     lex.skip_whitespace();
     auto token = lex.current_token();
     lex.next_token();
     switch (token.type()) {
-    case json_token_type::whitespace:   break;
     case json_token_type::string:       return value{string{lex.global().heap(), token.text()}};
     case json_token_type::number:       return value{to_number(token.text())};
     case json_token_type::null:         return value::null;
     case json_token_type::false_:       return value{false};
     case json_token_type::true_:        return value{true};
-    case json_token_type::lbracket_:    break;
-    case json_token_type::rbracket_:    break;
-    case json_token_type::lbrace_:      break;
-    case json_token_type::rbrace_:      break;
-    case json_token_type::eof:
-        throw native_error_exception{native_error_type::syntax, lex.global()->stack_trace(), "Unexpected end of JSON input"};
+    case json_token_type::lbracket:     return json_parse_array(lex);
+    case json_token_type::lbrace:       return json_parse_object(lex);
+    default:
+        break;
     }
-    
-    std::wostringstream woss;
-    woss << "Unexpected token " << token << " in JSON at position " << token.pos();
-    throw native_error_exception{native_error_type::syntax, lex.global()->stack_trace(), woss.str()};
+    lex.throw_unexpected(token);
 }
 
 } // unnamed namespace
@@ -289,9 +379,7 @@ value json_parse(const gc_heap_ptr<global_object>& global, const std::vector<val
     value val = json_parse_value(lex);
     lex.skip_whitespace();
     if (!lex.eof()) {
-        std::wostringstream woss;
-        woss << "Unexpected token " << lex.current_token() << " in JSON at position " << lex.current_token().pos();
-        throw native_error_exception{native_error_type::syntax, lex.global()->stack_trace(), woss.str()};
+        lex.throw_unexpected();
     }
     return val;
 }
