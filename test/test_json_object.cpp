@@ -16,8 +16,6 @@ Object.getOwnPropertyNames(JSON).toString(); //$string 'parse,stringify'
 JSON.toString(); //$string '[object JSON]'
 try { JSON(); } catch (e) { e.toString(); } //$string 'TypeError: object is not a function'
 
-JSON.parse.length;//$number 2
-
 JSON.stringify.length;          //$number 3
 JSON.stringify();               //$undefined
 JSON.stringify(undefined);      //$undefined
@@ -110,5 +108,13 @@ JSON.stringify({}, r2); //$string '{}'
 JSON.stringify({ax:42,232:'xyz'}, r2, 'dssdsds\ndsdsd23213'); //$string '{\ndssdsds\nds"ax": "42=undefined:undefined",\ndssdsds\nds"232": "xyz=undefined:undefined"\n}'
 JSON.stringify([1,2,{a:3}],r2,2); //$string '[\n  "1=undefined:undefined",\n  "2=undefined:undefined",\n  {\n    "a": "3=undefined:undefined"\n  }\n]'
 JSON.stringify({x:[new Date(686452434213),2],y:'abc'},r2,'   xs'); //$string '{\n   xs"x": [\n   xs   xs"1991-10-03T01:13:54.213Z=undefined:undefined",\n   xs   xs"2=undefined:undefined"\n   xs],\n   xs"y": "abc=undefined:undefined"\n}'
+
+JSON.stringify({a:1,b:2,c:3,d:4,42:'x',43:'y',44:'z'}, ['qq',60]); //$string '{}'
+JSON.stringify({a:1,b:2,c:3,d:4,42:'x',43:'y',44:'z'}, [new String('a'),'c','c',new Number(42),43]); //$string '{"a":1,"c":3,"42":"x","43":"y"}'
+JSON.stringify({a:{a:42,b:43},b:{a:59,b:60}}, ['b']); //$string '{"b":{"b":60}}'
+
+
+JSON.parse.length;//$number 2
+
 )");
 }

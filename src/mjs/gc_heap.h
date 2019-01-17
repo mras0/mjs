@@ -96,7 +96,7 @@ private:
     const char* name_;
     const uint32_t index_;
 
-    static constexpr uint32_t max_types = 32; // Arbitrary limit
+    static constexpr uint32_t max_types = 64; // Arbitrary limit
 
     gc_type_info(gc_type_info&) = delete;
     gc_type_info& operator=(gc_type_info&) = delete;

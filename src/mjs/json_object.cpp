@@ -58,9 +58,33 @@ public:
             const auto& o = args[1].object_value();
             if (o.has_type<function_object>()) {
                 replacer_ = o;
-            } else {
-                // TODO: Handle PropertyList and ReplacerFunction
-                throw_not_implement("stringify", global, args);
+            } else if (is_array(o)) {
+                auto& h = heap();
+                const uint32_t len = to_uint32(o->get(L"length"));
+                property_names_ = gc_vector<gc_heap_ptr_untracked<gc_string>>::make(h, len);
+                auto insert_item = [&](const string& item) {
+                    // Check if the item is already in the list
+                    auto n = property_names_->data();
+                    for (uint32_t i = 0, l = property_names_->length(); i < l; ++i) {
+                        if (n[i].dereference(h).view() == item.view()) {
+                            return;
+                        }
+                    }
+                    property_names_->push_back(item.unsafe_raw_get());
+                };
+                for (uint32_t i = 0; i < len; ++i) {
+                    auto item = o->get(index_string(i));
+                    if (item.type() == value_type::string) {
+                        insert_item(item.string_value());
+                    } else if (item.type() == value_type::number) {
+                        insert_item(to_string(h, item.number_value()));
+                    } else if (item.type() == value_type::object) {
+                        auto io = item.object_value();
+                        if (io->class_name().view() == L"String" || io->class_name().view() == L"Number") {
+                            insert_item(to_string(h, item));
+                        }
+                    }
+                }
             }
         }
         if (args.size() > 2) {
@@ -103,6 +127,20 @@ public:
         v = call_function(value{replacer_}, value{holder}, {value{string{heap(), key}}, v});
     }
 
+    std::vector<string> property_list(const object_ptr& o) {
+        if (!property_names_) {
+            return o->own_property_names(true);
+        } else {
+            std::vector<string> k;
+            auto n = property_names_->data();
+            auto& h = heap();
+            for (uint32_t i = 0, l = property_names_->length(); i < l; ++i) {
+                k.push_back(n[i].track(h));
+            }
+            return k;
+        }
+    }
+
     class nest {
     public:
         explicit nest(stringify_state& state, const object_ptr& o) : state_(state) {
@@ -137,11 +175,12 @@ public:
     };
 
 private:
-    gc_heap_ptr<global_object> global_;
-    gc_heap_ptr<gc_vector<gc_heap_ptr_untracked<object>>> stack_ = nullptr;
-    object_ptr replacer_ = nullptr;
-    std::wstring indent_;
-    std::wstring gap_;
+    gc_heap_ptr<global_object>                                  global_;
+    gc_heap_ptr<gc_vector<gc_heap_ptr_untracked<object>>>       stack_ = nullptr;
+    object_ptr                                                  replacer_ = nullptr;
+    gc_heap_ptr<gc_vector<gc_heap_ptr_untracked<gc_string>>>    property_names_ = nullptr;
+    std::wstring                                                indent_;
+    std::wstring                                                gap_;
 
     void push(const object_ptr& obj) {
         if (!stack_) {
@@ -164,8 +203,7 @@ value json_str(stringify_state& state, const std::wstring_view key, const object
 
 string json_str_object(stringify_state& state, const object_ptr& o) {
     stringify_state::nest nest{state, o};
-    // TODO: Check PrpoertyList
-    auto k = o->own_property_names(true);
+    auto k = state.property_list(o);
 
     std::vector<std::wstring> partial;
     for (const auto& p: k) {
