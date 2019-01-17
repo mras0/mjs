@@ -116,5 +116,35 @@ JSON.stringify({a:{a:42,b:43},b:{a:59,b:60}}, ['b']); //$string '{"b":{"b":60}}'
 
 JSON.parse.length;//$number 2
 
+try { JSON.parse(); } catch (e) { e.toString(); }               //$string 'SyntaxError: Unexpected token "u" in JSON at position 0'
+try { JSON.parse(''); } catch (e) { e.toString(); }             //$string 'SyntaxError: Unexpected end of JSON input'
+try { JSON.parse('nu'); } catch (e) { e.toString(); }           //$string 'SyntaxError: Unexpected token "n" in JSON at position 0'
+try { JSON.parse('null null'); } catch (e) { e.toString(); }    //$string 'SyntaxError: Unexpected token null in JSON at position 5'
+try { JSON.parse('-'); } catch (e) { e.toString(); }            //$string 'SyntaxError: Invalid number in JSON at position 0'
+try { JSON.parse('--'); } catch (e) { e.toString(); }           //$string 'SyntaxError: Invalid number in JSON at position 0'
+try { JSON.parse('-.'); } catch (e) { e.toString(); }           //$string 'SyntaxError: Invalid number in JSON at position 0'
+try { JSON.parse('.'); } catch (e) { e.toString(); }            //$string 'SyntaxError: Unexpected token "." in JSON at position 0'
+try { JSON.parse('.1'); } catch (e) { e.toString(); }           //$string 'SyntaxError: Unexpected token "." in JSON at position 0'
+try { JSON.parse('0.1e'); } catch (e) { e.toString(); }         //$string 'SyntaxError: Invalid number in JSON at position 0'
+try { JSON.parse('0.1e'); } catch (e) { e.toString(); }         //$string 'SyntaxError: Invalid number in JSON at position 0'
+try { JSON.parse('0.1e-'); } catch (e) { e.toString(); }        //$string 'SyntaxError: Invalid number in JSON at position 0'
+try { JSON.parse('0.1e-.'); } catch (e) { e.toString(); }       //$string 'SyntaxError: Invalid number in JSON at position 0'
+try { JSON.parse(' "xxx'); } catch (e) { e.toString(); }        //$string 'SyntaxError: Unterminated string in JSON at position 1'
+try { JSON.parse('"\\"'); } catch (e) { e.toString(); }         //$string 'SyntaxError: Unterminated escape sequence in JSON at position 2'
+try { JSON.parse('"\\u123"'); } catch (e) { e.toString(); }     //$string 'SyntaxError: Unterminated escape sequence in JSON at position 2'
+try { JSON.parse('"\\q"'); } catch (e) { e.toString(); }        //$string 'SyntaxError: Invalid escape sequence "\\q" in JSON at position 2'
+
+JSON.parse('null'); //$null
+JSON.parse('false'); //$boolean false
+JSON.parse('true'); //$boolean true
+JSON.parse('1'); //$number 1
+JSON.parse('  \t\n\r 23  '); //$number 23
+JSON.parse('-42.256'); //$number -42.256
+JSON.parse('-1E+3'); //$number -1e3
+JSON.parse('-9.23232e-2'); //$number -9.23232e-2
+JSON.parse('""'); //$string ''
+JSON.parse('"Hello world!"'); //$string 'Hello world!'
+JSON.parse('"x\\u001f\\"\\/\\\\\\b\\f\\n\\r\\t \\u1234"'); //$string 'x\u001f"/\\\b\f\n\r\t \u1234'
 )");
+
 }
