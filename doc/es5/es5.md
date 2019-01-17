@@ -3,10 +3,9 @@
 Annex D, E and F contain lists of the necessary changes.
 
 ## TODO
-- Annex C Strict Mode
+- Annex C Strict Mode (Changes need to be done at parser level to support emitting SyntaxError in various places)
 - `get` / `set`
 - Annex E: 15.3.4.3,4: Change in handling of `null`/`undefined` when passed to `apply/call` (Note: most e.g. Object.prototype functions have been changed to call `ToObject` on the this argument, need to retest many functions...)
-- JSON.parse
 
 ## Done:
 - 11.1.5: Object Initialiser: Allow trailing comma and reserved words as keys
@@ -61,6 +60,7 @@ Annex D, E and F contain lists of the necessary changes.
 - Function.prototype.bind
 - Array.isArray
 - JSON.stringify
+- JSON.parse
 
 ## Notes:
 - 7.1 Form Control Characters changed from ES1 -> ES3 -> ES5
@@ -71,3 +71,4 @@ Annex D, E and F contain lists of the necessary changes.
 - Many changes listed as new functions on `Object` actually require major changes (e.g. `defineProperty`). Property attributes can now change at runtime.
 - Ugly that array properties can also be getter/setters
 - Change to handling of null/undefined argument to `call`/`apply` creating lots of chnages
+- Inversion of property attributes from ES3 -> ES5 (`dont_enum` is now not `enumerable`, etc.)

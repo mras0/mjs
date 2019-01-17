@@ -361,25 +361,52 @@ value json_parse_value(json_lexer& lex) {
     lex.throw_unexpected(token);
 }
 
+value json_walk(const gc_heap_ptr<global_object>& global, const value& reviver, const object_ptr& holder, const std::wstring_view name) {
+    auto& h = global.heap();
+
+    const auto val = holder->get(name);
+    if (val.type() == value_type::object) {
+        const auto& o = val.object_value();
+        if (is_array(o)) {
+            const uint32_t len = to_uint32(o->get(L"length"));
+            for (uint32_t i = 0; i < len; ++i) {
+                const auto is = index_string(i);
+                auto new_element = json_walk(global, reviver, o, is);
+                if (new_element.type() == value_type::undefined) {
+                    o->delete_property(is);
+                } else {
+                    o->put(string{h, is}, new_element);
+                }
+            }
+        } else {
+            const auto keys = o->own_property_names(true);
+            for (const auto& p: keys) {
+                const std::wstring key{p.view()}; // Keep local copy in case p gets moved during the walk
+                auto new_element = json_walk(global, reviver, o, key);
+                if (new_element.type() == value_type::undefined) {
+                    o->delete_property(p.view());
+                } else {
+                    o->put(p, new_element);
+                }
+            }
+        }
+    }
+    return call_function(reviver, value{holder}, { value{string{h, name}}, val });
+}
+
 } // unnamed namespace
 
 value json_parse(const gc_heap_ptr<global_object>& global, const std::vector<value>& args) {
-    if (args.size() > 1) {
-        std::wostringstream woss;
-        woss << "parse is not yet implemented for arguments: {";
-        for (const auto& a: args) {
-            woss << " ";
-            debug_print(woss, a, 4);
-        }
-        woss << " }";
-        throw native_error_exception{native_error_type::assertion, global->stack_trace(), woss.str()};
-
-    }
     json_lexer lex{global, std::wstring{args.empty() ? L"undefined" : to_string(global.heap(), args.front()).view()}};
     value val = json_parse_value(lex);
     lex.skip_whitespace();
     if (!lex.eof()) {
         lex.throw_unexpected();
+    }
+    if (args.size() > 1 && args[1].type() == value_type::object && args[1].object_value().has_type<function_object>()) {
+        auto holder = global->make_object();
+        holder->put(global->common_string(""), val);
+        return json_walk(global, args[1], holder, L"");
     }
     return val;
 }
@@ -723,11 +750,13 @@ global_object_create_result make_json_object(global_object& global) {
     auto json = h.make<object>(string{h,"JSON"}, global.object_prototype());
 
     put_native_function(global, json, "parse", [global=global.self_ptr()](const value&, const std::vector<value>& args) {
-        return json_parse(global, args);
+        auto g = global; // Keep local copy in case the function gets GC'ed
+        return json_parse(g, args);
     }, 2);
     
     put_native_function(global, json, "stringify", [global=global.self_ptr()](const value&, const std::vector<value>& args) {
-        return json_stringify(global, args);
+        auto g = global; // Keep local copy in case the function gets GC'ed
+        return json_stringify(g, args);
     }, 3);
 
     return { json, nullptr };

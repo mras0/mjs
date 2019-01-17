@@ -1,29 +1,31 @@
 # mjs
 
 ## Introduction
-_mjs_ is an interpreter for ECMAScript [1st
-edition](https://www.ecma-international.org/publications/files/ECMA-ST-ARCH/ECMA-262,%201st%20edition,%20June%201997.pdf)
-(a.k.a. Javascript 1997) and [3rd
-edition](http://www.ecma-international.org/publications/files/ECMA-ST-ARCH/ECMA-262,%203rd%20edition,%20December%201999.pdf)
-written in C++17. It was written as a hobby project for the purpose of
-gaining a better understanding of how Javascript actually works. As
-such, it neither strives to be fast, secure nor particularly beautiful.
-In fact, some things are downright terribly implemented; also no real
-programs were actually tested.
+_mjs_ is an interpreter for the ECMAScript (a.k.a. Javascript)
+[1st](https://www.ecma-international.org/publications/files/ECMA-ST-ARCH/ECMA-262,%201st%20edition,%20June%201997.pdf)
+,
+[3rd](http://www.ecma-international.org/publications/files/ECMA-ST-ARCH/ECMA-262,%203rd%20edition,%20December%201999.pdf)
+and
+[5(.1)th](http://www.ecma-international.org/ecma-262/5.1/ECMA-262.pdf)
+editions written in C++17. It was written as a hobby project for the
+purpose of gaining a better understanding of how Javascript actually
+works. As such, it neither strives to be fast, secure nor particularly
+beautiful.  In fact, some things are downright terribly implemented;
+also no real programs were actually tested.
 
-Most ES1 and ES3 features should be implemented (to some
-degree...), but conformance is always work in progress.
+All ES1 and ES3 features should be implemented (to some
+degree...), and full ES5.1 support is getting there, but conformance is
+always work in progress.
 
-Work on supporting ES5(.1) is slowly under way.
-
-See the [TODO](TODO.md) file some of the known pain points.
+See the [TODO](TODO.md) file some of the known pain points and the ES5
+notes for missing features.
 
 ## Building
 
 You need a modern C++ compiler that supports C++17 and CMake 3.7 or
 later. It has currently been tested with the following compilers:
 
-* Visual C++ 2017 15.9.4 on Windows 10
+* Visual C++ 2017 15.9.5 on Windows 10
 * GCC 7.1.0 (x64 distribution from [Stephan T. Lavavej](https://nuwen.net/mingw.html)) on Windows 10
 * GCC 8.2.0 (on x64 Linux, Debian testing as of October 2018)
 * Clang 7.0.0 (on Windows 10 and x64 Linux)
@@ -42,6 +44,9 @@ These steps should work for most people:
     cmake .. # Here you may want to use e.g. CXX=g++-8 cmake ..
     cmake --build .
     cmake --build . --target check
+
+Several debugging features can also be enabled. Use your favorite CMake
+GUI to view and toggle them (they are all off by default).
 
 ## Documentation
 

@@ -47,14 +47,12 @@
     - Handle interface types better (currently only `object` and derived classes are handled)
     - Help debug missing calls to `{native_}object::fixup()` in derived classes
     - Passing const references to `gc_heap_ptr`s can be dangerous when calling out to functions that might trigger GC!
+    - Use `mprotect`/`VirtualProtect` to find use of stale pointers
 * REPL
     - Add tests
-    - Add support for specifying the wanted ECMAScript version as a commandline argument
 * Create example(s)
     - Embedding mjs (I.e. adding user-defined classes)
-* Make `string` easier to use - without going back to having a static `local_heap`
-    - make `string_builder` class or drop support for operator+?
 * Make it easy to evaluate (and inspect) Javascript expressions (e.g. String('12') + 34)
 * Use `char16_t` instead of `wchar_t` (and update `wstring`/`wistringstream` etc. etc.)
 * Avoid duplicating `duration_cast`/`typeid()` logic with `expression_type`/`statement_type`. Consider using std::variant.
-* General refactoring, implement ES5, ES...., JIT, etc. :)
+* General refactoring, implement ESN+1, JIT, etc. :)

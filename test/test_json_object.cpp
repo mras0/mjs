@@ -174,10 +174,46 @@ o = JSON.parse(" {\"a\":42, \"x\": \"abcd\", \"z\" \n: [1,2,3]}"); o instanceof 
 Object.getOwnPropertyNames(o).toString(); //$string 'a,x,z'
 o.z.toString();//$string '1,2,3'
 
+o = JSON.parse("{\"x\":42,\"x\":43,\"x\":44}");
+o.x;//$number 44
+
 try { JSON.parse('{'); } catch (e) { e.toString(); }            //$string 'SyntaxError: Unexpected end of input at position 1'
 try { JSON.parse('{\"x\" 42}'); } catch (e) { e.toString(); }   //$string 'SyntaxError: Unexpected token 42 in JSON at position 5'
 try { JSON.parse('{\"x\":}'); } catch (e) { e.toString(); }     //$string 'SyntaxError: Unexpected token rbrace in JSON at position 5'
 try { JSON.parse('{\"x\":2,}'); } catch (e) { e.toString(); }   //$string 'SyntaxError: Unexpected token rbrace in JSON at position 7'
+
+
+JSON.parse("42",undefined);     //$number 42
+JSON.parse("42",null);          //$number 42
+JSON.parse("42",false);         //$number 42
+JSON.parse("42",42);            //$number 42
+JSON.parse("42",'x');           //$number 42
+JSON.parse("42",{foo:"bar"});   //$number 42
+
+
+function fmt(x) { return x+':'+typeof x; }
+
+s=''; r=JSON.parse("42", function(k,v) {s+=fmt(this[''])+','+fmt(k)+','+fmt(v); return 'x';}); r;//$string 'x'
+s; //$string '42:number,:string,42:number'
+
+s=''; r=JSON.parse("[1,null,2]", function(k,v) { s+=this.toString()+','+fmt(k)+','+fmt(v)+' '; return v;}); r.toString(); //$string '1,,2'
+s;//$string '1,,2,0:string,1:number 1,,2,1:string,null:object 1,,2,2:string,2:number [object Object],:string,1,,2:object '
+
+r=JSON.parse("[0,1,\"x\",\"z\"]", function(k,v) { return k%2==0 ? v : undefined; }); r.toString(); //$string '0,,x,'
+0 in r;//$boolean true
+1 in r;//$boolean false
+2 in r;//$boolean true
+3 in r;//$boolean false
+
+s=''; r=JSON.parse("{\"x\":42, \"y\":{ }}", function(k,v) {s+=JSON.stringify(this)+','+fmt(k)+','+fmt(v); return v;});
+JSON.stringify(r);//$string '{"x":42,"y":{}}'
+s; //$string '{"x":42,"y":{}},x:string,42:number{"x":42,"y":{}},y:string,[object Object]:object{"":{"x":42,"y":{}}},:string,[object Object]:object'
+
+r=JSON.parse('{"x":42,"y":43,"z":44}', function(k,v){return v%2==0?v:undefined;}); r;//$undefined
+
+r=JSON.parse('{"x":42,"y":43,"z":44}', function(k,v){return typeof v == "object"||v%2==0?v:undefined;});
+JSON.stringify(r);//$string '{"x":42,"z":44}'
+
 )");
 
 }
