@@ -30,7 +30,7 @@ gc_heap::~gc_heap() {
     assert(gc_state_.initial_state());
     alloc_context_.run_destructors();
     if (owns_storage_) {
-        std::free(alloc_context_.storage());
+        std::free(const_cast<slot*>(alloc_context_.storage()));
     }
     assert(pointers_.empty());
 }

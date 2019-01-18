@@ -38,12 +38,16 @@ public:
     // [[Get]] (PropertyName)
     virtual value get(const std::wstring_view& name) const {
         auto it = deep_find(name).first;
-        return it ? it->get(heap_) : value::undefined;
+        return it ? it->get(*this) : value::undefined;
     }
 
     bool redefine_own_property(const string& name, const value& val, property_attribute attr) {
         return do_redefine_own_property(name, val, attr);
     }
+
+    void define_accessor_property(const string& name, const object_ptr& accessor, property_attribute attr);
+
+    void get_accessor_property_fields(const string& name, const object_ptr& desc);
 
     // [[Put]] (PropertyName, Value)
     virtual void put(const string& name, const value& val, property_attribute attr = property_attribute::none);
@@ -105,10 +109,13 @@ private:
 
         string key(gc_heap& h) const { return key_.track(h); }
 
-        value get(gc_heap& h) const;
-        void put(const value& val);
+        value get(const object& self) const;
+        void put(const object& self, const value& val);
+        void raw_put(const value& val);
 
         bool key_matches(gc_heap& h, const std::wstring_view k) { return key_.dereference(h).view() == k; }
+
+        void put_descriptor_fields(const object_ptr& desc);
 
     private:
         gc_heap_ptr_untracked<gc_string>    key_;

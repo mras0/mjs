@@ -63,7 +63,10 @@ private:
         prototype_prop_ = value_representation{val};
     }
 
-    explicit function_object(const gc_heap_ptr<global_object>& global, const string& class_name, const object_ptr& prototype) : native_object(class_name, prototype), global_(global) {
+    explicit function_object(const gc_heap_ptr<global_object>& global, const string& class_name, const object_ptr& prototype)
+        : native_object(class_name, prototype)
+        , global_(global)
+        , prototype_prop_(value_representation{value::null}) {
         DEFINE_NATIVE_PROPERTY_READONLY(function_object, length);
         DEFINE_NATIVE_PROPERTY_READONLY(function_object, arguments);
         DEFINE_NATIVE_PROPERTY(function_object, prototype);
@@ -83,11 +86,11 @@ private:
 
 };
 
-gc_heap_ptr<function_object> make_raw_function(global_object& global);
-global_object_create_result make_function_object(global_object& global);
+gc_heap_ptr<function_object> make_raw_function(const gc_heap_ptr<global_object>& global);
+global_object_create_result make_function_object(const gc_heap_ptr<global_object>& global);
 
 template<typename F>
-gc_heap_ptr<function_object> make_function(global_object& global, const F& f, const gc_heap_ptr<gc_string>& name, int named_args) {
+gc_heap_ptr<function_object> make_function(const gc_heap_ptr<global_object>& global, const F& f, const gc_heap_ptr<gc_string>& name, int named_args) {
     auto o = make_raw_function(global);
     o->put_function(f, name, nullptr, named_args);
     return o;
@@ -95,22 +98,22 @@ gc_heap_ptr<function_object> make_function(global_object& global, const F& f, co
 
 // Add constructor to function object
 template<typename F>
-void make_constructable(global_object& global, gc_heap_ptr<function_object>& o, const F& f) {
+void make_constructable(const gc_heap_ptr<global_object>& global, gc_heap_ptr<function_object>& o, const F& f) {
     o->construct_function(f);
     auto p = o->get_prototype();
     assert(p.type() == value_type::object);
-    if (global.language_version() < version::es3) {
-        p.object_value()->put(global.common_string("constructor"), value{o}, property_attribute::dont_enum);
+    if (global->language_version() < version::es3) {
+        p.object_value()->put(global->common_string("constructor"), value{o}, property_attribute::dont_enum);
     }
 }
 
 template<typename F>
-void put_native_function(global_object& global, const object_ptr& obj, const string& name, const F& f, int named_args) {
+void put_native_function(const gc_heap_ptr<global_object>& global, const object_ptr& obj, const string& name, const F& f, int named_args) {
     obj->put(name, value{make_function(global, f, name.unsafe_raw_get(), named_args)}, global_object::default_attributes);
 }
 
 template<typename F>
-void put_native_function(global_object& global, const object_ptr& obj, const char* name, const F& f, int named_args) {
+void put_native_function(const gc_heap_ptr<global_object>& global, const object_ptr& obj, const char* name, const F& f, int named_args) {
     put_native_function(global, obj, string{global.heap(), name}, f, named_args);
 }
 

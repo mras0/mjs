@@ -289,9 +289,9 @@ auto show_duration(Duration d) {
 // Math
 //
 
-global_object_create_result make_math_object(global_object& global) {
+global_object_create_result make_math_object(const gc_heap_ptr<global_object>& global) {
     auto& h = global.heap();
-    auto math = global.make_object();
+    auto math = global->make_object();
 
     math->put(string{h, "E"},       value{2.7182818284590452354}, global_object::default_attributes);
     math->put(string{h, "LN10"},    value{2.302585092994046}, global_object::default_attributes);
@@ -358,11 +358,11 @@ global_object_create_result make_math_object(global_object& global) {
 // Console
 //
 
-global_object_create_result make_console_object(global_object& global) {
+global_object_create_result make_console_object(const gc_heap_ptr<global_object>& global) {
     auto& h = global.heap();
-    auto console = global.make_object();
+    auto console = global->make_object();
 
-    put_native_function(global, console, "assert", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
+    put_native_function(global, console, "assert", [global](const value&, const std::vector<value>& args) {
         const auto val = !args.empty() ? args.front() : value::undefined;
         if (to_boolean(val)) {
             return value::undefined;
@@ -567,10 +567,6 @@ public:
         }
     }
 
-    virtual gc_heap_ptr<global_object> self_ptr() const override {
-        return self_.track(heap());
-    }
-
 private:
     string_cache string_cache_;
     gc_heap_ptr_untracked<object> object_prototype_;
@@ -581,7 +577,6 @@ private:
     gc_heap_ptr_untracked<object> number_prototype_;
     gc_heap_ptr_untracked<object> regexp_prototype_;
     gc_heap_ptr_untracked<object> error_prototype_;
-    gc_heap_ptr_untracked<global_object_impl> self_;
 
     void fixup() {
         auto& h = heap();
@@ -594,8 +589,11 @@ private:
         number_prototype_.fixup(h);
         regexp_prototype_.fixup(h);
         error_prototype_.fixup(h);
-        self_.fixup(h);
         global_object::fixup();
+    }
+
+    gc_heap_ptr<global_object> self_ptr() const {
+        return heap().unsafe_track(*this);
     }
 
     //
@@ -607,7 +605,7 @@ private:
         function_prototype_ = static_cast<object_ptr>(heap().make<function_object>(self_ptr(), common_string("Function"), object_prototype()));
          
         auto add = [&](const char* name, auto create_func, gc_heap_ptr_untracked<object>* prototype = nullptr) {
-            auto res = create_func(*this);
+            auto res = create_func(self_ptr());
             put(common_string(name), value{res.obj}, default_attributes);
             if (res.prototype) {
                 assert(res.obj.template has_type<function_object>());
@@ -657,18 +655,18 @@ private:
 
         // Note: eval is added by the interpreter
 
-        put_native_function(*this, self, "parseInt", [&h=heap(), ver=version_](const value&, const std::vector<value>& args) {
+        put_native_function(self, self, "parseInt", [&h=heap(), ver=version_](const value&, const std::vector<value>& args) {
             const auto input = to_string(h, get_arg(args, 0));
             int radix = to_int32(get_arg(args, 1));
             return value{parse_int(input.view(), radix, ver)};
         }, 2);
-        put_native_function(*this, self, "isNaN", [](const value&, const std::vector<value>& args) {
+        put_native_function(self, self, "isNaN", [](const value&, const std::vector<value>& args) {
             return value(std::isnan(to_number(args.empty() ? value::undefined : args.front())));
         }, 1);
-        put_native_function(*this, self, "isFinite", [](const value&, const std::vector<value>& args) {
+        put_native_function(self, self, "isFinite", [](const value&, const std::vector<value>& args) {
             return value(std::isfinite(to_number(args.empty() ? value::undefined : args.front())));
         }, 1);
-        put_native_function(*this, self, "alert", [&h=heap()](const value&, const std::vector<value>& args) {
+        put_native_function(self, self, "alert", [&h=heap()](const value&, const std::vector<value>& args) {
             std::wcout << "ALERT";
             for (auto& a: args) {
                 std::wcout << "\t" << to_string(h, a);
@@ -678,7 +676,7 @@ private:
         }, 1);
 
         auto put_string_function = [&](const char* name, auto f) {
-            put_native_function(*this, self, name, [self, f](const value&, const std::vector<value>& args) {
+            put_native_function(self, self, name, [self, f](const value&, const std::vector<value>& args) {
                 const auto input = to_string(self.heap(), get_arg(args, 0));
                 return f(self, input.view());
             }, 1);
@@ -714,7 +712,6 @@ private:
 
 gc_heap_ptr<global_object> global_object::make(gc_heap& h, version ver) {
     auto global = h.make<global_object_impl>(h, ver);
-    global->self_ = global;
     global->popuplate_global(); // Populate here so the self_ptr() won't fail the assert
     return global;
 }

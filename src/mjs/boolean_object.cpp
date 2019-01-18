@@ -33,9 +33,9 @@ object_ptr new_boolean(const object_ptr& prototype, bool val) {
     return o;
 }
 
-global_object_create_result make_boolean_object(global_object& global) {
+global_object_create_result make_boolean_object(const gc_heap_ptr<global_object>& global) {
     auto& h = global.heap();
-    auto prototype = h.make<boolean_object>(string{h, "Boolean"}, global.object_prototype(), false);
+    auto prototype = h.make<boolean_object>(string{h, "Boolean"}, global->object_prototype(), false);
 
     auto c = make_function(global, [](const value&, const std::vector<value>& args) {
         return value{!args.empty() && to_boolean(args.front())};
@@ -44,17 +44,17 @@ global_object_create_result make_boolean_object(global_object& global) {
         return value{new_boolean(prototype, !args.empty() && to_boolean(args.front()))};
     });
 
-    auto get_bool_obj = [global = global.self_ptr(), prototype](const value& this_) {
+    auto get_bool_obj = [global, prototype](const value& this_) {
         global->validate_type(this_, prototype, "Boolean");
         return gc_heap_ptr<boolean_object>{this_.object_value()};
     };
 
-    put_native_function(global, prototype, global.common_string("toString"), [get_bool_obj](const value& this_, const std::vector<value>&){
+    put_native_function(global, prototype, global->common_string("toString"), [get_bool_obj](const value& this_, const std::vector<value>&){
         auto o = get_bool_obj(this_);
         return value{string{o.heap(), o->boolean_value() ? L"true" : L"false"}};
     }, 0);
 
-    put_native_function(global, prototype, global.common_string("valueOf"), [get_bool_obj](const value& this_, const std::vector<value>&){
+    put_native_function(global, prototype, global->common_string("valueOf"), [get_bool_obj](const value& this_, const std::vector<value>&){
         auto o = get_bool_obj(this_);
         return value{o->boolean_value()};
     }, 0);

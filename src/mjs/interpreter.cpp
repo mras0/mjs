@@ -233,7 +233,7 @@ public:
         });
 
         assert(!global_->has_property(L"eval"));
-        put_native_function(*global_, global_, "eval", [this](const value&, const std::vector<value>& args) {
+        put_native_function(global_, global_, "eval", [this](const value&, const std::vector<value>& args) {
             // ES3, 15.1.2.1
             if (args.empty()) {
                 return value::undefined;
@@ -780,7 +780,7 @@ public:
                 c = completion{};
             }
             return true;
-        } else if (c.type == completion_type::return_) {
+        } else if (c.type == completion_type::return_ || c.type == completion_type::throw_) {
             return true;
         } else if (c.type == completion_type::continue_) {
             assert(c.has_target());
@@ -1207,7 +1207,7 @@ private:
 
     object_ptr create_function(const string& id, const std::shared_ptr<block_statement>& block, const std::vector<std::wstring>& param_names, const std::wstring& body_text, const scope_ptr& prev_scope) {
         // §15.3.2.1
-        auto callee = make_raw_function(*global_);
+        auto callee = make_raw_function(global_);
         auto func = [this, block, param_names, prev_scope, callee, id, ids = hoisting_visitor::scan(*block)](const value& this_, const std::vector<value>& args) {
             // Scope
             auto activation = heap_.make<activation_object>(*global_, param_names, args);

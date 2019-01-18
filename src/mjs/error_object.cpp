@@ -92,14 +92,14 @@ constexpr auto message_attributes = property_attribute::dont_delete | property_a
 } // unnamed namespace
 
 
-global_object_create_result make_error_object(global_object& global) {
-    auto prototype = global.heap().make<error_object>(native_error_type::generic, global.common_string("Error"), global.object_prototype(), string{global.heap(), ""});
+global_object_create_result make_error_object(const gc_heap_ptr<global_object>& global) {
+    auto prototype = global->heap().make<error_object>(native_error_type::generic, global->common_string("Error"), global->object_prototype(), string{global->heap(), ""});
 
     gc_heap_ptr<function_object> error_constructor;
     for (const auto error_type: {native_error_type::generic, native_error_type::eval, native_error_type::range, native_error_type::reference, native_error_type::syntax, native_error_type::type, native_error_type::uri}) {
-        auto n = global.common_string(type_string(error_type));
-        auto constructor = make_function(global, [error_type, n, global = global.self_ptr()](const value&, const std::vector<value>& args) {
-            auto& h = global.heap();
+        auto n = global->common_string(type_string(error_type));
+        auto constructor = make_function(global, [error_type, n, global](const value&, const std::vector<value>& args) {
+            auto& h = global->heap();
             auto prototype = global->error_prototype();
             auto eo = h.make<error_object>(error_type, n, prototype, string{h, global->stack_trace()});
             if (!args.empty() && args.front().type() != value_type::undefined) {
@@ -112,11 +112,11 @@ global_object_create_result make_error_object(global_object& global) {
             assert(n.view() == L"Error");
             error_constructor = constructor;
         } else {
-            global.put(n, value{constructor}, property_attribute::dont_enum);
+            global->put(n, value{constructor}, property_attribute::dont_enum);
         }
     }
 
-    put_native_function(global, prototype, "toString", [global = global.self_ptr()](const value& this_, const std::vector<value>&) {
+    put_native_function(global, prototype, "toString", [global](const value& this_, const std::vector<value>&) {
         if (this_.type() == value_type::object) {
             auto& o = this_.object_value();
             if (o.has_type<error_object>()) {
@@ -126,8 +126,8 @@ global_object_create_result make_error_object(global_object& global) {
         return value{global->common_string("Error")};
     }, 0);
 
-    prototype->put(global.common_string("constructor"), value{error_constructor}, global_object::prototype_attributes);
-    prototype->put(string{global.heap(), "message"}, value{string{global.heap(), ""}}, message_attributes);
+    prototype->put(global->common_string("constructor"), value{error_constructor}, global_object::prototype_attributes);
+    prototype->put(string{global->heap(), "message"}, value{string{global->heap(), ""}}, message_attributes);
 
     return { error_constructor, prototype };
 }
@@ -144,7 +144,7 @@ native_error_exception::native_error_exception(native_error_type type, const std
 }
 
 object_ptr native_error_exception::make_error_object(const gc_heap_ptr<global_object>& global) const {
-    auto& h = global.heap();
+    auto& h = global->heap();
     auto eo = h.make<error_object>(type_, global->common_string(type_string(type_)), global->error_prototype(), string{h, stack_trace_});
     eo->put(global->common_string("message"), value{string{h, msg_}}, message_attributes);
     return eo;

@@ -542,62 +542,62 @@ value array_reduce(const gc_heap_ptr<global_object>& global, const value& this_,
 
 } // unnamed namespace
 
-global_object_create_result make_array_object(global_object& global) {
-    auto Array_str_ = global.common_string("Array");
-    auto prototype = array_object::make(global.self_ptr(), Array_str_, global.object_prototype(), 0);
+global_object_create_result make_array_object(const gc_heap_ptr<global_object>& global) {
+    auto Array_str_ = global->common_string("Array");
+    auto prototype = array_object::make(global, Array_str_, global->object_prototype(), 0);
 
-    auto c = make_function(global, [global = global.self_ptr()](const value&, const std::vector<value>& args) {
+    auto c = make_function(global, [global](const value&, const std::vector<value>& args) {
         return value{make_array(global, args)};
     }, Array_str_.unsafe_raw_get(), 1);
     c->default_construct_function();
 
-    const auto version = global.language_version();
+    const auto version = global->language_version();
 
     if (version < version::es3) {
-        put_native_function(global, prototype, "toString", [global = global.self_ptr()](const value& this_, const std::vector<value>&) {
+        put_native_function(global, prototype, "toString", [global = global](const value& this_, const std::vector<value>&) {
             global->validate_object(this_);
             return value{array_join(this_.object_value(), L",")};
         }, 0);
     } else {
-        put_native_function(global, prototype, "toString", [version, global = global.self_ptr()](const value& this_, const std::vector<value>&) {
+        put_native_function(global, prototype, "toString", [version, global = global](const value& this_, const std::vector<value>&) {
             if (version < version::es5) global->validate_type(this_, global->array_prototype(), "array");
             return value{array_join(this_.object_value(), L",")};
         }, 0);
-        put_native_function(global, prototype, "toLocaleString", [version, global = global.self_ptr()](const value& this_, const std::vector<value>&) {
+        put_native_function(global, prototype, "toLocaleString", [version, global = global](const value& this_, const std::vector<value>&) {
             if (version < version::es5) global->validate_type(this_, global->array_prototype(), "array");
             return value{array_to_locale_string(global, this_.object_value())};
         }, 0);
-        put_native_function(global, prototype, "pop", [global = global.self_ptr()](const value& this_, const std::vector<value>&) {
+        put_native_function(global, prototype, "pop", [global](const value& this_, const std::vector<value>&) {
             global->validate_object(this_);
             return array_pop(global, this_.object_value());
         }, 0);
-        put_native_function(global, prototype, "push", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+        put_native_function(global, prototype, "push", [global](const value& this_, const std::vector<value>& args) {
             global->validate_object(this_);
             return array_push(global, this_.object_value(), args);
         }, 1);
-        put_native_function(global, prototype, "shift", [global = global.self_ptr()](const value& this_, const std::vector<value>&) {
+        put_native_function(global, prototype, "shift", [global](const value& this_, const std::vector<value>&) {
             global->validate_object(this_);
             return array_shift(global, this_.object_value());
         }, 0);
-        put_native_function(global, prototype, "unshift", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+        put_native_function(global, prototype, "unshift", [global](const value& this_, const std::vector<value>& args) {
             global->validate_object(this_);
             return array_unshift(global, this_.object_value(), args);
         }, 1);
-        put_native_function(global, prototype, "slice", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+        put_native_function(global, prototype, "slice", [global](const value& this_, const std::vector<value>& args) {
             global->validate_object(this_);
             return array_slice(global, this_.object_value(), args);
         }, 2);
-        put_native_function(global, prototype, "splice", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+        put_native_function(global, prototype, "splice", [global](const value& this_, const std::vector<value>& args) {
             global->validate_object(this_);
             return array_splice(global, this_.object_value(), args);
         }, 2);
     }
-    put_native_function(global, prototype, "join", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+    put_native_function(global, prototype, "join", [global](const value& this_, const std::vector<value>& args) {
         global->validate_object(this_);
         auto& h = global.heap();
         return value{array_join(this_.object_value(), !args.empty() ? to_string(h, args.front()).view() : std::wstring_view{L","})};
     }, 1);
-    put_native_function(global, prototype, "reverse", [global = global.self_ptr()](const value& this_, const std::vector<value>&) {
+    put_native_function(global, prototype, "reverse", [global](const value& this_, const std::vector<value>&) {
         global->validate_object(this_);
         const auto& o = this_.object_value();
         const uint32_t length = to_uint32(o->get(L"length"));
@@ -612,7 +612,7 @@ global_object_create_result make_array_object(global_object& global) {
         }
         return this_;
     }, 0);
-    put_native_function(global, prototype, "sort", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+    put_native_function(global, prototype, "sort", [global](const value& this_, const std::vector<value>& args) {
         global->validate_object(this_);
         const auto& o = *this_.object_value();
         auto& h = o.heap(); // Capture heap reference (which continues to be valid even after GC) since `this` can move when calling a user-defined compare function (since this can cause GC)
@@ -659,44 +659,44 @@ global_object_create_result make_array_object(global_object& global) {
 
 
     if (version >= version::es5) {
-        put_native_function(global, prototype, "indexOf", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+        put_native_function(global, prototype, "indexOf", [global](const value& this_, const std::vector<value>& args) {
             return value{array_index_of(global, this_, args)};
         }, 1);
 
-        put_native_function(global, prototype, "lastIndexOf", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+        put_native_function(global, prototype, "lastIndexOf", [global](const value& this_, const std::vector<value>& args) {
             return value{array_last_index_of(global, this_, args)};
         }, 1);
 
-        put_native_function(global, prototype, "every", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+        put_native_function(global, prototype, "every", [global](const value& this_, const std::vector<value>& args) {
             return value{array_every(global, this_, args)};
         }, 1);
 
-        put_native_function(global, prototype, "some", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+        put_native_function(global, prototype, "some", [global](const value& this_, const std::vector<value>& args) {
             return value{array_some(global, this_, args)};
         }, 1);
 
-        put_native_function(global, prototype, "forEach", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+        put_native_function(global, prototype, "forEach", [global](const value& this_, const std::vector<value>& args) {
             array_for_each(global, this_, args);
             return value::undefined;
         }, 1);
 
-        put_native_function(global, prototype, "map", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+        put_native_function(global, prototype, "map", [global](const value& this_, const std::vector<value>& args) {
             return value{array_map(global, this_, args)};
         }, 1);
 
-        put_native_function(global, prototype, "filter", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+        put_native_function(global, prototype, "filter", [global](const value& this_, const std::vector<value>& args) {
             return value{array_filter(global, this_, args)};
         }, 1);
 
-        put_native_function(global, prototype, "reduce", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+        put_native_function(global, prototype, "reduce", [global](const value& this_, const std::vector<value>& args) {
             return value{array_reduce(global, this_, args, false)};
         }, 1);
 
-        put_native_function(global, prototype, "reduceRight", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+        put_native_function(global, prototype, "reduceRight", [global](const value& this_, const std::vector<value>& args) {
             return value{array_reduce(global, this_, args, true)};
         }, 1);
 
-        put_native_function(global, c, "isArray", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
+        put_native_function(global, c, "isArray", [global](const value&, const std::vector<value>& args) {
             return value{!args.empty() && args.front().type() == value_type::object && is_array(args.front().object_value())};
         }, 1);
     }

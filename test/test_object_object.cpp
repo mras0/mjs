@@ -66,6 +66,10 @@ try { ''+(new C()); } catch (e) { e.toString(); } //$string 'TypeError: Cannot c
 try { (undefined).toString(); } catch (e) { e.toString(); } //$string 'TypeError: Cannot convert undefined to object'
 try { (null).toString(); } catch (e) { e.toString(); } //$string 'TypeError: Cannot convert null to object'
 
+// getter/setters musn't interfere with the standard use
+o = { get:42, set:43 };
+o.get;//$number 42
+o.set;//$number 43
 )");
     }
 
@@ -350,6 +354,56 @@ allProps(o); //$string '{x:{value:42,writable:false,enumerable:false,configurabl
 )");
 
         // TODO: When implementing get/set remember to check getOwnPropertyDescriptor, defineProperty, etc.
+
+        RUN_TEST_SPEC(R"(
+function gopd(o,p) {
+    var d = Object.getOwnPropertyDescriptor(o,p);
+    if (d === undefined) return d;
+    var r = '{';
+    for (k in d) {
+        r += k + ': ' + d[k] + ',';
+    }
+    return r + '}';
+}
+
+o = {};
+Object.defineProperty(o, 'x', {get: function() { return 42; }});
+o.x;//$number 42
+o.x=60;
+o.x;//$number 42
+gopd(o,'x');//$string '{get: function () { return 42; },set: undefined,enumerable: false,configurable: false,}'
+
+o = {n:1, q:'xyz'};
+o.q; //$string 'xyz'
+Object.defineProperty(o, 'q', {get: function() { return this.n; }, set: function(m) { this.n=m+1; }});
+o.q;    //$number 1
+o.q=42;
+o.q;    //$number 43
+gopd(o,'q');//$string '{get: function () { return this.n; },set: function (m) { this.n=m+1; },enumerable: true,configurable: true,}'
+
+o = {};
+Object.defineProperty(o, 'z', {set: function(x){this.x=x;},configurable:true});
+o.x;//$undefined
+o.z;//$undefined
+o.z = 123;
+o.x;//$number 123
+o.z;//$undefined
+gopd(o,'z');//$string '{get: undefined,set: function (x){this.x=x;},enumerable: false,configurable: true,}'
+Object.defineProperty(o, 'z', {configurable:false});
+gopd(o,'z');//$string '{get: undefined,set: function (x){this.x=x;},enumerable: false,configurable: false,}'
+
+try { Object.defineProperty(o, 'z', {configurable:true, enumerable:true}); } catch (e) { e.toString(); } //$string 'TypeError: cannot redefine property: z'
+
+o = {};
+Object.defineProperty(o, 'z', {configurable:true, enumerable:true});
+gopd(o,'z');//$string '{value: undefined,writable: false,enumerable: true,configurable: true,}'
+
+o = {n:42};
+gopd(o,'n');//$string '{value: 42,writable: true,enumerable: true,configurable: true,}'
+Object.defineProperty(o, 'n', {configurable:false, enumerable:false});
+gopd(o,'n');//$string '{value: 42,writable: true,enumerable: false,configurable: false,}'
+
+)");
     }
 }
 

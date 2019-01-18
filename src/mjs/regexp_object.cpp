@@ -21,7 +21,7 @@ namespace {
 const char* empty_string_regexp = "(?:)";
 
 string get_source_string(const gc_heap_ptr<global_object>& global, const std::wstring_view s) {
-    auto& h = global.heap();
+    auto& h = global->heap();
 
     if (s.empty()) {
         return string{h, empty_string_regexp};
@@ -51,7 +51,7 @@ string get_source_string(const gc_heap_ptr<global_object>& global, const std::ws
 class regexp_object : public native_object {
 public:
     static gc_heap_ptr<regexp_object> make(const gc_heap_ptr<global_object>& global, const std::wstring_view& pattern, regexp_flag flags) {
-        return global.heap().make<regexp_object>(global, global->regexp_prototype(), get_source_string(global, pattern), flags);
+        return global->heap().make<regexp_object>(global, global->regexp_prototype(), get_source_string(global, pattern), flags);
     }
 
     regexp_flag flags() const {
@@ -200,13 +200,13 @@ gc_heap_ptr<regexp_object> check_type(const gc_heap_ptr<global_object>& global, 
 
 } // unnamed namespace
 
-global_object_create_result make_regexp_object(global_object& global) {
+global_object_create_result make_regexp_object(const gc_heap_ptr<global_object>& global) {
     // In ES5+ the prototype object is a RegExp object
-    auto prototype = global.language_version() < version::es5 ? global.make_object() : global.heap().make<regexp_object>(global.self_ptr(), global.object_prototype(), string{global.heap(), empty_string_regexp}, regexp_flag::none);
-    auto regexp_str = global.common_string("RegExp");
+    auto prototype = global->language_version() < version::es5 ? global->make_object() : global->heap().make<regexp_object>(global, global->object_prototype(), string{global->heap(), empty_string_regexp}, regexp_flag::none);
+    auto regexp_str = global->common_string("RegExp");
 
-    auto construct_regexp = [global_ = global.self_ptr()](const value&, const std::vector<value>& args) {
-        auto& h = global_.heap();
+    auto construct_regexp = [global](const value&, const std::vector<value>& args) {
+        auto& h = global.heap();
 
         string pattern{h, ""};
         regexp_flag flags{};
@@ -215,7 +215,7 @@ global_object_create_result make_regexp_object(global_object& global) {
 
             if (auto r = cast_to_regexp(args[0])) {
                 if (has_flags_argument) {
-                    throw native_error_exception{native_error_type::type, global_->stack_trace(), L"Invalid flags argument to RegExp constructor"};
+                    throw native_error_exception{native_error_type::type, global->stack_trace(), L"Invalid flags argument to RegExp constructor"};
                 }
                 pattern = r->source();
                 flags = r->flags();
@@ -224,12 +224,12 @@ global_object_create_result make_regexp_object(global_object& global) {
                     pattern = to_string(h, args[0]);
                 }
                 if (has_flags_argument) {
-                    flags = parse_regexp_flags(*global_, to_string(h, args[1]));
+                    flags = parse_regexp_flags(*global, to_string(h, args[1]));
                 }
             }
         }
 
-        return value{regexp_object::make(global_, pattern.view(), flags)};
+        return value{regexp_object::make(global, pattern.view(), flags)};
     };
 
     auto constructor = make_function(global, [construct_regexp](const value& this_, const std::vector<value>& args) {
@@ -241,17 +241,17 @@ global_object_create_result make_regexp_object(global_object& global) {
     }, regexp_str.unsafe_raw_get(), 2);
     constructor->construct_function(construct_regexp);
 
-    put_native_function(global, prototype, "toString", [global = global.self_ptr()](const value& this_, const std::vector<value>&) {
+    put_native_function(global, prototype, "toString", [global](const value& this_, const std::vector<value>&) {
         return value{check_type(global, this_)->to_string()};
     }, 0);
-    put_native_function(global, prototype, "exec", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
-        return check_type(global, this_)->exec(to_string(global.heap(), !args.empty()?args[0]:value::undefined));
+    put_native_function(global, prototype, "exec", [global](const value& this_, const std::vector<value>& args) {
+        return check_type(global, this_)->exec(to_string(global->heap(), !args.empty()?args[0]:value::undefined));
     }, 0);
-    put_native_function(global, prototype, "test", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
-        return value{check_type(global, this_)->exec(to_string(global.heap(), !args.empty()?args[0]:value::undefined)) != value::null};
+    put_native_function(global, prototype, "test", [global](const value& this_, const std::vector<value>& args) {
+        return value{check_type(global, this_)->exec(to_string(global->heap(), !args.empty()?args[0]:value::undefined)) != value::null};
     }, 0);
 
-    prototype->put(global.common_string("constructor"), value{constructor}, global_object::prototype_attributes);
+    prototype->put(global->common_string("constructor"), value{constructor}, global_object::prototype_attributes);
 
     return { constructor, prototype };
 }
@@ -273,7 +273,7 @@ gc_heap_ptr<regexp_object> to_regexp_object(const gc_heap_ptr<global_object>& gl
             return gc_heap_ptr<regexp_object>{o};
         }
     }
-    auto& h = global.heap();
+    auto& h = global->heap();
     return regexp_object::make(global, to_string(h, regexp).view(), regexp_flag::none);
 }
 
@@ -421,7 +421,7 @@ value string_match(const gc_heap_ptr<global_object>& global, const string& str, 
     re->last_index(0);
 
     auto res = make_array(global, 0);
-    auto& h = global.heap();
+    auto& h = global->heap();
     for (uint32_t i=0;; ++i) {
         const auto last_index_before = re->last_index();
         auto match = re->exec(str);
@@ -444,7 +444,7 @@ value string_search(const gc_heap_ptr<global_object>& global, const string& str,
 }
 
 value string_replace(const gc_heap_ptr<global_object>& global, const string& str, const value& search_value, const value& replace_value) {
-    auto& h = global.heap();
+    auto& h = global->heap();
 
     value replace_val = replace_value;
     if (replace_val.type() != value_type::object || !replace_val.object_value().has_type<function_object>()) {

@@ -294,10 +294,10 @@ private:
 // Date
 //
 
-global_object_create_result make_date_object(global_object& global) {
+global_object_create_result make_date_object(const gc_heap_ptr<global_object>& global) {
     auto& h = global.heap();
 
-    auto prototype = h.make<date_object>(string{h, "Date"}, global.object_prototype(), NAN);
+    auto prototype = h.make<date_object>(string{h, "Date"}, global->object_prototype(), NAN);
 
     auto new_date = [prototype](double val) {
         return prototype.heap().make<date_object>(prototype->class_name(), prototype, val);
@@ -337,7 +337,7 @@ global_object_create_result make_date_object(global_object& global) {
         return value{date_helper::time_clip(date_helper::time_from_args(args))};
     }, 7);
 
-    auto get_data_object = [global = global.self_ptr(), prototype](const value& this_) {
+    auto get_data_object = [global, prototype](const value& this_) {
         global->validate_type(this_, prototype, "Date");
         return gc_heap_ptr<date_object>{this_.object_value()};
     };
@@ -464,7 +464,7 @@ global_object_create_result make_date_object(global_object& global) {
     copy_func(L"toString", L"toUTCString");
     copy_func(L"toString", L"toGMTString");
 
-    if (global.language_version() >= version::es3) {
+    if (global->language_version() >= version::es3) {
         put_native_function(global, prototype, "toTimeString", [get_data_object](const value& this_, const std::vector<value>&) {
             auto o = get_data_object(this_);
             return value{date_helper::to_time_string(o.heap(), o->date_value())};
@@ -479,17 +479,17 @@ global_object_create_result make_date_object(global_object& global) {
         copy_func(L"toDateString", L"toLocaleDateString");
     }
 
-    if (global.language_version() >= version::es5) {
+    if (global->language_version() >= version::es5) {
         put_native_function(global, c, "now", [](const value&, const std::vector<value>&) {
             return value{date_helper::current_time_utc()};
         }, 0);
 
-        put_native_function(global, prototype, "toISOString", [get_data_object, global = global.self_ptr()](const value& this_, const std::vector<value>&) {
+        put_native_function(global, prototype, "toISOString", [get_data_object, global](const value& this_, const std::vector<value>&) {
             auto o = get_data_object(this_);
             return value{date_helper::to_iso_string(global, o->date_value())};
         }, 0);
 
-        put_native_function(global, prototype, "toJSON", [global = global.self_ptr()](const value& this_, const std::vector<value>&) {
+        put_native_function(global, prototype, "toJSON", [global](const value& this_, const std::vector<value>&) {
             return date_helper::to_json(global, this_);
         }, 0);
     }

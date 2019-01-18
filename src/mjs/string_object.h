@@ -5,7 +5,7 @@
 
 namespace mjs {
 
-global_object_create_result make_string_object(global_object& global);
+global_object_create_result make_string_object(const gc_heap_ptr<global_object>& global);
 
 object_ptr new_string(const gc_heap_ptr<global_object>& global, const string& val);
 

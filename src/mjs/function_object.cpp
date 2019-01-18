@@ -133,30 +133,30 @@ object_ptr function_object::bind(const gc_heap_ptr<function_object>& f, const st
     // Put it in a special pointer in function? (will help with the type checks)
 
     // ES5.1, 15.3.4.5
-    auto res = make_function(*global, [f, bound_args](const value&, const std::vector<value>& args) {
+    auto res = make_function(global, [f, bound_args](const value&, const std::vector<value>& args) {
         return f->call(bound_args->bound_this(), bound_args->build_args(args));
     }, string{h,""}.unsafe_raw_get(), std::max(0,  f->named_args_ - static_cast<int>(bound_args->bound_args_len())));
 
-    make_constructable(*global, res, [f, bound_args](const value&, const std::vector<value>& args) {
+    make_constructable(global, res, [f, bound_args](const value&, const std::vector<value>& args) {
         return f->construct(value::undefined, bound_args->build_args(args));
     });
     
     return res;
 }
 
-gc_heap_ptr<function_object> make_raw_function(global_object& global) {
-    auto fp = global.function_prototype();
-    auto o = global.heap().make<function_object>(global.self_ptr(), fp->class_name(), fp);
-    const auto ver = global.language_version();
+gc_heap_ptr<function_object> make_raw_function(const gc_heap_ptr<global_object>& global) {
+    auto fp = global->function_prototype();
+    auto o = global.heap().make<function_object>(global, fp->class_name(), fp);
+    const auto ver = global->language_version();
     const auto attrs =
         (ver != version::es3 ? property_attribute::dont_enum : property_attribute::none)
         | (ver >= version::es3 ? property_attribute::dont_delete : property_attribute::none);
-    o->put_prototype_with_attributes(global.make_object(),  attrs);
+    o->put_prototype_with_attributes(global->make_object(),  attrs);
     return o;
 }
 
-global_object_create_result make_function_object(global_object& global) {
-    auto prototype = global.function_prototype();
+global_object_create_result make_function_object(const gc_heap_ptr<global_object>& global) {
+    auto prototype = global->function_prototype();
 
     // §15.3.4
     assert(prototype.has_type<function_object>());
@@ -164,7 +164,7 @@ global_object_create_result make_function_object(global_object& global) {
         return value::undefined;
     }, nullptr, nullptr, 0);
 
-    put_native_function(global, prototype, "toString", [global = global.self_ptr(), prototype](const value& this_, const std::vector<value>&) {
+    put_native_function(global, prototype, "toString", [global, prototype](const value& this_, const std::vector<value>&) {
         // HACK to make Function.prototype.toString() work..
         if (this_.type() != value_type::object || this_.object_value().get() != prototype.get()) {
             global->validate_type(this_, prototype, "function");
@@ -173,8 +173,8 @@ global_object_create_result make_function_object(global_object& global) {
         return value{static_cast<function_object&>(*this_.object_value()).to_string()};
     }, 0);
 
-    if (global.language_version() >= version::es3) {
-        put_native_function(global, prototype, "call", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+    if (global->language_version() >= version::es3) {
+        put_native_function(global, prototype, "call", [global](const value& this_, const std::vector<value>& args) {
             global->validate_type(this_, global->function_prototype(), "function");
             std::vector<value> new_args;
             if (args.size() > 1) {
@@ -183,7 +183,7 @@ global_object_create_result make_function_object(global_object& global) {
             return static_cast<const function_object&>(*this_.object_value()).call(!args.empty() ? args.front() : value::undefined, new_args);
         }, 1);
 
-        put_native_function(global, prototype, "apply", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+        put_native_function(global, prototype, "apply", [global](const value& this_, const std::vector<value>& args) {
             global->validate_type(this_, global->function_prototype(), "function");
             std::vector<value> new_args;
 
@@ -214,8 +214,8 @@ do_call:
         }, 2);
     }
 
-    if (global.language_version() >= version::es5) {
-        put_native_function(global, prototype, "bind", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+    if (global->language_version() >= version::es5) {
+        put_native_function(global, prototype, "bind", [global](const value& this_, const std::vector<value>& args) {
             global->validate_type(this_, global->function_prototype(), "function");
             return value{function_object::bind(gc_heap_ptr<function_object>{this_.object_value()}, args)};
         }, 1);

@@ -28,8 +28,6 @@ public:
     static constexpr auto prototype_attributes = property_attribute::dont_enum | property_attribute::dont_delete | property_attribute::read_only;
     static constexpr auto default_attributes = property_attribute::dont_enum;
 
-    virtual gc_heap_ptr<global_object> self_ptr() const = 0; // FIXME: Remove need for this
-
     // Make a string (to make it possible to use a cache)
     virtual string common_string(const char* str) = 0;
 

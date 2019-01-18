@@ -744,17 +744,17 @@ value json_stringify(const gc_heap_ptr<global_object>& global, const std::vector
     return json_str(s, L"", wrapper);
 }
 
-global_object_create_result make_json_object(global_object& global) {
-    assert(global.language_version() >= version::es5);
+global_object_create_result make_json_object(const gc_heap_ptr<global_object>& global) {
+    assert(global->language_version() >= version::es5);
     auto& h = global.heap();
-    auto json = h.make<object>(string{h,"JSON"}, global.object_prototype());
+    auto json = h.make<object>(string{h,"JSON"}, global->object_prototype());
 
-    put_native_function(global, json, "parse", [global=global.self_ptr()](const value&, const std::vector<value>& args) {
+    put_native_function(global, json, "parse", [global](const value&, const std::vector<value>& args) {
         auto g = global; // Keep local copy in case the function gets GC'ed
         return json_parse(g, args);
     }, 2);
     
-    put_native_function(global, json, "stringify", [global=global.self_ptr()](const value&, const std::vector<value>& args) {
+    put_native_function(global, json, "stringify", [global](const value&, const std::vector<value>& args) {
         auto g = global; // Keep local copy in case the function gets GC'ed
         return json_stringify(g, args);
     }, 3);

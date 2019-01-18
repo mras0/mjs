@@ -13,7 +13,7 @@ value get_property_names(const gc_heap_ptr<global_object>& global, const value& 
     const auto n = o.object_value()->own_property_names(check_enumerable);
     const auto ns = static_cast<uint32_t>(n.size());
     auto a = make_array(global, ns);
-    auto& h = global.heap();
+    auto& h = global->heap();
     for (uint32_t i = 0; i < ns; ++i) {
         a->put(string{h,index_string(i)}, value{n[i]});
     }
@@ -51,6 +51,20 @@ property_attribute attributes_from_descriptor(const object_ptr& desc) {
     return a;
 }
 
+void define_accessor_property(const gc_heap_ptr<global_object>& global, const object_ptr& o, const string& name, const value& get, const value& set, property_attribute attr) {
+    assert(get.type() != value_type::undefined || set.type() != value_type::undefined);
+    assert(is_valid(attr) && !has_attributes(attr, property_attribute::accessor));
+    auto& h = global->heap();
+    auto a = h.make<object>(global->common_string("Accessor"), nullptr);
+    if (get.type() != value_type::undefined) {
+        a->put(global->common_string("get"), get);
+    }
+    if (set.type() != value_type::undefined) {
+        a->put(global->common_string("set"), set);
+    }
+    o->define_accessor_property(name, a, attr);
+}
+
 enum class define_own_property_result {
     ok,
     cannot_redefine,
@@ -58,7 +72,7 @@ enum class define_own_property_result {
 };
 
 // ES5.1, 8.12.9
-define_own_property_result define_own_property(const object_ptr& o, const string& p, const object_ptr& desc) {
+define_own_property_result define_own_property(const gc_heap_ptr<global_object>& global, const object_ptr& o, const string& p, const object_ptr& desc) {
     const auto current_attributes = o->own_property_attributes(p.view());
     const auto new_attributes = attributes_from_descriptor(desc);
 
@@ -72,10 +86,9 @@ define_own_property_result define_own_property(const object_ptr& o, const string
             o->put(p, desc->get(L"value"), new_attributes);
             return define_own_property_result::ok;
         } else {
-            NOT_IMPLEMENTED("accessor descriptor not supported");
+            define_accessor_property(global, o, p, desc->get(L"get"), desc->get(L"set"), new_attributes);
+            return define_own_property_result::ok;
         }
-    } else if (has_attributes(current_attributes, property_attribute::accessor))  {
-        NOT_IMPLEMENTED("accessor descriptor not supported");
     }
 
     // If descriptor is empty or all fields are equal
@@ -105,14 +118,12 @@ define_own_property_result define_own_property(const object_ptr& o, const string
 
     if (is_generic_descriptor(desc)) {
         // 8. If IsGenericDescriptor(Desc) is true, then no further validation is required.
-        NOT_IMPLEMENTED("generic descriptor");
     } else if (!has_attributes(current_attributes, property_attribute::accessor) != is_data_descriptor(desc)) {
         // 9 Else, if IsDataDescriptor(current) and IsDataDescriptor(Desc) have different results, then 
         if (has_attributes(current_attributes, property_attribute::dont_delete)) {
             // 9.a Reject, if the [[Configurable]] field of current is false.
             return define_own_property_result::cannot_redefine;
         }
-        NOT_IMPLEMENTED("changing descriptor type");
     } else if (!has_attributes(current_attributes, property_attribute::accessor)) {
         if (has_attributes(current_attributes, property_attribute::dont_delete)) {
             // 10.a
@@ -129,7 +140,6 @@ define_own_property_result define_own_property(const object_ptr& o, const string
         }
     } else {
         assert(has_attributes(current_attributes, property_attribute::accessor) && is_accessor_descriptor(desc));
-        NOT_IMPLEMENTED("accessor descriptor");
     }
 
     property_attribute a = property_attribute::none;
@@ -143,18 +153,35 @@ define_own_property_result define_own_property(const object_ptr& o, const string
         }
     };
 
-    apply_flag(L"writable", property_attribute::read_only);
     apply_flag(L"enumerable", property_attribute::dont_enum);
     apply_flag(L"configurable", property_attribute::dont_delete);
-    if (o->redefine_own_property(p, has_own_property(desc, L"value") ? desc->get(L"value") : o->get(p.view()), a)) {
+    if (is_accessor_descriptor(desc) || (is_generic_descriptor(desc) && has_attributes(current_attributes, property_attribute::accessor))) {
+        auto temp = global->make_object();
+        auto g = desc->get(L"get");
+        auto s = desc->get(L"set");
+        if (has_attributes(current_attributes, property_attribute::accessor)) {
+            o->get_accessor_property_fields(p, temp);
+            if (g.type() == value_type::undefined && temp->has_property(L"get")) {
+                g = temp->get(L"get");
+            }
+            if (s.type() == value_type::undefined && temp->has_property(L"set")) {
+                s = temp->get(L"set");
+            }
+        }
+        define_accessor_property(global, o, p, g, s, a);
         return define_own_property_result::ok;
     } else {
-        return define_own_property_result::cannot_redefine;
+        apply_flag(L"writable", property_attribute::read_only);
+        if (o->redefine_own_property(p, has_own_property(desc, L"value") ? desc->get(L"value") : o->get(p.view()), a)) {
+            return define_own_property_result::ok;
+        } else {
+            return define_own_property_result::cannot_redefine;
+        }
     }
 }
 
 void define_own_property_checked(const gc_heap_ptr<global_object>& global, const object_ptr& o, const string& p, const value& desc) {
-    const auto res = define_own_property(o, p, global->validate_object(desc));
+    const auto res = define_own_property(global, o, p, global->validate_object(desc));
     if (res == define_own_property_result::ok) {
         return;
     }
@@ -193,9 +220,9 @@ void make_immutable(const object_ptr& o, property_attribute attr) {
 
 } // unnamed namespace
 
-global_object_create_result make_object_object(global_object& global) {
-    auto prototype = global.object_prototype();
-    auto o = make_function(global, [global = global.self_ptr()](const value&, const std::vector<value>& args) {
+global_object_create_result make_object_object(const gc_heap_ptr<global_object>& global) {
+    auto prototype = global->object_prototype();
+    auto o = make_function(global, [global](const value&, const std::vector<value>& args) {
         if (args.empty() || args.front().type() == value_type::undefined || args.front().type() == value_type::null) {
             return value{global->make_object()};
         }
@@ -204,9 +231,9 @@ global_object_create_result make_object_object(global_object& global) {
     o->default_construct_function();
 
     // §15.2.4
-    prototype->put(global.common_string("constructor"), value{o}, global_object::default_attributes);
+    prototype->put(global->common_string("constructor"), value{o}, global_object::default_attributes);
 
-    auto& h = global.heap();
+    auto& h = global->heap();
     put_native_function(global, prototype, "toString", [&h](const value& this_, const std::vector<value>&){
         return value{string{h, "[object "} + this_.object_value()->class_name() + string{h, "]"}};
     }, 0);
@@ -214,40 +241,40 @@ global_object_create_result make_object_object(global_object& global) {
         return this_;
     }, 0);
 
-    if (global.language_version() >= version::es3) {
-        put_native_function(global, prototype, "toLocaleString", [global = global.self_ptr()](const value& this_, const std::vector<value>&) {
+    if (global->language_version() >= version::es3) {
+        put_native_function(global, prototype, "toLocaleString", [global](const value& this_, const std::vector<value>&) {
             auto o = global->to_object(this_);
             return call_function(o->get(L"toString"), value{o}, {});
         }, 0);
-        put_native_function(global, prototype, "hasOwnProperty", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+        put_native_function(global, prototype, "hasOwnProperty", [global](const value& this_, const std::vector<value>& args) {
             auto o = global->validate_object(this_);
             return value{has_own_property(o, to_string(o.heap(), get_arg(args, 0)).view())};
         }, 1);
-        put_native_function(global, prototype, "propertyIsEnumerable", [global = global.self_ptr()](const value& this_, const std::vector<value>& args) {
+        put_native_function(global, prototype, "propertyIsEnumerable", [global](const value& this_, const std::vector<value>& args) {
             auto o = global->validate_object(this_);
             const auto a = o->own_property_attributes(to_string(o.heap(), get_arg(args, 0)).view());
             return value{is_valid(a) && (a & property_attribute::dont_enum) == property_attribute::none};
         }, 1);
     }
 
-    if (global.language_version() >= version::es5) {
-        put_native_function(global, o, "getPrototypeOf", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
+    if (global->language_version() >= version::es5) {
+        put_native_function(global, o, "getPrototypeOf", [global](const value&, const std::vector<value>& args) {
             auto o = global->validate_object(get_arg(args, 0));
             auto p = o->prototype();
             return p ? value{p} : value::null;
         }, 1);
 
-        put_native_function(global, o, "getOwnPropertyNames", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
+        put_native_function(global, o, "getOwnPropertyNames", [global](const value&, const std::vector<value>& args) {
             return get_property_names(global, get_arg(args, 0), false);
         }, 1);
 
-        put_native_function(global, o, "keys", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
+        put_native_function(global, o, "keys", [global](const value&, const std::vector<value>& args) {
             return get_property_names(global, get_arg(args, 0), true);
         }, 1);
 
-        put_native_function(global, o, "getOwnPropertyDescriptor", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
+        put_native_function(global, o, "getOwnPropertyDescriptor", [global](const value&, const std::vector<value>& args) {
             auto o = global->validate_object(get_arg(args, 0));
-            auto& h = global.heap();
+            auto& h = global->heap();
             auto p = to_string(h, get_arg(args, 1));
             const auto a = o->own_property_attributes(p.view());
             if (!is_valid(a)) {
@@ -256,25 +283,26 @@ global_object_create_result make_object_object(global_object& global) {
             }
             auto desc = global->make_object();
             if (has_attributes(a, property_attribute::accessor)) {
-                assert(!"Not implemented"); // See ES5.1, 8.10.4
+                o->get_accessor_property_fields(p, desc);
             } else {
                 desc->put(global->common_string("value"), o->get(p.view()));
                 desc->put(global->common_string("writable"), value{(a & property_attribute::read_only) == property_attribute::none});
             }
             desc->put(global->common_string("enumerable"), value{(a & property_attribute::dont_enum) == property_attribute::none});
             desc->put(global->common_string("configurable"), value{(a & property_attribute::dont_delete) == property_attribute::none});
+
             return value{desc};
         }, 2);
 
-        put_native_function(global, o, "defineProperty", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
-            auto& h = global.heap();
+        put_native_function(global, o, "defineProperty", [global](const value&, const std::vector<value>& args) {
+            auto& h = global->heap();
             auto o = global->validate_object(get_arg(args, 0));
             auto p = to_string(h, get_arg(args, 1));
             define_own_property_checked(global, o, p, get_arg(args, 2));
             return value{o};
         }, 3);
 
-        put_native_function(global, o, "defineProperties", [global= global.self_ptr()](const value&, const std::vector<value>& args) {
+        put_native_function(global, o, "defineProperties", [global](const value&, const std::vector<value>& args) {
             auto o = global->validate_object(get_arg(args, 0));
             auto props = global->to_object(get_arg(args, 1));
             for (const auto& p : props->own_property_names(false)) {
@@ -283,41 +311,41 @@ global_object_create_result make_object_object(global_object& global) {
             return value{o};
         }, 2);
 
-        put_native_function(global, o, "isExtensible", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
+        put_native_function(global, o, "isExtensible", [global](const value&, const std::vector<value>& args) {
             return value{global->validate_object(get_arg(args, 0))->is_extensible()};
         }, 1);
 
-        put_native_function(global, o, "preventExtensions", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
+        put_native_function(global, o, "preventExtensions", [global](const value&, const std::vector<value>& args) {
             auto o = global->validate_object(get_arg(args, 0));
             o->prevent_extensions();
             return value{o};
         }, 1);
 
-        put_native_function(global, o, "isSealed", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
+        put_native_function(global, o, "isSealed", [global](const value&, const std::vector<value>& args) {
             return value{check_for_immutability(global->validate_object(get_arg(args, 0)), property_attribute::dont_delete)};
         }, 1);
 
-        put_native_function(global, o, "seal", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
+        put_native_function(global, o, "seal", [global](const value&, const std::vector<value>& args) {
             auto o = global->validate_object(get_arg(args, 0));
             make_immutable(o, property_attribute::dont_delete);
             return value{o};
         }, 1);
 
-        put_native_function(global, o, "isFrozen", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
+        put_native_function(global, o, "isFrozen", [global](const value&, const std::vector<value>& args) {
             return value{check_for_immutability(global->validate_object(get_arg(args, 0)), property_attribute::read_only | property_attribute::dont_delete)};
         }, 1);
 
-        put_native_function(global, o, "freeze", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
+        put_native_function(global, o, "freeze", [global](const value&, const std::vector<value>& args) {
             auto o = global->validate_object(get_arg(args, 0));
             make_immutable(o, property_attribute::read_only | property_attribute::dont_delete);
             return value{o};
         }, 1);
 
-        put_native_function(global, o, "create", [global = global.self_ptr()](const value&, const std::vector<value>& args) {
+        put_native_function(global, o, "create", [global](const value&, const std::vector<value>& args) {
             if (args.empty() || (args[0].type() != value_type::null && args[0].type() != value_type::object)) {
                 throw native_error_exception{native_error_type::type, global->stack_trace(), L"Invalid object prototype"};
             }
-            auto o = global.heap().make<object>(global->object_prototype()->class_name(), args[0].type() == value_type::object ? args[0].object_value() : nullptr);
+            auto o = global->heap().make<object>(global->object_prototype()->class_name(), args[0].type() == value_type::object ? args[0].object_value() : nullptr);
             if (args.size() > 1) {
                 auto props = global->to_object(args[1]);
                 for (const auto& p : props->own_property_names(false)) {

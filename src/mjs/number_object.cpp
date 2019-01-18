@@ -39,9 +39,9 @@ object_ptr new_number(const object_ptr& prototype,  double val) {
     return o;
 }
 
-global_object_create_result make_number_object(global_object& global) {
+global_object_create_result make_number_object(const gc_heap_ptr<global_object>& global) {
     auto& h = global.heap();
-    auto prototype = h.make<number_object>(string{h, "Number"}, global.object_prototype(), 0.);
+    auto prototype = h.make<number_object>(string{h, "Number"}, global->object_prototype(), 0.);
 
     auto c = make_function(global, [](const value&, const std::vector<value>& args) {
         return value{args.empty() ? 0.0 : to_number(args.front())};
@@ -57,7 +57,7 @@ global_object_create_result make_number_object(global_object& global) {
     c->put(string{h, "POSITIVE_INFINITY"}, value{INFINITY}, global_object::default_attributes);
 
     auto make_number_function = [&](const char* name, int num_args, auto f) {
-        put_native_function(global, prototype, string{h, name}, [prototype, global = global.self_ptr(), f](const value& this_, const std::vector<value>& args){
+        put_native_function(global, prototype, string{h, name}, [prototype, global, f](const value& this_, const std::vector<value>& args){
             global->validate_type(this_, prototype, "Number");
             return value{f(static_cast<const number_object&>(*this_.object_value()).number_value(), args)};
         }, num_args);
@@ -80,11 +80,11 @@ global_object_create_result make_number_object(global_object& global) {
         return num;
     });
 
-    if (global.language_version() >= version::es3) {
+    if (global->language_version() >= version::es3) {
         make_number_function("toLocaleString", 0, [&h](double num, const std::vector<value>&) {
             return to_string(h, num);
         });
-        make_number_function("toFixed", 1, [global = global.self_ptr()](double num, const std::vector<value>& args) {
+        make_number_function("toFixed", 1, [global](double num, const std::vector<value>& args) {
             const auto f = get_int_arg(args);
             if (f < 0 || f > 20) {
                 throw native_error_exception{native_error_type::range, global->stack_trace(), L"fractionDigits out of range in Number.toFixed()"};
@@ -95,7 +95,7 @@ global_object_create_result make_number_object(global_object& global) {
             }
             return string{h, number_to_fixed(num, f)};
         });
-        make_number_function("toExponential", 1, [global = global.self_ptr()](double num, const std::vector<value>& args) {
+        make_number_function("toExponential", 1, [global](double num, const std::vector<value>& args) {
             const auto f = get_int_arg(args);
             if (f < 0 || f > 20) {
                 throw native_error_exception{native_error_type::range, global->stack_trace(), L"fractionDigits out of range in Number.toExponential()"};
@@ -106,7 +106,7 @@ global_object_create_result make_number_object(global_object& global) {
             }
             return string{h, number_to_exponential(num, f)};
         });
-        make_number_function("toPrecision", 1, [global = global.self_ptr()](double num, const std::vector<value>& args) {
+        make_number_function("toPrecision", 1, [global](double num, const std::vector<value>& args) {
             auto& h = global.heap();
             if (args.empty()) {
                 return to_string(h, num);

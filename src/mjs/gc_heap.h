@@ -195,6 +195,9 @@ public:
         return allocate_and_construct<T>(sizeof(T), std::forward<Args>(args)...);
     }
 
+    template<typename T>
+    gc_heap_ptr<T> unsafe_track(const T& val);
+
 private:
     static constexpr uint32_t uninitialized_type_index = UINT32_MAX;
     static constexpr uint32_t gc_moved_type_index      = uninitialized_type_index-1;
@@ -286,7 +289,7 @@ private:
         explicit allocation_context(void* s, uint32_t capacity) : allocation_context(static_cast<slot*>(s), capacity/2, 0) {
         }
 
-        slot* storage() { return storage_; }
+        const slot* storage() const { return storage_; }
         uint32_t next_free() const { return next_free_; }
 
         // Allocate at least 'num_bytes' of storage, returns the offset (in slots) of the allocation (header) inside 'storage_'
@@ -509,6 +512,13 @@ template<typename T>
 gc_heap_ptr<T> gc_heap::unsafe_create_from_position(uint32_t pos) {
     assert(type_check<T>(pos));
     return gc_heap_ptr<T>{*this, pos};
+}
+
+template<typename T>
+gc_heap_ptr<T> gc_heap::unsafe_track(const T& val) {
+    auto pos = reinterpret_cast<const slot*>(&val) - alloc_context_.storage();
+    assert(pos >= 1 && pos < UINT32_MAX && alloc_context_.pos_inside(static_cast<uint32_t>(pos)));
+    return unsafe_create_from_position<T>(static_cast<uint32_t>(pos));
 }
 
 } // namespace mjs

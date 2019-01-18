@@ -1,7 +1,5 @@
 # Supporting ECMAScript 5th Edition
 
-Annex D, E and F contain lists of the necessary changes.
-
 ## TODO
 - Annex C Strict Mode (Changes need to be done at parser level to support emitting SyntaxError in various places)
 - `get` / `set`
@@ -68,7 +66,8 @@ Annex D, E and F contain lists of the necessary changes.
 - `IdentifierName` allowed in various places (i.e. `ReservedWord`s can be used as property names)
 - Annex D: Can't reproduce expected standard behavior for (12.4: Exception object and 15.10.6)
 - 10.4.2 Direct calls to `eval` behave differently than indirect calls!
+- Change to handling of null/undefined argument to `call`/`apply` creating lots of changes
+- Inversion of property attributes from ES3 -> ES5 (`dont_enum` is now not `enumerable`, etc.)
 - Many changes listed as new functions on `Object` actually require major changes (e.g. `defineProperty`). Property attributes can now change at runtime.
 - Ugly that array properties can also be getter/setters
-- Change to handling of null/undefined argument to `call`/`apply` creating lots of chnages
-- Inversion of property attributes from ES3 -> ES5 (`dont_enum` is now not `enumerable`, etc.)
+- Suddenly many more places where garbage collection can happen (user-defined functions are now potentially called everywhere!)

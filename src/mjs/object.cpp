@@ -1,4 +1,5 @@
 #include "object.h"
+#include "function_object.h"
 
 namespace mjs {
 
@@ -42,9 +43,35 @@ std::vector<string> object::own_property_names(bool check_enumerable) const {
     return names;
 }
 
+void object::define_accessor_property(const string& name, const object_ptr& accessor, property_attribute attr) {
+    assert(is_valid(attr));
+    assert(accessor && !accessor->prototype() && (accessor->has_property(L"get") || accessor->has_property(L"set")));
+    attr |= property_attribute::accessor;
+    if (accessor->has_property(L"set")) {
+        attr &= ~property_attribute::read_only;
+    } else {
+        attr |= property_attribute::read_only;
+    }
+    if (auto it = find(name.view()).first) {
+        it->raw_put(value{accessor});
+        it->attributes(attr);
+        return;
+    }
+    assert(!has_property(name.view()));
+    properties_.dereference(heap()).emplace_back(name, value{accessor}, attr);
+}
+
+void object::get_accessor_property_fields(const string& name, const object_ptr& desc) {
+    if (auto it = find(name.view()).first; has_attributes(it->attributes(), property_attribute::accessor)) {
+        it->put_descriptor_fields(desc);
+        return;
+    }
+    throw std::logic_error{"get_accessor_property_fields called on non-accessor property"};
+}
+
 bool object::do_redefine_own_property(const string& name, const value& val, property_attribute attr) {
-    if (auto it = find(name.view()).first; it) {
-        it->put(val);
+    if (auto it = find(name.view()).first) {
+        it->put(*this, val);
         it->attributes(attr);
         return true;
     }
@@ -84,7 +111,7 @@ void object::debug_print(std::wostream& os, int indent_incr, int max_nest, int i
     print_prop("[[Prototype]]", prototype_ ? value{prototype_.track(heap())} : value::null, true);
     for (auto& p: properties_.dereference(heap_)) {
         const auto key = p.key(heap_).view();
-        print_prop(key, p.get(heap_), key == L"constructor");
+        print_prop(key, p.get(*this), key == L"constructor");
     }
     do_debug_print_extra(os, indent_incr, max_nest, indent+indent_incr);
     os << std::wstring(indent, ' ') << "}";
@@ -113,7 +140,7 @@ void object::put(const string& name, const value& val, property_attribute attr) 
         // Did the property come from this object's property list?
         if (pp == &props) {
             // Yes, update
-            it->put(val);
+            it->put(*this, val);
             return;
         }
         // Handle as insertion
@@ -142,16 +169,39 @@ void object::property::fixup(gc_heap& h) {
     value_.fixup(h);
 }
 
-value object::property::get(gc_heap& h) const {
-    assert(!is_accessor());
-    return value_.get_value(h);
+value object::property::get(const object& self) const {
+    auto& h = self.heap();
+    auto v = value_.get_value(h);
+    if (is_accessor()) {
+        assert(v.type() == value_type::object);
+        auto g = v.object_value()->get(L"get");
+        return g.type() != value_type::undefined ? call_function(g, value{h.unsafe_track(self)}, {}) : g;
+    }
+    return v;
 }
 
-void object::property::put(const value& val) {
-    assert(!is_accessor());
+void object::property::raw_put(const value& val) {
     value_ = value_representation{val};
 }
 
+void object::property::put(const object& self, const value& val) {
+    assert(!has_attributes(attributes_, property_attribute::read_only));
+    if (is_accessor()) {
+        auto& h = self.heap();
+        auto s = value_.get_value(h).object_value()->get(L"set");
+        call_function(s, value{h.unsafe_track(self)}, {val});
+    } else {
+        assert(val.type() != value_type::object || val.object_value()->class_name().view() != L"Accessor");
+        raw_put(val);
+    }
+}
 
+void object::property::put_descriptor_fields(const object_ptr& desc) {
+    assert(is_accessor());
+    auto& h = desc.heap();
+    auto a = value_.get_value(h).object_value();
+    desc->put(string{h, "get"}, a->get(L"get"));
+    desc->put(string{h, "set"}, a->get(L"set"));
+}
 
 } // namespace mjs

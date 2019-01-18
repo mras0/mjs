@@ -5,7 +5,7 @@
 
 namespace mjs {
 
-global_object_create_result make_date_object(global_object& global);
+global_object_create_result make_date_object(const gc_heap_ptr<global_object>& global);
 
 } // namespace mjs
 

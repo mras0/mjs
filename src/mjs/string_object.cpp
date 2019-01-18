@@ -107,15 +107,15 @@ private:
     }
 };
 
-global_object_create_result make_string_object(global_object& global) {
-    auto& h = global.heap();
-    auto prototype = h.make<string_object>(string{h, "String"}, global.object_prototype(), string{h, ""}, global.language_version() >= version::es5);
+global_object_create_result make_string_object(const gc_heap_ptr<global_object>& global) {
+    auto& h = global->heap();
+    auto prototype = h.make<string_object>(string{h, "String"}, global->object_prototype(), string{h, ""}, global->language_version() >= version::es5);
 
     auto c = make_function(global, [&h](const value&, const std::vector<value>& args) {
         return value{args.empty() ? string{h, ""} : to_string(h, args.front())};
     }, prototype->class_name().unsafe_raw_get(), 1);
-    make_constructable(global, c, [global = global.self_ptr()](const value&, const std::vector<value>& args) {
-        auto& h = global.heap();
+    make_constructable(global, c, [global](const value&, const std::vector<value>& args) {
+        auto& h = global->heap();
         return value{new_string(global, args.empty() ? string{h, ""} : to_string(h, args.front()))};
     });
 
@@ -127,15 +127,15 @@ global_object_create_result make_string_object(global_object& global) {
         return value{string{h, s}};
     }, 0);
 
-    auto check_type = [global = global.self_ptr(), prototype](const value& this_) {
+    auto check_type = [global, prototype](const value& this_) {
         global->validate_type(this_, prototype, "String");
     };
 
-    put_native_function(global, prototype, global.common_string("toString"), [check_type](const value& this_, const std::vector<value>&){
+    put_native_function(global, prototype, global->common_string("toString"), [check_type](const value& this_, const std::vector<value>&){
         check_type(this_);
         return value{static_cast<const string_object&>(*this_.object_value()).string_value()};
     }, 0);
-    put_native_function(global, prototype, global.common_string("valueOf"), [check_type](const value& this_, const std::vector<value>&){
+    put_native_function(global, prototype, global->common_string("valueOf"), [check_type](const value& this_, const std::vector<value>&){
         check_type(this_);
         return value{static_cast<const string_object&>(*this_.object_value()).string_value()};
     }, 0);
@@ -178,7 +178,7 @@ global_object_create_result make_string_object(global_object& global) {
         return index == std::wstring_view::npos ? -1. : static_cast<double>(index);
     });
 
-    make_string_function("split", 1, [global = global.self_ptr()](const string& str, const std::vector<value>& args){
+    make_string_function("split", 1, [global](const string& str, const std::vector<value>& args){
         const auto s = str.view();
         auto& h = global->heap();
         auto a = make_array(global, 0);
@@ -241,7 +241,7 @@ global_object_create_result make_string_object(global_object& global) {
     make_string_function("toLowerCase", 0, to_lower);
     make_string_function("toUpperCase", 0, to_upper);
 
-    if (global.language_version() >= version::es3) {
+    if (global->language_version() >= version::es3) {
         make_string_function("toLocaleLowerCase", 0, to_lower);
         make_string_function("toLocaleUpperCase", 0, to_upper);
         make_string_function("localeCompare", 1, [&h](const string& s, const std::vector<value>& args){
@@ -265,25 +265,25 @@ global_object_create_result make_string_object(global_object& global) {
             const auto end   = static_cast<uint32_t>(ne < 0 ? std::max(l + ne, 0.0) : std::min(ne, 0.0+l));
             return value{string{h, s.substr(start, start < end ? end - start : 0)}};
         });
-        make_string_function("match", 1, [global = global.self_ptr()](const string& s, const std::vector<value>& args) {
+        make_string_function("match", 1, [global](const string& s, const std::vector<value>& args) {
             return string_match(global, s, get_arg(args, 0));
         });
-        make_string_function("search", 1, [global = global.self_ptr()](const string& s, const std::vector<value>& args) {
+        make_string_function("search", 1, [global](const string& s, const std::vector<value>& args) {
             return string_search(global, s, get_arg(args, 0));
         });
-        make_string_function("replace", 2, [global = global.self_ptr()](const string& s, const std::vector<value>& args) {
+        make_string_function("replace", 2, [global](const string& s, const std::vector<value>& args) {
             return string_replace(global, s, get_arg(args, 0), get_arg(args, 1));
         });
     }
-    if (global.language_version() >= version::es5) {
-        put_native_function(global, prototype, string{h, "trim"}, [global = global.self_ptr(), ver = global.language_version()](const value& this_, const std::vector<value>&) {
+    if (global->language_version() >= version::es5) {
+        put_native_function(global, prototype, string{h, "trim"}, [global, ver = global->language_version()](const value& this_, const std::vector<value>&) {
             // CheckObjectCoercible
             if (this_.type() == value_type::undefined || this_.type() == value_type::null) {
                 std::ostringstream oss;
                 oss << "String.prototype.trim cannot be called on " << this_.type();
                 throw native_error_exception(native_error_type::type, global->stack_trace(), oss.str());
             }
-            auto& h = global.heap();
+            auto& h = global->heap();
             auto s = to_string(h, this_);
             return value{string{h, trim(s.view(), ver)}};
         }, 0);
@@ -294,7 +294,7 @@ global_object_create_result make_string_object(global_object& global) {
 
 object_ptr new_string(const gc_heap_ptr<global_object>& global, const string& val) {
     auto proto = global->string_prototype();
-    return global.heap().make<string_object>(proto->class_name(), proto, val, global->language_version() >= version::es5);
+    return global->heap().make<string_object>(proto->class_name(), proto, val, global->language_version() >= version::es5);
 }
 
 std::wstring_view ltrim(std::wstring_view s, version ver) {
