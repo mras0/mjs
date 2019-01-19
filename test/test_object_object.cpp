@@ -353,8 +353,6 @@ Object.getPrototypeOf(o) === o2; //$boolean true
 allProps(o); //$string '{x:{value:42,writable:false,enumerable:false,configurable:false,}}'
 )");
 
-        // TODO: When implementing get/set remember to check getOwnPropertyDescriptor, defineProperty, etc.
-
         RUN_TEST_SPEC(R"(
 function gopd(o,p) {
     var d = Object.getOwnPropertyDescriptor(o,p);
@@ -402,6 +400,34 @@ o = {n:42};
 gopd(o,'n');//$string '{value: 42,writable: true,enumerable: true,configurable: true,}'
 Object.defineProperty(o, 'n', {configurable:false, enumerable:false});
 gopd(o,'n');//$string '{value: 42,writable: true,enumerable: false,configurable: false,}'
+o = { x:42, get if (   )     { return this.x; }, set if (a) { this.x=a*2; }, };
+gopd(o,'x');  //$string '{value: 42,writable: true,enumerable: true,configurable: true,}'
+gopd(o,'if'); //$string '{get: function get if(   )     { return this.x; },set: function set if(a) { this.x=a*2; },enumerable: true,configurable: true,}'
+o.x;//$number 42
+o.if;//$number 42
+o.x = 'x';
+o.if;//$string 'x'
+o.if = 2;
+o.x; //$number 4
+o.if; //$number 4
+delete o.x;
+'if' in o; //$boolean true
+o.if;//$undefined
+delete o.if; //$boolean true
+'if' in o; //$boolean false
+
+var x = 60;
+o = { get q(){ return x; } };
+o.q;//$number 60
+o.q=12;
+o.q;//$number 60
+x=22;
+o.q;//$number 22
+
+o = (function(){ var x=42; return { get q(){ return x; }, set q (a) { x=a+19; } }; })();
+o.q;//$number 42
+o.q=12;
+o.q;//$number 31
 
 )");
     }

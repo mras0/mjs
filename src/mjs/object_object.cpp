@@ -6,6 +6,17 @@
 
 namespace mjs {
 
+object_ptr make_accessor_object(const gc_heap_ptr<global_object>& global, const value& get, const value& set) {
+    assert(get.type() == value_type::undefined || (get.type() == value_type::object && get.object_value().has_type<function_object>()));
+    assert(set.type() == value_type::undefined || (set.type() == value_type::object && set.object_value().has_type<function_object>()));
+    assert(get.type() != value_type::undefined || set.type() != value_type::undefined);
+
+    auto a = global->heap().make<object>(global->common_string("Accessor"), nullptr);
+    a->put(global->common_string("get"), get);
+    a->put(global->common_string("set"), set);
+    return a;
+}
+
 namespace {
 
 value get_property_names(const gc_heap_ptr<global_object>& global, const value& o, bool check_enumerable) {
@@ -52,17 +63,18 @@ property_attribute attributes_from_descriptor(const object_ptr& desc) {
 }
 
 void define_accessor_property(const gc_heap_ptr<global_object>& global, const object_ptr& o, const string& name, const value& get, const value& set, property_attribute attr) {
-    assert(get.type() != value_type::undefined || set.type() != value_type::undefined);
     assert(is_valid(attr) && !has_attributes(attr, property_attribute::accessor));
-    auto& h = global->heap();
-    auto a = h.make<object>(global->common_string("Accessor"), nullptr);
-    if (get.type() != value_type::undefined) {
-        a->put(global->common_string("get"), get);
+    o->define_accessor_property(name, make_accessor_object(global, get, set), attr);
+}
+
+void copy_accessor_methods(const object_ptr& dst, const object_ptr& src) {
+    assert(dst && src && src->class_name().view() == L"Accessor");
+    const auto& names = src->own_property_names(false);
+    assert(names.size() == 2);
+    for (const auto& p: names) {
+        assert(p.view() == L"get" || p.view() == L"set");
+        dst->put(p, src->get(p.view()));
     }
-    if (set.type() != value_type::undefined) {
-        a->put(global->common_string("set"), set);
-    }
-    o->define_accessor_property(name, a, attr);
 }
 
 enum class define_own_property_result {
@@ -156,11 +168,10 @@ define_own_property_result define_own_property(const gc_heap_ptr<global_object>&
     apply_flag(L"enumerable", property_attribute::dont_enum);
     apply_flag(L"configurable", property_attribute::dont_delete);
     if (is_accessor_descriptor(desc) || (is_generic_descriptor(desc) && has_attributes(current_attributes, property_attribute::accessor))) {
-        auto temp = global->make_object();
         auto g = desc->get(L"get");
         auto s = desc->get(L"set");
         if (has_attributes(current_attributes, property_attribute::accessor)) {
-            o->get_accessor_property_fields(p, temp);
+            auto temp = o->get_accessor_property_object(p.view());
             if (g.type() == value_type::undefined && temp->has_property(L"get")) {
                 g = temp->get(L"get");
             }
@@ -283,7 +294,7 @@ global_object_create_result make_object_object(const gc_heap_ptr<global_object>&
             }
             auto desc = global->make_object();
             if (has_attributes(a, property_attribute::accessor)) {
-                o->get_accessor_property_fields(p, desc);
+                copy_accessor_methods(desc, o->get_accessor_property_object(p.view()));
             } else {
                 desc->put(global->common_string("value"), o->get(p.view()));
                 desc->put(global->common_string("writable"), value{(a & property_attribute::read_only) == property_attribute::none});

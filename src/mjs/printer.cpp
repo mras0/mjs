@@ -45,13 +45,16 @@ public:
         os_ << '{';
         const auto& es = e.elements();
         for (size_t i = 0; i < es.size(); ++i) {
-            os_ << (i ? ", " : "");
             if (es[i].type() == property_assignment_type::normal) {
+                os_ << (i ? ", " : "");
                 accept(es[i].name(), *this);
                 os_ << ": ";
                 accept(es[i].value(), *this);
             } else {
-                assert(!"Not implemented: get/set for object literal");
+                os_ << (i ? "," : "");
+                const auto& f = es[i].value();
+                assert(f.type() == expression_type::function);
+                handle_function(static_cast<const function_expression&>(f));
             }
         }
         os_ << '}';
@@ -119,6 +122,7 @@ public:
     }
 
     void operator()(const function_expression& e) {
+        os_ << "function";
         handle_function(e);
     }
 
@@ -286,6 +290,7 @@ public:
     }
 
     void operator()(const function_definition& s) {
+        os_ << "function";
         handle_function(s);
     }
 
@@ -297,7 +302,7 @@ private:
     std::wostream& os_;
 
     void handle_function(const function_base& s) {
-        os_ << "function" << (s.id().empty() ? L"" : L" " + s.id()) << "(";
+        os_ << (s.id().empty() ? L"" : L" " + s.id()) << "(";
         for (size_t i = 0; i < s.params().size(); ++i) {
             os_ << (i?", ":"") << s.params()[i];
         }

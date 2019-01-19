@@ -129,6 +129,14 @@ private:
     value_type type_;
 };
 
+inline bool is_function(const object_ptr& o) {
+    return o.has_type<function_object>();
+}
+
+inline bool is_function(const value& v) {
+    return v.type() == value_type::object && is_function(v.object_value());
+}
+
 value call_function(const value& v, const value& this_, const std::vector<value>& args);
 value construct_function(const value& v, const value& this_, const std::vector<value>& args);
 

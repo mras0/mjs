@@ -45,9 +45,9 @@ std::vector<string> object::own_property_names(bool check_enumerable) const {
 
 void object::define_accessor_property(const string& name, const object_ptr& accessor, property_attribute attr) {
     assert(is_valid(attr));
-    assert(accessor && !accessor->prototype() && (accessor->has_property(L"get") || accessor->has_property(L"set")));
+    assert(accessor && !accessor->prototype() && (is_function(accessor->get(L"get")) || is_function(accessor->get(L"set"))));
     attr |= property_attribute::accessor;
-    if (accessor->has_property(L"set")) {
+    if (accessor->get(L"set").type() != value_type::undefined) {
         attr &= ~property_attribute::read_only;
     } else {
         attr |= property_attribute::read_only;
@@ -61,12 +61,35 @@ void object::define_accessor_property(const string& name, const object_ptr& acce
     properties_.dereference(heap()).emplace_back(name, value{accessor}, attr);
 }
 
-void object::get_accessor_property_fields(const string& name, const object_ptr& desc) {
-    if (auto it = find(name.view()).first; has_attributes(it->attributes(), property_attribute::accessor)) {
-        it->put_descriptor_fields(desc);
-        return;
+void object::modify_accessor_object(const std::wstring_view name, const value& new_val, bool is_get) {
+    assert(new_val.type() == value_type::undefined || is_function(new_val));
+    auto it = find(name).first;
+    if (!has_attributes(it->attributes(), property_attribute::accessor)) {
+        throw std::logic_error{"modify_accessor_object called on non-accessor property"};
     }
-    throw std::logic_error{"get_accessor_property_fields called on non-accessor property"};
+
+    auto a = it->raw_get(heap_).object_value();
+    assert(a && a->class_name().view() == L"Accessor" && !a->prototype());
+    auto p = a->find(is_get ? L"get" : L"set").first;
+    assert(p);
+    p->raw_put(new_val);
+
+    // Maintain invariant regarding the read_only attribute
+    if (!is_get) {
+        auto attr = it->attributes() & ~property_attribute::read_only;
+        if (new_val.type() == value_type::undefined) {
+            attr |= property_attribute::read_only;
+        }
+        it->attributes(attr);
+    }
+}
+
+object_ptr object::get_accessor_property_object(const std::wstring_view name) {
+    auto it = find(name).first;
+    if (!has_attributes(it->attributes(), property_attribute::accessor)) {
+        throw std::logic_error{"get_accessor_property_fields called on non-accessor property"};
+    }
+    return it->raw_get(heap_).object_value();
 }
 
 bool object::do_redefine_own_property(const string& name, const value& val, property_attribute attr) {
@@ -171,13 +194,17 @@ void object::property::fixup(gc_heap& h) {
 
 value object::property::get(const object& self) const {
     auto& h = self.heap();
-    auto v = value_.get_value(h);
+    auto v = raw_get(h);
     if (is_accessor()) {
         assert(v.type() == value_type::object);
         auto g = v.object_value()->get(L"get");
         return g.type() != value_type::undefined ? call_function(g, value{h.unsafe_track(self)}, {}) : g;
     }
     return v;
+}
+
+value object::property::raw_get(gc_heap& heap) const {
+    return value_.get_value(heap);
 }
 
 void object::property::raw_put(const value& val) {
@@ -194,14 +221,6 @@ void object::property::put(const object& self, const value& val) {
         assert(val.type() != value_type::object || val.object_value()->class_name().view() != L"Accessor");
         raw_put(val);
     }
-}
-
-void object::property::put_descriptor_fields(const object_ptr& desc) {
-    assert(is_accessor());
-    auto& h = desc.heap();
-    auto a = value_.get_value(h).object_value();
-    desc->put(string{h, "get"}, a->get(L"get"));
-    desc->put(string{h, "set"}, a->get(L"set"));
 }
 
 } // namespace mjs

@@ -5,6 +5,7 @@
 #include "array_object.h"
 #include "function_object.h"
 #include "regexp_object.h"
+#include "object_object.h"
 #include "printer.h"
 
 #include <sstream>
@@ -416,26 +417,22 @@ public:
     value operator()(const object_literal_expression& e) {
         auto o = global_->make_object();
         for (const auto& i : e.elements()) {
-            assert(i.type() == property_assignment_type::normal);
+            const auto& name = i.name_str();
+            const auto prev_attr = o->own_property_attributes(name);
             auto v = get_value(eval(i.value()));
-            switch (i.name().type()) {
-            case expression_type::identifier:
-                o->put(string{heap_, static_cast<const identifier_expression&>(i.name()).id()}, v);
-                break;
-            case expression_type::literal:
-                {
-                    const auto& le = static_cast<const literal_expression&>(i.name());
-                    if (le.t().type() == token_type::string_literal) {
-                        o->put(string{heap_, le.t().text()}, v);
-                        break;
-                    } else if (le.t().type() == token_type::numeric_literal) {
-                        o->put(to_string(heap_, le.t().dvalue()), v);
-                        break;
-                    }
+            if (i.type() == property_assignment_type::normal) {
+                o->put(string{heap_, name}, v);
+            } else {
+                // getter/setter
+                assert(is_function(v));
+                const bool is_get = i.type() == property_assignment_type::get;
+                if (!is_valid(prev_attr)) {
+                    // Define new property with get or set
+                    o->define_accessor_property(string{heap_, name}, make_accessor_object(global_, is_get ? v : value::undefined, !is_get ? v : value::undefined), property_attribute::none);
+                } else {
+                    // Modifying existing property
+                    o->modify_accessor_object(name, v, is_get);
                 }
-                [[fallthrough]];
-            default:
-                NOT_IMPLEMENTED(i.name());
             }
         }
         return value{o};

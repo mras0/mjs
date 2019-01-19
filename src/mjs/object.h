@@ -47,7 +47,10 @@ public:
 
     void define_accessor_property(const string& name, const object_ptr& accessor, property_attribute attr);
 
-    void get_accessor_property_fields(const string& name, const object_ptr& desc);
+    // Note: Do not directly modify the returned object, use modify_accessor_object instead
+    object_ptr get_accessor_property_object(const std::wstring_view name);
+
+    void modify_accessor_object(const std::wstring_view name, const value& new_val, bool is_get);
 
     // [[Put]] (PropertyName, Value)
     virtual void put(const string& name, const value& val, property_attribute attr = property_attribute::none);
@@ -110,12 +113,11 @@ private:
         string key(gc_heap& h) const { return key_.track(h); }
 
         value get(const object& self) const;
+        value raw_get(gc_heap& heap) const;
         void put(const object& self, const value& val);
         void raw_put(const value& val);
 
         bool key_matches(gc_heap& h, const std::wstring_view k) { return key_.dereference(h).view() == k; }
-
-        void put_descriptor_fields(const object_ptr& desc);
 
     private:
         gc_heap_ptr_untracked<gc_string>    key_;
