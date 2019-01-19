@@ -42,7 +42,7 @@ int interpret_file(const std::shared_ptr<mjs::source_file>& source) {
 int main(int argc, char* argv[]) {
     mjs::platform_init();
     try {
-        auto ver = mjs::default_version;
+        auto ver = mjs::version::latest;
         if (argc > 1 && !std::strncmp(argv[1], "-es", 3)) {
             std::istringstream iss{&argv[1][3]};
             int v;

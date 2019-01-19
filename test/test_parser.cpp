@@ -1,6 +1,7 @@
 #include "test.h"
 #include "test_spec.h"
 #include <sstream>
+#include <exception>
 #include <mjs/parser.h>
 
 #define STR(s) token{token_type::string_literal, s}
@@ -48,13 +49,12 @@ auto parse_one_statement(const CharT* text) {
     }
 }
 
-void test_parse_fails(const std::wstring_view text) {
+std::exception_ptr test_parse_fails(const std::wstring_view text) {
     try {
         auto res = parse_text(text);
         std::wcout << "Parsed:\n" << *res << "\n";
-    } catch ([[maybe_unused]] const std::exception& e) {
-        //std::wcerr << "\n'" << text << "' ---->\n" << e.what() << "\n\n";
-        return;
+    } catch (...) {
+        return std::current_exception();
     }
     std::wostringstream woss;
     woss << "Unexpected parse success for '" << cpp_quote(text) << "' parser_version " << tested_version();
@@ -502,7 +502,139 @@ void test_debugger_statement() {
     REQUIRE_EQ(s->type(), statement_type::debugger);
 }
 
+namespace identifier_classification {
+
+enum word_class { none, keyword, reserved, strict };
+
+template<typename CharT>
+std::basic_ostream<CharT>& operator<<(std::basic_ostream<CharT>& os, word_class c) {
+    switch (c) {
+    case none:      return os << "none";
+    case keyword:   return os << "keyword";
+    case reserved:  return os << "reserved";
+    case strict:    return os << "strict";
+    }
+    assert(false);
+    return os << "word_class{" << static_cast<int>(c) << "}";
+}
+
+constexpr struct {
+    const char* const str;
+    word_class es1;
+    word_class es3;
+    word_class es5;
+
+    word_class get_class() const {
+        switch (tested_version()) {
+        case version::es1: return es1;
+        case version::es3: return es3;
+        default:
+            assert(false);
+            [[fallthrough]];
+        case version::es5: return es5;
+        }
+    }
+} classifications[] = {
+    { "abstract"     , none     , reserved , none     },
+    { "boolean"      , none     , reserved , none     },
+    { "break"        , keyword  , keyword  , keyword  },
+    { "byte"         , none     , reserved , none     },
+    { "case"         , reserved , keyword  , keyword  },
+    { "catch"        , reserved , keyword  , keyword  },
+    { "char"         , none     , reserved , none     },
+    { "class"        , reserved , reserved , reserved },
+    { "const"        , reserved , reserved , reserved },
+    { "continue"     , keyword  , keyword  , keyword  },
+    { "debugger"     , reserved , reserved , keyword  },
+    { "default"      , reserved , keyword  , keyword  },
+    { "delete"       , keyword  , keyword  , keyword  },
+    { "do"           , reserved , keyword  , keyword  },
+    { "double"       , none     , reserved , none     },
+    { "else"         , keyword  , keyword  , keyword  },
+    { "enum"         , reserved , reserved , reserved },
+    { "export"       , reserved , reserved , reserved },
+    { "extends"      , reserved , reserved , reserved },
+    { "final"        , none     , reserved , none     },
+    { "finally"      , reserved , keyword  , keyword  },
+    { "float"        , none     , reserved , none     },
+    { "for"          , keyword  , keyword  , keyword  },
+    { "function"     , keyword  , keyword  , keyword  },
+    { "goto"         , none     , reserved , none     },
+    { "if"           , keyword  , keyword  , keyword  },
+    { "implements"   , none     , reserved , strict   },
+    { "import"       , reserved , reserved , reserved },
+    { "in"           , keyword  , keyword  , keyword  },
+    { "instanceof"   , none     , keyword  , keyword  },
+    { "int"          , none     , reserved , none     },
+    { "interface"    , none     , reserved , strict   },
+    { "let"          , none     , none     , strict   },
+    { "long"         , none     , reserved , none     },
+    { "native"       , none     , reserved , none     },
+    { "new"          , keyword  , keyword  , keyword  },
+    { "package"      , none     , reserved , strict   },
+    { "private"      , none     , reserved , strict   },
+    { "protected"    , none     , reserved , strict   },
+    { "public"       , none     , reserved , strict   },
+    { "return"       , keyword  , keyword  , keyword  },
+    { "short"        , none     , reserved , none     },
+    { "static"       , none     , reserved , strict   },
+    { "super"        , reserved , reserved , reserved },
+    { "switch"       , reserved , keyword  , keyword  },
+    { "synchronized" , none     , reserved , none     },
+    { "this"         , keyword  , keyword  , keyword  },
+    { "throw"        , reserved , keyword  , keyword  },
+    { "throws"       , none     , reserved , none     },
+    { "transient"    , none     , reserved , none     },
+    { "try"          , reserved , keyword  , keyword  },
+    { "typeof"       , keyword  , keyword  , keyword  },
+    { "var"          , keyword  , keyword  , keyword  },
+    { "void"         , keyword  , keyword  , keyword  },
+    { "volatile"     , none     , reserved , none     },
+    { "while"        , keyword  , keyword  , keyword  },
+    { "with"         , keyword  , keyword  , keyword  },
+    { "yield"        , none     , none     , strict   },
+};
+
+word_class classify(const char* str) {
+    try {
+        const auto bs = parse_text(str);
+        REQUIRE(bs);
+        REQUIRE_EQ(bs->l().size(), 1U);
+        REQUIRE(bs->l()[0]);
+        const auto& s = *bs->l()[0];
+        if (s.type() == statement_type::expression) {
+            const auto& e = static_cast<const expression_statement&>(*bs->l()[0]).e();
+            if (e.type() == expression_type::identifier) {
+                return none;
+            }
+        }
+        return keyword;
+    } catch (const std::exception& e) {
+        const auto estr = std::string{e.what()};
+        if (estr.find("reserved") != std::string::npos) {
+            REQUIRE(estr.find(str) != std::string::npos);
+            return reserved;
+        }
+        return keyword;
+    }
+}
+
+} // identifier_classification
+
+void check_resered_words() {
+    using namespace identifier_classification;
+    for (const auto& in: classifications) {
+        const auto res = classify(in.str);
+        auto expect = in.get_class();
+        if (expect == strict) {
+            expect = none; // Strict mode isn't supported yet
+        }
+        REQUIRE_EQ(res, expect);
+    }
+}
+
 void test_main() {
+    check_resered_words();
     test_semicolon_insertion();
     test_form_control_characters();
     if (tested_version() > version::es1) {

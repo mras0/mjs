@@ -248,6 +248,11 @@ public:
                 throw native_error_exception{native_error_type::syntax, stack_trace(), L"Invalid argument to eval"};
             }
 
+            for (const auto& var_id: hoisting_visitor::scan(*bs)) {
+                assert(!active_scope_->has_property(var_id)); // TODO: Handle this..
+                active_scope_->put_local(string{heap_, var_id}, value::undefined);
+            }
+
             const std::unique_ptr<force_global_scope> fgs{!was_direct_call_to_eval_ ? new force_global_scope{*this} : nullptr};
             auto c = eval(*bs);
             if (!c) {
@@ -387,6 +392,10 @@ public:
     value operator()(const identifier_expression& e) {
         // §10.1.4
         return value{active_scope_->lookup(e.id())};
+    }
+
+    value operator()(const this_expression&) {
+        return value{active_scope_->lookup(L"this")};
     }
 
     value operator()(const literal_expression& e) {
@@ -1045,7 +1054,10 @@ private:
 
 #ifndef NDBEUG
         bool has_property(const std::wstring& id) const {
-            return activation_.dereference(heap_).has_property(id) || prev_.dereference(heap_).has_property(id);
+            if (!activation_) {
+                return false;
+            }
+            return activation_.dereference(heap_).has_property(id) || (prev_ && prev_.dereference(heap_).has_property(id));
         }
 #endif
 

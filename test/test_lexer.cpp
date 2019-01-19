@@ -177,30 +177,9 @@ void check_keywords(const char* const (&list)[size]) {
     }
 }
 
-template<size_t size>
-void check_reserved_words(const char* const (&list)[size]) {
-    for (auto s: list) {
-        auto exc = check_lex_fails(std::wstring(s, s+std::strlen(s)));
-        if (exc.find(exc) == std::string::npos) {
-            std::wcerr << "Did not find " << s << " in exception message '" << exc.c_str() << "' in " << __func__ << "\n";
-            std::abort();
-        }
-    }
-}
-
 const char* const es1_keywords[] = { "break", "continue", "delete", "else", "for", "function", "if", "in", "new", "return", "this", "typeof", "var", "void", "while", "with" };
-const char* const es1_reserved_words[] = { "case", "catch", "class", "const", "debugger", "default", "do", "enum", "export", "extends", "finally", "import", "super", "switch", "throw", "try" };
-
 const char* const es3_keywords[] = { "case", "catch", "default", "do", "finally", "instanceof", "switch", "throw", "try", };
-const char* const es3_reserved_words[] = { "abstract", "boolean", "byte", "char", "class", "const", "debugger", "double", "enum", "export", "extends", "final", "float", "goto", "implements", "import", "int", "interface", "long", "native", "package", "private", "protected", "public", "short", "static", "super", "synchronized", "throws", "transient", "volatile" };
-
 const char* const es5_keywords[] = { "debugger" };
-const char* const es5_reserved_words[] = {
-    // ES5.1, 7.6.1.2 FutureReservedWord
-    "class", "const", "enum", "export", "extends", "import", "super",
-    // FutureReservedWord when in strict mode
-    "implements", "interface", "let", "package", "private", "protected", "public", "static", "yield",
-};
 
 void check_keywords() {
     check_keywords(es1_keywords);
@@ -209,14 +188,6 @@ void check_keywords() {
     }
     if (tested_version() >= version::es5) {
         check_keywords(es5_keywords);
-    }
-
-    switch (tested_version()) {
-    case version::es1: check_reserved_words(es1_reserved_words); break;
-    case version::es3: check_reserved_words(es3_reserved_words); break;
-    case version::es5: check_reserved_words(es5_reserved_words); break;
-    default:
-        assert(false);
     }
 }
 

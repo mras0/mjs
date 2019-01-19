@@ -17,6 +17,10 @@ public:
         os_ << e.id();
     }
 
+    void operator()(const this_expression&) {
+        os_ << "this";
+    }
+
     void operator()(const literal_expression& e) {
         switch (e.t().type()) {
         case token_type::null_:            os_ << "null"; return;

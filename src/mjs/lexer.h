@@ -8,69 +8,68 @@
 
 namespace mjs {
 
-#define MJS_RESERVED_WORDS(X)   \
-    X(null,         es1)        \
-    X(false,        es1)        \
-    X(true,         es1)        \
-    X(break,        es1)        \
-    X(continue,     es1)        \
-    X(delete,       es1)        \
-    X(else,         es1)        \
-    X(for,          es1)        \
-    X(function,     es1)        \
-    X(if,           es1)        \
-    X(in,           es1)        \
-    X(new,          es1)        \
-    X(return,       es1)        \
-    X(this,         es1)        \
-    X(typeof,       es1)        \
-    X(var,          es1)        \
-    X(void,         es1)        \
-    X(while,        es1)        \
-    X(with,         es1)        \
-    X(case,         es3)        \
-    X(catch,        es3)        \
-    X(default,      es3)        \
-    X(do,           es3)        \
-    X(finally,      es3)        \
-    X(instanceof,   es3)        \
-    X(switch,       es3)        \
-    X(throw,        es3)        \
-    X(try,          es3)        \
-    X(debugger,     es5)        \
-    X(abstract,     future)     \
-    X(boolean,      future)     \
-    X(byte,         future)     \
-    X(char,         future)     \
-    X(class,        future)     \
-    X(const,        future)     \
-    X(double,       future)     \
-    X(enum,         future)     \
-    X(export,       future)     \
-    X(extends,      future)     \
-    X(final,        future)     \
-    X(float,        future)     \
-    X(goto,         future)     \
-    X(implements,   future)     \
-    X(import,       future)     \
-    X(int,          future)     \
-    X(interface,    future)     \
-    X(let,          future)     \
-    X(long,         future)     \
-    X(native,       future)     \
-    X(package,      future)     \
-    X(private,      future)     \
-    X(protected,    future)     \
-    X(public,       future)     \
-    X(short,        future)     \
-    X(static,       future)     \
-    X(super,        future)     \
-    X(synchronized, future)     \
-    X(throws,       future)     \
-    X(transient,    future)     \
-    X(volatile,     future)     \
-    X(yield,        future)
-
+#define MJS_KEYWORDS(X)              \
+    X( abstract     , es3 , es3    ) \
+    X( boolean      , es3 , es3    ) \
+    X( break        , es1 , latest ) \
+    X( byte         , es3 , es3    ) \
+    X( case         , es1 , latest ) \
+    X( catch        , es1 , latest ) \
+    X( char         , es3 , es3    ) \
+    X( class        , es1 , latest ) \
+    X( const        , es1 , latest ) \
+    X( continue     , es1 , latest ) \
+    X( debugger     , es1 , latest ) \
+    X( default      , es1 , latest ) \
+    X( delete       , es1 , latest ) \
+    X( do           , es1 , latest ) \
+    X( double       , es3 , es3    ) \
+    X( else         , es1 , latest ) \
+    X( enum         , es1 , latest ) \
+    X( export       , es1 , latest ) \
+    X( extends      , es1 , latest ) \
+    X( false        , es1 , latest ) \
+    X( final        , es3 , es3    ) \
+    X( finally      , es1 , latest ) \
+    X( float        , es3 , es3    ) \
+    X( for          , es1 , latest ) \
+    X( function     , es1 , latest ) \
+    X( goto         , es3 , es3    ) \
+    X( if           , es1 , latest ) \
+    X( implements   , es3 , latest ) \
+    X( import       , es1 , latest ) \
+    X( in           , es1 , latest ) \
+    X( instanceof   , es3 , latest ) \
+    X( int          , es3 , es3    ) \
+    X( interface    , es3 , latest ) \
+    X( let          , es5 , latest ) \
+    X( long         , es3 , es3    ) \
+    X( native       , es3 , es3    ) \
+    X( new          , es1 , latest ) \
+    X( null         , es1 , latest ) \
+    X( package      , es3 , latest ) \
+    X( private      , es3 , latest ) \
+    X( protected    , es3 , latest ) \
+    X( public       , es3 , latest ) \
+    X( return       , es1 , latest ) \
+    X( short        , es3 , es3    ) \
+    X( static       , es3 , latest ) \
+    X( super        , es1 , latest ) \
+    X( switch       , es1 , latest ) \
+    X( synchronized , es3 , es3    ) \
+    X( this         , es1 , latest ) \
+    X( throw        , es1 , latest ) \
+    X( throws       , es3 , es3    ) \
+    X( transient    , es3 , es3    ) \
+    X( true         , es1 , latest ) \
+    X( try          , es1 , latest ) \
+    X( typeof       , es1 , latest ) \
+    X( var          , es1 , latest ) \
+    X( void         , es1 , latest ) \
+    X( volatile     , es3 , es3    ) \
+    X( while        , es1 , latest ) \
+    X( with         , es1 , latest ) \
+    X( yield        , es5 , latest )
 
 // Must be kept sorted in order of descending length
 #define MJS_PUNCTUATORS(X)              \
@@ -134,10 +133,10 @@ enum class token_type {
 #define DEFINE_PUCTUATOR(name, ...) name,
     MJS_PUNCTUATORS(DEFINE_PUCTUATOR)
 #undef DEFINE_PUCTUATOR
-    // Reserved Words
-#define DEFINE_RESERVER_WORD(name, ...) name ## _,
-    MJS_RESERVED_WORDS(DEFINE_RESERVER_WORD)
-#undef DEFINE_RESERVER_WORD
+    // Keywords
+#define DEFINE_KEYWORD(name, ...) name ## _,
+    MJS_KEYWORDS(DEFINE_KEYWORD)
+#undef DEFINE_KEYWORD
 
     eof,
 };
@@ -249,7 +248,7 @@ extern const token eof_token;
 
 class lexer {
 public:
-    explicit lexer(const std::wstring_view& text, version ver = default_version);
+    explicit lexer(const std::wstring_view& text, version ver);
 
     const token& current_token() const { return current_token_; }
     std::wstring_view text() const { return text_; }

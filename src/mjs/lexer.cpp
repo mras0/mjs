@@ -315,8 +315,8 @@ std::pair<token, size_t> get_identifier(const std::wstring_view text, const size
         id = replace_unicode_escape_sequences(id, ver);
     }
     if (0) {}
-#define X(rw, v) else if (id == L ## #rw) { if (version::v > ver) { std::ostringstream oss; oss << #rw << " is not available until " << version::v; throw std::runtime_error(oss.str()); }  tok = token{token_type::rw ## _}; }
-    MJS_RESERVED_WORDS(X)
+#define X(rw, first_ver, last_ver) else if (ver >= version::first_ver && ver <= version::last_ver && id == L ## #rw) { tok = token{token_type::rw ## _}; }
+    MJS_KEYWORDS(X)
 #undef X
 else tok = token{token_type::identifier, id};
 
@@ -442,9 +442,9 @@ std::ostream& operator<<(std::ostream& os, token_type t) {
 #define CASE_PUNCTUATOR(n, ...) case token_type::n: return os << #n;
         MJS_PUNCTUATORS(CASE_PUNCTUATOR)
 #undef CASE_PUNCTUATOR
-#define CASE_RESERVED_WORD(n, ...) case token_type::n ## _: return os << #n;
-        MJS_RESERVED_WORDS(CASE_RESERVED_WORD)
-#undef CASE_RESERVED_WORD
+#define CASE_KEYWORD(n, ...) case token_type::n ## _: return os << #n;
+        MJS_KEYWORDS(CASE_KEYWORD)
+#undef CASE_KEYWORD
     }
     return os << "token_type{" << (int)t << "}";
 }

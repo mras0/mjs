@@ -102,6 +102,7 @@ private:
 
 enum class expression_type {
     identifier,
+    this_,
     literal,
     array_literal,
     object_literal,
@@ -172,6 +173,16 @@ private:
 
     void print(std::wostream& os) const override {
         os << "identifier_expression{" << id_ << "}";
+    }
+};
+
+class this_expression : public expression {
+public:
+    explicit this_expression(const source_extend& extend) : expression(extend) {}
+    expression_type type() const override { return expression_type::this_; }
+private:
+    void print(std::wostream& os) const override {
+        os << "this_expression{}";
     }
 };
 
@@ -457,6 +468,7 @@ template<typename Visitor>
 auto accept(const expression& e, Visitor& v) {
     switch (e.type()) {
     case expression_type::identifier:       return v(static_cast<const identifier_expression&>(e));
+    case expression_type::this_:            return v(static_cast<const this_expression&>(e));
     case expression_type::literal:          return v(static_cast<const literal_expression&>(e));
     case expression_type::array_literal:    return v(static_cast<const array_literal_expression&>(e));
     case expression_type::object_literal:   return v(static_cast<const object_literal_expression&>(e));

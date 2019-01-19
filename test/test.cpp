@@ -7,7 +7,7 @@
 
 using namespace mjs;
 
-version tested_version_ = default_version;
+version tested_version_ = version::latest;
 
 mjs::version tested_version() {
     return tested_version_;

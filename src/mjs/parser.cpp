@@ -16,6 +16,30 @@
 
 namespace mjs {
 
+constexpr token_type es1_reserved_tokens[] = { token_type::case_, token_type::catch_, token_type::class_, token_type::const_, token_type::debugger_, token_type::default_, token_type::do_, token_type::enum_, token_type::export_, token_type::extends_, token_type::finally_, token_type::import_, token_type::super_, token_type::switch_, token_type::throw_, token_type::try_ };
+constexpr token_type es3_reserved_tokens[] = { token_type::abstract_, token_type::boolean_, token_type::byte_, token_type::char_, token_type::class_, token_type::const_, token_type::debugger_, token_type::double_, token_type::enum_, token_type::export_, token_type::extends_, token_type::final_, token_type::float_, token_type::goto_, token_type::implements_, token_type::import_, token_type::int_, token_type::interface_, token_type::long_, token_type::native_, token_type::package_, token_type::private_, token_type::protected_, token_type::public_, token_type::short_, token_type::static_, token_type::super_, token_type::synchronized_, token_type::throws_, token_type::transient_, token_type::volatile_ };
+constexpr token_type es5_reserved_tokens[] = { token_type::class_, token_type::const_, token_type::enum_, token_type::export_, token_type::extends_, token_type::import_, token_type::super_ };
+constexpr token_type es5_strict_reserved_tokens[] = { token_type::implements_, token_type::interface_, token_type::let_, token_type::package_, token_type::private_, token_type::protected_, token_type::public_, token_type::static_, token_type::yield_ };
+
+template<size_t Size>
+constexpr bool find_token(token_type t, const token_type (&a)[Size]) {
+    return std::find(a, a+Size, t) != a+Size;
+}
+
+constexpr bool is_reserved(token_type t, version v) {
+    return v == version::es1 ? find_token(t, es1_reserved_tokens) :
+           v == version::es3 ? find_token(t, es3_reserved_tokens) :
+           v == version::es5 ? find_token(t, es5_reserved_tokens) :
+           throw std::logic_error{"Invalid version"};
+}
+
+std::wstring token_string(token_type t) {
+    assert(!is_literal(t));
+    std::wostringstream woss;
+    woss << t;
+    return woss.str();
+}
+
 source_position calc_source_position(const std::wstring_view& t, uint32_t start_pos, uint32_t end_pos, const source_position& start) {
     assert(start_pos <= t.size() && end_pos <= t.size() && start_pos <= end_pos);
     int cr = start.line-1, lf = start.line-1;
@@ -138,6 +162,7 @@ public:
         : source_(source)
         , version_(source_->language_version())
         , lexer_(source_->text(), version_) {
+        check_token();
     }
 
     ~parser() {
@@ -148,13 +173,13 @@ public:
     std::unique_ptr<block_statement> parse() {
 
 #ifdef PARSER_DEBUG
-        std::wcout << "\nParsing '" << source_->text << "'\n\n";
+        std::wcout << "\nParsing '" << source_->text() << "'\n\n";
 #endif
         
         statement_list l;
 
         skip_whitespace();
-        while (lexer_.current_token()) {
+        while (current_token()) {
             try {
                 l.push_back(parse_statement());
             } catch (const std::exception& e) {
@@ -198,6 +223,7 @@ private:
     position_stack_node* statement_pos_ = nullptr;
     bool line_break_skipped_ = false;
     bool supress_in_ = false;
+    token current_token_{token_type::eof};
 
     template<typename T, typename... Args>
     expression_ptr make_expression(Args&&... args) {
@@ -219,15 +245,34 @@ private:
         return s;
     }
 
+    const token& current_token() const {
+        return current_token_;
+    }
+
     token_type current_token_type() const {
-        return lexer_.current_token().type();
+        return current_token().type();
+    }
+
+    void check_token() {
+        current_token_ = lexer_.current_token();
+        if (is_reserved(current_token_type(), version_)) {
+            SYNTAX_ERROR(current_token_type() << " is reserved in " << version_);
+        } else if (version_ >= version::es5 && find_token(current_token_type(), es5_strict_reserved_tokens)) {
+            // A bit of hack. Convert to an identifier token
+            current_token_ = token{token_type::identifier, token_string(current_token_type())};
+        }
+    }
+
+    void next_token() {
+        lexer_.next_token();
+        check_token();
     }
 
     void skip_whitespace() {
-        for (;; lexer_.next_token()) {
+        for (;; next_token()) {
             if (current_token_type() == token_type::whitespace) {
 #ifdef PARSER_DEBUG
-                std::wcout << source_extend{source_, token_start_, lexer_.text_position()} << " Consuming token: " << lexer_.current_token() << "\n";
+                std::wcout << source_extend{source_, token_start_, lexer_.text_position()} << " Consuming token: " << current_token() << "\n";
 #endif
             } else if (current_token_type() == token_type::line_terminator) {
                 line_break_skipped_ = true;
@@ -240,8 +285,8 @@ private:
 
     token get_token() {
         const auto old_end = lexer_.text_position();
-        auto t = lexer_.current_token();
-        lexer_.next_token();
+        auto t = current_token();
+        next_token();
         line_break_skipped_ = false;
 #ifdef PARSER_DEBUG
         std::wcout << source_extend{source_, token_start_, old_end} << " Consuming token: " << t << "\n";
@@ -262,7 +307,7 @@ private:
         auto t = accept(tt);
         if (!t) {
             std::ostringstream oss;
-            oss << "Expected " << tt << " in " << func << " line " << line << " got " << lexer_.current_token();
+            oss << "Expected " << tt << " in " << func << " line " << line << " got " << current_token();
             throw std::runtime_error(oss.str());
         }
         return t;
@@ -295,7 +340,7 @@ private:
         if (auto id = accept(token_type::identifier)) {
             return make_expression<identifier_expression>(id.text());
         } else if (accept(token_type::this_)) {
-            return make_expression<identifier_expression>(std::wstring{L"this"});
+            return make_expression<this_expression>();
         } else if (version_ >= version::es3 && accept(token_type::lbracket)) {
             // ArrayLiteral
             std::vector<expression_ptr> elements;
@@ -332,6 +377,7 @@ private:
         } else if (version_ >= version::es3 && (current_token_type() == token_type::divide || current_token_type() == token_type::divideequal)) {
             // RegularExpressionLiteral
             const auto lit = lexer_.get_regex_literal();
+            check_token();
             skip_whitespace();
             assert(lit.size() >= 3);
             assert(lit[0] == '/');
@@ -738,13 +784,13 @@ private:
 
     [[noreturn]] void unhandled(const char* function, int line) {
         std::ostringstream oss;
-        oss << "Unhandled token in " << function  << " line " << line << " " << lexer_.current_token();
+        oss << "Unhandled token in " << function  << " line " << line << " " << current_token();
         throw std::runtime_error(oss.str());
     }
 
     [[noreturn]] void syntax_error(const char* function, int line, const std::string_view message) {
         std::ostringstream oss;
-        oss << "Syntax error in " << function  << " line " << line << " at " << lexer_.current_token() << ": " << message;
+        oss << "Syntax error in " << function  << " line " << line << " at " << current_token() << ": " << message;
         throw std::runtime_error(oss.str());
     }
 };
@@ -756,14 +802,12 @@ std::wstring parser::get_identifier_name(const char* func, int line) {
         // In ES5+ IdentifierName is used in various grammars
         // This means reserved words can be used as identifiers in certain contexts (e.g. Left-Hand-Side and Object Initialiser Expressions)
         switch (const auto t = current_token_type()) {
-#define CASE_RESERVED_WORD(tt, v) case token_type::tt##_:
-            MJS_RESERVED_WORDS(CASE_RESERVED_WORD);
-#undef CASE_RESERVED_WORD
+#define CASE_KEYWORD(tt, ...) case token_type::tt##_:
+            MJS_KEYWORDS(CASE_KEYWORD);
+#undef CASE_KEYWORD
             {
                 get_token(); // Advance to next token
-                std::wostringstream woss;
-                woss << t;
-                return woss.str();
+                return token_string(t);
             }
         default:
             break;
@@ -771,7 +815,7 @@ std::wstring parser::get_identifier_name(const char* func, int line) {
     }
 
     std::ostringstream oss;
-    oss << "Expected identifier name in " << func << " line " << line << " got " << lexer_.current_token();
+    oss << "Expected identifier name in " << func << " line " << line << " got " << current_token();
     throw std::runtime_error(oss.str());
 }
 

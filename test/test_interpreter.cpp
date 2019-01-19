@@ -423,6 +423,7 @@ eval(true) //$ boolean true
 eval(new String('123')).length //$ number 3
 eval('1+2*3') //$ number 7
 x42=50; eval('x'+42+'=13'); x42 //$ number 13
+eval('var x;'); //$undefined
 )");
 
     // ES5.1, 10.4.2 the global context is used for indirect calls to eval

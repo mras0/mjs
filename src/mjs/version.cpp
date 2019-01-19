@@ -10,7 +10,6 @@ std::basic_ostream<CharT>& operator<<(std::basic_ostream<CharT>& os, version v) 
     case version::es1:      return os << "ES1";
     case version::es3:      return os << "ES3";
     case version::es5:      return os << "ES5";
-    case version::future:   return os << "Future";
     }
     assert(false);
     return os << "version{" << (int)v << "}";
