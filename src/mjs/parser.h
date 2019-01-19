@@ -215,21 +215,57 @@ private:
     }
 };
 
-using property_name_and_value = std::pair<expression_ptr, expression_ptr>;
+enum class property_assignment_type {
+    normal, get, set
+};
+
+template<typename CharT>
+std::basic_ostream<CharT>& operator<<(std::basic_ostream<CharT>& os, property_assignment_type t) {
+    switch (t) {
+    case property_assignment_type::normal:  return os << "normal";
+    case property_assignment_type::get:     return os << "get";
+    case property_assignment_type::set:     return os << "set";
+    }
+    assert(false);
+    return os << "property_assignment_type{" << static_cast<int>(t) << "}";
+}
+
+#ifndef NDEBUG
+inline bool is_valid_property_name_expression(const expression& e) {
+    if (e.type() == expression_type::identifier) return true;
+    if (e.type() != expression_type::literal) return false;
+    const auto lt = static_cast<const literal_expression&>(e).t().type();
+    return lt == token_type::string_literal || lt == token_type::numeric_literal;
+}
+#endif
+
+std::wstring property_name_string(const expression& e);
+
+class property_name_and_value {
+public:
+    explicit property_name_and_value(property_assignment_type type, expression_ptr&& name, expression_ptr&& value)
+        : type_{type}
+        , name_{std::move(name)}
+        , value_{std::move(value)} {
+        assert(name_ && value_);
+        assert(is_valid_property_name_expression(*name_));
+        assert(type == property_assignment_type::normal || value_->type() == expression_type::function);
+    }
+    property_assignment_type type() const { return type_; }
+    const expression& name() const { return *name_; }
+    std::wstring name_str() const { return property_name_string(name()); }
+    const expression& value() const { return *value_; }
+private:
+    property_assignment_type type_;
+    expression_ptr name_;
+    expression_ptr value_;
+};
+
 using property_name_and_value_list = std::vector<property_name_and_value>;
 
 class object_literal_expression : public expression {
 public:
     explicit object_literal_expression(const source_extend& extend, property_name_and_value_list&& elements) : expression(extend), elements_(std::move(elements)) {
-#ifndef  NDEBUG
-        for (const auto& p : elements_) {
-            assert(p.first && p.second);
-            assert(p.first->type() == expression_type::identifier
-            || (p.first->type() == expression_type::literal
-                && (static_cast<const literal_expression&>(*p.first).t().type() == token_type::string_literal
-                    || static_cast<const literal_expression&>(*p.first).t().type() == token_type::numeric_literal)));
-        }
-#endif
     }
 
     expression_type type() const override { return expression_type::object_literal; }
@@ -243,7 +279,8 @@ private:
         os << "object_literal_expression{";
         for (size_t i = 0; i < elements_.size(); ++i) {
             if (i) os << ", ";
-            os << *elements_[i].first << ": " << *elements_[i].second;
+            if (elements_[i].type() != property_assignment_type::normal) os << elements_[i].type() << " ";
+            os << elements_[i].name() << ": " << elements_[i].value();
         }
         os << "}";
     }

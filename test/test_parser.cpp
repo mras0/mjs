@@ -3,6 +3,8 @@
 #include <sstream>
 #include <mjs/parser.h>
 
+#define STR(s) token{token_type::string_literal, s}
+
 namespace mjs {
 
 template<typename CharT>
@@ -274,33 +276,121 @@ void test_object_literal() {
         const auto& [bs, e] = parse_object_literal("({1:2})");
         (void)bs;
         REQUIRE_EQ(e->elements().size(), 1U);
-        const auto& [p0, v0] = e->elements()[0];
-        REQUIRE(p0);
-        REQUIRE(v0);
-        REQUIRE_EQ(CHECK_EXPR_TYPE(p0, literal).t(), token{1.0});
-        REQUIRE_EQ(CHECK_EXPR_TYPE(v0, literal).t(), token{2.0});
+        const auto& elem = e->elements()[0];
+        REQUIRE_EQ(elem.type(), property_assignment_type::normal);
+        REQUIRE_EQ(CHECK_EXPR_TYPE(elem.name(), literal).t(), token{1.0});
+        REQUIRE_EQ(CHECK_EXPR_TYPE(elem.value(), literal).t(), token{2.0});
+    }
+
+    {
+        const auto& [bs, e] = parse_object_literal("({get:1,set:2})");
+        (void)bs;
+        REQUIRE_EQ(e->elements().size(), 2U);
+        const auto& es = e->elements();
+        REQUIRE_EQ(es[0].type(), property_assignment_type::normal);
+        REQUIRE_EQ(CHECK_EXPR_TYPE(es[0].name(), identifier).id(), L"get");
+        REQUIRE_EQ(CHECK_EXPR_TYPE(es[0].value(), literal).t(), token{1.0});
+        REQUIRE_EQ(es[1].type(), property_assignment_type::normal);
+        REQUIRE_EQ(CHECK_EXPR_TYPE(es[1].name(), identifier).id(), L"set");
+        REQUIRE_EQ(CHECK_EXPR_TYPE(es[1].value(), literal).t(), token{2.0});
     }
 
     RUN_TEST(L"{1,2,3}", value{3.}); // Not an object literal!
 
     test_parse_fails("{,})");
 
+    test_parse_fails("({get q:2})");
+
+    const char* const get_lit = "({get x  ( \n )\t{}})";
+    const char* const set_lit = "({set x  (  x )  {}})";
+
     if (tested_version() == version::es3) {
         test_parse_fails("({33:66,})"); // Trailing comma not allowed until ES5
         test_parse_fails("{if:2})"); // Rserved words not allowed as property name until ES5
         test_parse_fails("global.for"); // Rserved words not allowed as property name until ES5
+        test_parse_fails(get_lit);
+        test_parse_fails(set_lit);
     } else {
         const auto& [bs, e] = parse_object_literal("({33:66,})");
         (void)bs;
         REQUIRE_EQ(e->elements().size(), 1U);
-        const auto& [p0, v0] = e->elements()[0];
-        REQUIRE(p0);
-        REQUIRE(v0);
-        REQUIRE_EQ(CHECK_EXPR_TYPE(p0, literal).t(), token{33.0});
-        REQUIRE_EQ(CHECK_EXPR_TYPE(v0, literal).t(), token{66.0});
+        const auto& elem = e->elements()[0];
+        REQUIRE_EQ(elem.type(), property_assignment_type::normal);
+        REQUIRE_EQ(CHECK_EXPR_TYPE(elem.name(), literal).t(), token{33.0});
+        REQUIRE_EQ(CHECK_EXPR_TYPE(elem.value(), literal).t(), token{66.0});
 
         RUN_TEST(L"({if:2}).if", value{2.0}); // Reserved words can be used as property names
         RUN_TEST(L"global.for", value::undefined);
+
+        {
+            const auto& [_, ge] = parse_object_literal(get_lit); (void)_;
+            const auto& ges = ge->elements();
+            REQUIRE_EQ(ges.size(), 1U);
+            REQUIRE_EQ(ges[0].type(), property_assignment_type::get);
+            REQUIRE_EQ(CHECK_EXPR_TYPE(ges[0].name(), identifier).id(), L"x");
+            auto f = CHECK_EXPR_TYPE(ges[0].value(), function);
+            REQUIRE_EQ(f.id(), L"get x");
+            REQUIRE_EQ(f.params().size(), 0U);
+            REQUIRE_EQ(f.body_extend().source_view(), L"( \n )\t{}");
+        }
+
+
+        {
+            const auto& [_, se] = parse_object_literal(set_lit); (void)_;
+            const auto& ses = se->elements();
+            REQUIRE_EQ(ses.size(), 1U);
+            REQUIRE_EQ(ses[0].type(), property_assignment_type::set);
+            REQUIRE_EQ(CHECK_EXPR_TYPE(ses[0].name(), identifier).id(), L"x");
+            CHECK_EXPR_TYPE(ses[0].value(), function);
+            auto f = CHECK_EXPR_TYPE(ses[0].value(), function);
+            REQUIRE_EQ(f.id(), L"set x");
+            REQUIRE_EQ(f.params().size(), 1U);
+            REQUIRE_EQ(f.params()[0], L"x");
+            REQUIRE_EQ(f.body_extend().source_view(), L"(  x )  {}");
+        }
+
+        // SyntaxError on wrong paramter count
+        test_parse_fails("({get x(a){}})");
+        test_parse_fails("({get x(a,b){}})");
+        test_parse_fails("({set x(){}})");
+        test_parse_fails("({set x(a,b){}})");
+
+        {
+            const auto& [_, oe] = parse_object_literal("({get if(){return 42;}, set if(x){}, set if(y){}, x:42})"); (void)_;
+            const auto& oes = oe->elements();
+            REQUIRE_EQ(oes.size(), 4U);
+
+            REQUIRE_EQ(oes[0].type(), property_assignment_type::get);
+            REQUIRE_EQ(CHECK_EXPR_TYPE(oes[0].name(), identifier).id(), L"if");
+            CHECK_EXPR_TYPE(oes[0].value(), function);
+
+            REQUIRE_EQ(oes[1].type(), property_assignment_type::set);
+            REQUIRE_EQ(CHECK_EXPR_TYPE(oes[1].name(), identifier).id(), L"if");
+            CHECK_EXPR_TYPE(oes[1].value(), function);
+
+            REQUIRE_EQ(oes[2].type(), property_assignment_type::set);
+            REQUIRE_EQ(CHECK_EXPR_TYPE(oes[2].name(), identifier).id(), L"if");
+            CHECK_EXPR_TYPE(oes[2].value(), function);
+
+            REQUIRE_EQ(oes[3].type(), property_assignment_type::normal);
+            REQUIRE_EQ(CHECK_EXPR_TYPE(oes[3].name(), identifier).id(), L"x");
+            REQUIRE_EQ(CHECK_EXPR_TYPE(oes[3].value(), literal).t(), token{42.});
+        }
+
+        {
+            const auto& [_, oe] = parse_object_literal("({get 1e3(){}, set 'test x\\u1234'(a){}})"); (void)_;
+            const auto& oes = oe->elements();
+            REQUIRE_EQ(oes.size(), 2U);
+
+            REQUIRE_EQ(oes[0].type(), property_assignment_type::get);
+            REQUIRE_EQ(CHECK_EXPR_TYPE(oes[0].name(), literal).t(), token{1e3});
+            REQUIRE_EQ(oes[0].name_str(), L"1000");
+            CHECK_EXPR_TYPE(oes[0].value(), function);
+
+            REQUIRE_EQ(oes[1].type(), property_assignment_type::set);
+            REQUIRE_EQ(CHECK_EXPR_TYPE(oes[1].name(), literal).t(), STR(L"test x\x1234"));
+            CHECK_EXPR_TYPE(oes[1].value(), function);
+        }
     }
 
     test_parse_fails("({test})"); // No shorthand property name syntax until ES2015

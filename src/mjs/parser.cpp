@@ -1,4 +1,5 @@
 #include "parser.h"
+#include "number_to_string.h"
 #include <sstream>
 #include <algorithm>
 
@@ -11,6 +12,7 @@
 #define UNHANDLED() unhandled(__FUNCTION__, __LINE__)
 #define EXPECT(tt) expect(tt, __FUNCTION__, __LINE__)
 #define EXPECT_SEMICOLON_ALLOW_INSERTION() expect_semicolon_allow_insertion(__FUNCTION__, __LINE__)
+#define SYNTAX_ERROR(expr) do { std::ostringstream _oss; _oss << expr; syntax_error(__FUNCTION__, __LINE__, _oss.str()); } while (0)
 
 namespace mjs {
 
@@ -111,6 +113,20 @@ void function_base::base_print(std::wostream& os) const {
         os << params_[i];
     }
     os << "], " << *block_ << "}";
+}
+
+std::wstring property_name_string(const expression& e) {
+    assert(is_valid_property_name_expression(e));
+    if (e.type() == expression_type::identifier) {
+        return static_cast<const identifier_expression&>(e).id();
+    }
+    const auto& lt = static_cast<const literal_expression&>(e).t();
+    if (lt.type() == token_type::string_literal) {
+        return lt.text();
+    } else {
+        assert(lt.type() == token_type::numeric_literal);
+        return number_to_string(lt.dvalue());
+    }
 }
 
 #define RECORD_EXPRESSION_START position_stack_node _expression_position##__LINE__{*this, expression_pos_}
@@ -265,6 +281,8 @@ private:
 
     std::wstring get_identifier_name(const char* func, int line);
     expression_ptr parse_identifier_name(const char* func, int line);
+    expression_ptr parse_property_name();
+    property_name_and_value parse_property_name_and_value();
 
     expression_ptr parse_primary_expression() {
         // PrimaryExpression :
@@ -308,21 +326,7 @@ private:
                         break;
                     }
                 }
-                expression_ptr p;
-                {
-                    RECORD_EXPRESSION_START;
-                    if (auto sl = accept(token_type::string_literal)) {
-                        p = make_expression<literal_expression>(sl);
-                    } else if (auto nl = accept(token_type::numeric_literal)) {
-                        p = make_expression<literal_expression>(nl);
-                    } else {
-                        p = parse_identifier_name(__func__, __LINE__);
-                        assert(p);
-                    }
-                }
-                EXPECT(token_type::colon);
-                auto v = parse_assignment_expression();
-                elements.push_back(property_name_and_value{std::move(p), std::move(v)});
+                elements.push_back(parse_property_name_and_value());
             }
             return make_expression<object_literal_expression>(std::move(elements));
         } else if (version_ >= version::es3 && (current_token_type() == token_type::divide || current_token_type() == token_type::divideequal)) {
@@ -737,6 +741,12 @@ private:
         oss << "Unhandled token in " << function  << " line " << line << " " << lexer_.current_token();
         throw std::runtime_error(oss.str());
     }
+
+    [[noreturn]] void syntax_error(const char* function, int line, const std::string_view message) {
+        std::ostringstream oss;
+        oss << "Syntax error in " << function  << " line " << line << " at " << lexer_.current_token() << ": " << message;
+        throw std::runtime_error(oss.str());
+    }
 };
 
 std::wstring parser::get_identifier_name(const char* func, int line) {
@@ -767,6 +777,45 @@ std::wstring parser::get_identifier_name(const char* func, int line) {
 
 expression_ptr parser::parse_identifier_name(const char* func, int line) {
     return make_expression<identifier_expression>(get_identifier_name(func, line));
+}
+
+expression_ptr parser::parse_property_name() {
+    RECORD_EXPRESSION_START;
+    if (auto sl = accept(token_type::string_literal)) {
+        return make_expression<literal_expression>(sl);
+    } else if (auto nl = accept(token_type::numeric_literal)) {
+        return make_expression<literal_expression>(nl);
+    } else {
+        auto p = parse_identifier_name(__func__, __LINE__);
+        assert(p && p->type() == expression_type::identifier);
+        return p;
+    }
+}
+
+property_name_and_value parser::parse_property_name_and_value() {
+    expression_ptr p;
+    {
+        p = parse_property_name();
+        // get/set i.e. accessor properties
+        if (version_ >= version::es5 && current_token_type() != token_type::colon && p->type() == expression_type::identifier) {
+            const auto& p_id = static_cast<const identifier_expression&>(*p).id();
+            const bool is_get = p_id == L"get";
+            if (is_get || p_id == L"set") {
+                auto new_p = parse_property_name();
+                const auto id = p_id + L" " + property_name_string(*new_p);
+                auto [extend, params, block] = parse_function();
+                const size_t expected_args = is_get ? 0 : 1;
+                if (expected_args != params.size()) {
+                    SYNTAX_ERROR("Wrong number of arguments to " << std::string(p_id.begin(), p_id.end()) << " " << params.size() << " expected " << expected_args);
+                }
+
+                auto f = make_expression<function_expression>(extend, id, std::move(params), std::move(block));
+                return property_name_and_value{is_get ? property_assignment_type::get : property_assignment_type::set, std::move(new_p), std::move(f)};
+            }
+        }
+    }
+    EXPECT(token_type::colon);
+    return property_name_and_value{property_assignment_type::normal, std::move(p), parse_assignment_expression()};
 }
 
 std::unique_ptr<block_statement> parse(const std::shared_ptr<source_file>& source) {

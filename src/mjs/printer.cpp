@@ -46,9 +46,13 @@ public:
         const auto& es = e.elements();
         for (size_t i = 0; i < es.size(); ++i) {
             os_ << (i ? ", " : "");
-            accept(*es[i].first, *this);
-            os_ << ": ";
-            accept(*es[i].second, *this);
+            if (es[i].type() == property_assignment_type::normal) {
+                accept(es[i].name(), *this);
+                os_ << ": ";
+                accept(es[i].value(), *this);
+            } else {
+                assert(!"Not implemented: get/set for object literal");
+            }
         }
         os_ << '}';
     }

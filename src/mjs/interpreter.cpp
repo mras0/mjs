@@ -416,14 +416,15 @@ public:
     value operator()(const object_literal_expression& e) {
         auto o = global_->make_object();
         for (const auto& i : e.elements()) {
-            auto v = get_value(eval(*i.second));
-            switch (i.first->type()) {
+            assert(i.type() == property_assignment_type::normal);
+            auto v = get_value(eval(i.value()));
+            switch (i.name().type()) {
             case expression_type::identifier:
-                o->put(string{heap_, static_cast<const identifier_expression&>(*i.first).id()}, v);
+                o->put(string{heap_, static_cast<const identifier_expression&>(i.name()).id()}, v);
                 break;
             case expression_type::literal:
                 {
-                    const auto& le = static_cast<const literal_expression&>(*i.first);
+                    const auto& le = static_cast<const literal_expression&>(i.name());
                     if (le.t().type() == token_type::string_literal) {
                         o->put(string{heap_, le.t().text()}, v);
                         break;
@@ -434,7 +435,7 @@ public:
                 }
                 [[fallthrough]];
             default:
-                NOT_IMPLEMENTED(*i.first);
+                NOT_IMPLEMENTED(i.name());
             }
         }
         return value{o};
