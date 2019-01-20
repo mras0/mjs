@@ -249,8 +249,9 @@ public:
             }
 
             for (const auto& var_id: hoisting_visitor::scan(*bs)) {
-                assert(!active_scope_->has_property(var_id)); // TODO: Handle this..
-                active_scope_->put_local(string{heap_, var_id}, value::undefined);
+                if (!active_scope_->has_property(var_id)) {
+                    active_scope_->put_local(string{heap_, var_id}, value::undefined);
+                }
             }
 
             const std::unique_ptr<force_global_scope> fgs{!was_direct_call_to_eval_ ? new force_global_scope{*this} : nullptr};
@@ -1059,14 +1060,12 @@ private:
     public:
         friend gc_type_info_registration<scope>;
 
-#ifndef NDBEUG
         bool has_property(const std::wstring& id) const {
             if (!activation_) {
                 return false;
             }
             return activation_.dereference(heap_).has_property(id) || (prev_ && prev_.dereference(heap_).has_property(id));
         }
-#endif
 
         reference lookup(const string& id) const {
             if (activation_.dereference(heap_).has_property(id.view())) {

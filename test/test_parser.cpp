@@ -62,8 +62,8 @@ std::exception_ptr test_parse_fails(const std::wstring_view text) {
     throw std::runtime_error(std::string(s.begin(),s.end()));
 }
 
-void test_parse_fails(const char* text) {
-    test_parse_fails(std::wstring{text, text+std::strlen(text)});
+auto test_parse_fails(const char* text) {
+    return test_parse_fails(std::wstring{text, text+std::strlen(text)});
 }
 
 template<typename CharT>
@@ -671,6 +671,31 @@ void test_strict_mode() {
     REQUIRE_EQ(is_strict_function("'use strict'"), v >= version::es5);
     REQUIRE_EQ(is_strict_function("1;'use strict'"), false);
     REQUIRE_EQ(is_strict_function("'\\x75se strict'"), false);
+
+    const char* with_code = "o=Object.create(null);with(o){}";
+    {
+        auto bs = parse_text(with_code);
+        REQUIRE_EQ(bs->l().size(), 2U);
+        REQUIRE_EQ(bs->l()[1]->type(), statement_type::with);
+    }
+    if (v >= version::es5) {
+        auto ep = test_parse_fails((std::string("'use strict';")+with_code).c_str());
+        try {
+            std::rethrow_exception(ep);
+        } catch (const std::exception& e) {
+            REQUIRE(std::string(e.what()).find("Strict mode code may not include a WithStatement") != std::string::npos);
+            REQUIRE(std::string(e.what()).find("token{with}") != std::string::npos);
+        }
+
+        auto ep2 = test_parse_fails((std::string("function f(){'use strict';with({}){}}")).c_str());
+        try {
+            std::rethrow_exception(ep);
+        } catch (const std::exception& e) {
+            REQUIRE(std::string(e.what()).find("Strict mode code may not include a WithStatement") != std::string::npos);
+            REQUIRE(std::string(e.what()).find("token{with}") != std::string::npos);
+        }
+    }
+
 }
 
 void test_main() {

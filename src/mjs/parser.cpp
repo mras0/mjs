@@ -752,7 +752,11 @@ private:
             }
             EXPECT_SEMICOLON_ALLOW_INSERTION();
             return make_statement<return_statement>(std::move(e));
-        } else if (accept(token_type::with_)) {
+        } else if (current_token_type() == token_type::with_) {
+            if (strict_mode_) {
+                SYNTAX_ERROR("Strict mode code may not include a WithStatement");
+            }
+            get_token(); // Consume now that any syntax errors have been reported
             EXPECT(token_type::lparen);
             auto e = parse_expression();
             EXPECT(token_type::rparen);
