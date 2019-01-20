@@ -243,7 +243,7 @@ public:
             }
             std::unique_ptr<block_statement> bs;
             try {
-                bs = parse(std::make_shared<source_file>(L"eval", args.front().string_value().view(), global_->language_version()));
+                bs = parse(std::make_shared<source_file>(L"eval", args.front().string_value().view(), global_->language_version()), strict_mode_);
             } catch (const std::exception&) {
                 throw native_error_exception{native_error_type::syntax, stack_trace(), L"Invalid argument to eval"};
             }
@@ -737,10 +737,15 @@ public:
                 throw native_error_exception{native_error_type::type, stack_trace(), woss.str()};
             }
             auto v = l.object_value()->prototype();
-            if (!v) {
-                return value{false};
+            for (;;) {
+                if (!v) {
+                    return value{false};
+                }
+                if (v.get() == o.object_value().get()) { // TODO: handle joined objects (ES3, 13.1.2)
+                    return value{true};
+                }
+                v = v->prototype();
             }
-            return value{v.get() == o.object_value().get()}; // TODO: handle joined objects (ES3, 13.1.2)
 
         }
         return do_binary_op(e.op(), l, r);
@@ -802,6 +807,8 @@ public:
     }
 
     completion operator()(const block_statement& s) {
+        strict_mode_scope sms{*this};
+        strict_mode_ = s.strict_mode();
         completion c{};
         for (const auto& bs: s.l()) {
             c = eval(*bs);
@@ -1153,6 +1160,14 @@ private:
         impl&     parent_;
         scope_ptr old_scope_;
     };
+    class strict_mode_scope {
+    public:
+        explicit strict_mode_scope(impl& i) : impl_(i), prev_(i.strict_mode_) {}
+        ~strict_mode_scope() { impl_.strict_mode_ = prev_; }
+    private:
+        impl& impl_;
+        bool  prev_;
+    };
 
     gc_heap&                       heap_;
     const block_statement&         program_;
@@ -1165,6 +1180,7 @@ private:
     const statement*               labels_valid_for_ = nullptr;
     source_extend                  current_extend_;
     bool                           was_direct_call_to_eval_ = false; // To support ES5.1, 15.1.2.1.1 Direct Call to Eval (TODO: Do this smarter...)
+    bool                           strict_mode_ = false;
 
     static scope_ptr make_scope(const object_ptr& act, const scope_ptr& prev) {
         return act.heap().make<scope>(act, prev);

@@ -98,8 +98,8 @@ bool object::do_redefine_own_property(const string& name, const value& val, prop
         it->attributes(attr);
         return true;
     }
-    assert(!has_property(name.view()));
-    put(name, val, attr);
+    assert(!is_valid(own_property_attributes(name.view())));
+    properties_.dereference(heap()).emplace_back(name, val, attr);
     return true;
 }
 

@@ -83,7 +83,6 @@ private:
         assert(!construct_ && f);
         construct_ = f;
     }
-
 };
 
 gc_heap_ptr<function_object> make_raw_function(const gc_heap_ptr<global_object>& global);

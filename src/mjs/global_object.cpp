@@ -545,8 +545,14 @@ public:
     object_ptr function_prototype() const override { return function_prototype_.track(heap()); }
     object_ptr string_prototype() const override { return string_prototype_.track(heap()); }
     object_ptr array_prototype() const override { return array_prototype_.track(heap()); }
-    object_ptr regexp_prototype() const override { assert(language_version() >= version::es3); return regexp_prototype_.track(heap()); }
-    object_ptr error_prototype() const override { assert(language_version() >= version::es3); return error_prototype_.track(heap()); }
+    object_ptr regexp_prototype() const override {
+        assert(language_version() >= version::es3);
+        return regexp_prototype_.track(heap());
+    }
+    object_ptr error_prototype(native_error_type type) const override {
+        assert(static_cast<uint32_t>(type) < num_native_error_types);
+        return error_prototype_[static_cast<uint32_t>(type)].track(heap());
+    }
 
     object_ptr to_object(const value& v) override {
         switch (v.type()) {
@@ -576,7 +582,7 @@ private:
     gc_heap_ptr_untracked<object> boolean_prototype_;
     gc_heap_ptr_untracked<object> number_prototype_;
     gc_heap_ptr_untracked<object> regexp_prototype_;
-    gc_heap_ptr_untracked<object> error_prototype_;
+    gc_heap_ptr_untracked<object> error_prototype_[num_native_error_types];
 
     void fixup() {
         auto& h = heap();
@@ -588,7 +594,9 @@ private:
         boolean_prototype_.fixup(h);
         number_prototype_.fixup(h);
         regexp_prototype_.fixup(h);
-        error_prototype_.fixup(h);
+        for (auto& e: error_prototype_) {
+            e.fixup(h);
+        }
         global_object::fixup();
     }
 
@@ -634,7 +642,19 @@ private:
 
         if (language_version() >= version::es3) {
             add("RegExp", make_regexp_object, &regexp_prototype_);
-            add("Error", make_error_object, &error_prototype_);
+            add("Error", make_error_object);
+
+            // Grab error protototypes before the user can corrupt them
+            for (uint32_t i = 0; i < num_native_error_types; ++i) {
+                assert(native_error_types[i] == static_cast<native_error_type>(i));
+                std::wostringstream woss;
+                woss << static_cast<native_error_type>(i);
+                auto eo = get(woss.str());
+                assert(is_function(eo));
+                auto prototype = eo.object_value()->get(L"prototype");
+                assert(prototype.type() == value_type::object);
+                error_prototype_[i] = prototype.object_value();
+            }
         }
 
         assert(!get(L"Object").object_value()->can_put(L"prototype"));

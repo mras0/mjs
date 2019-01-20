@@ -183,10 +183,11 @@ bool is_strict_mode_directive(const expression& e) {
 
 class parser {
 public:
-    explicit parser(const std::shared_ptr<source_file>& source)
+    explicit parser(const std::shared_ptr<source_file>& source, bool strict_mode)
         : source_(source)
         , version_(source_->language_version())
-        , lexer_(source_->text(), version_) {
+        , lexer_(source_->text(), version_)
+        , strict_mode_(strict_mode) {
         check_token();
     }
 
@@ -255,13 +256,13 @@ private:
     std::shared_ptr<source_file> source_;
     const version version_;
     lexer lexer_;
+    bool strict_mode_;
     uint32_t token_start_ = 0;
     position_stack_node* expression_pos_ = nullptr;
     position_stack_node* statement_pos_ = nullptr;
     bool line_break_skipped_ = false;
     bool supress_in_ = false;
     token current_token_{token_type::eof};
-    bool strict_mode_ = false;
 
     template<typename T, typename... Args>
     expression_ptr make_expression(Args&&... args) {
@@ -918,8 +919,8 @@ property_name_and_value parser::parse_property_name_and_value() {
     return property_name_and_value{property_assignment_type::normal, std::move(p), parse_assignment_expression()};
 }
 
-std::unique_ptr<block_statement> parse(const std::shared_ptr<source_file>& source) {
-    return parser{source}.parse();
+std::unique_ptr<block_statement> parse(const std::shared_ptr<source_file>& source, bool strict_mode) {
+    return parser{source, strict_mode}.parse();
 }
 
 } // namespace mjs

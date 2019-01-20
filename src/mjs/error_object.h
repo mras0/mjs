@@ -8,6 +8,10 @@ namespace mjs {
 enum class native_error_type {
     generic, eval, range, reference, syntax, type, uri, assertion
 };
+constexpr native_error_type native_error_types[] = {native_error_type::generic, native_error_type::eval, native_error_type::range, native_error_type::reference, native_error_type::syntax, native_error_type::type, native_error_type::uri, native_error_type::assertion};
+constexpr uint32_t num_native_error_types = static_cast<uint32_t>(sizeof(native_error_types)/sizeof(*native_error_types));
+
+std::wostream& operator<<(std::wostream& os, native_error_type type);
 
 global_object_create_result make_error_object(const gc_heap_ptr<global_object>& global);
 

@@ -12,6 +12,8 @@ namespace mjs {
 
 class function_object;
 
+enum class native_error_type;
+
 class global_object : public object {
 public:
     static gc_heap_ptr<global_object> make(gc_heap& h, version ver);
@@ -22,8 +24,8 @@ public:
     virtual object_ptr string_prototype() const = 0;
     virtual object_ptr array_prototype() const = 0;
     virtual object_ptr regexp_prototype() const = 0;
-    virtual object_ptr error_prototype() const = 0;
-    virtual object_ptr to_object(const value& v) = 0;    
+    virtual object_ptr error_prototype(native_error_type type) const = 0;
+    virtual object_ptr to_object(const value& v) = 0;
 
     static constexpr auto prototype_attributes = property_attribute::dont_enum | property_attribute::dont_delete | property_attribute::read_only;
     static constexpr auto default_attributes = property_attribute::dont_enum;

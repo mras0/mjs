@@ -87,6 +87,8 @@ void eval_tests() {
         RUN_TEST(L"4 instanceof Number", value{false});
         RUN_TEST(L"'' instanceof String", value{false});
         RUN_TEST(L"new String() instanceof String", value{true});
+
+        RUN_TEST(L"function o(){};function p(){};p.prototype=new o();i=new p(); i instanceof o && i instanceof p;", value{true});
     }
 
     RUN_TEST(L"255 & 128", value{128.0});
@@ -425,6 +427,19 @@ eval('1+2*3') //$ number 7
 x42=50; eval('x'+42+'=13'); x42 //$ number 13
 eval('var x;'); //$undefined
 )");
+
+    if (tested_version() < version::es5) {
+        RUN_TEST_SPEC(R"(
+eval('"use strict"; var let;'); //$undefined
+)");
+    } else {
+        RUN_TEST_SPEC(R"(
+try { eval('"use strict"; var let;'); } catch (e) { e.toString(); } //$string 'SyntaxError: Invalid argument to eval'
+try { eval('(function(){"use strict";var let;})()'); } catch (e) { e.toString(); } //$string 'SyntaxError: Invalid argument to eval'
+try { eval('(function(){"use strict";var let;})()'); } catch (e) { e instanceof SyntaxError; } //$boolean true
+)");
+
+    }
 
     // ES5.1, 10.4.2 the global context is used for indirect calls to eval
     RUN_TEST(L"var s=1; function t() { var s=2; return eval('s'); }; t();", value{2.});
@@ -864,6 +879,7 @@ void test_error_object() {
     RUN_TEST_SPEC(R"(
 Error.prototype.constructor.length; //$number 1
 e1 = Error.prototype.constructor(42);
+e1 instanceof Error;
 s=''; for (k in e1) { s+=k+','; }; s; //$string ''
 e1.message; //$string '42'
 e1.name; //$ string 'Error'
@@ -876,8 +892,14 @@ e1 instanceof Error; //$boolean true
 se = new SyntaxError('test');
 se.name;    //$string 'SyntaxError'
 se.message; //$string 'test'
-se instanceof Error; //$boolean true
-
+se.toString(); //$string 'SyntaxError: test'
+SyntaxError.name = 'BlAh';
+se.toString(); //$string 'SyntaxError: test'
+se.name = 'Foo';
+se.toString(); //$string 'Foo: test'
+se instanceof SyntaxError; //$boolean true
+)");
+    RUN_TEST_SPEC(R"(
 EvalError.prototype == Error.prototype; //$boolean false
 RangeError.prototype == Error.prototype; //$boolean false
 ReferenceError.prototype == Error.prototype; //$boolean false
@@ -885,11 +907,26 @@ SyntaxError.prototype == Error.prototype; //$boolean false
 TypeError.prototype == Error.prototype; //$boolean false
 URIError.prototype == Error.prototype; //$boolean false
 
+new Error() instanceof Error; //$boolean true
+
+EvalError.prototype instanceof Error; //$boolean true
+EvalError.prototype.name;//$string 'EvalError'
+EvalError.prototype.constructor.length;//$number 1
+EvalError.prototype.constructor(2).toString();//$string 'EvalError: 2'
+new EvalError() instanceof Error; //$boolean true
+new EvalError() instanceof EvalError; //$boolean true
+
 'SyntaxError' in global; //$boolean true
+old_se = SyntaxError;
 SyntaxError = 42;
 SyntaxError; //$number 42
 delete SyntaxError;
 'SyntaxError' in global; //$boolean false
+
+f=null; try { eval(','); } catch (e) { f=e; }
+f.name;//$string 'SyntaxError'
+f instanceof old_se;
+SyntaxError = old_se;
 
 // ES3, 11.8.6, 11.8.7
 try { [] instanceof 42; } catch (e) { e.toString(); } //$string 'TypeError: number is not an object'
@@ -903,6 +940,7 @@ Error.prototype.message='test';
 new Error().message; //$string 'test'
 new Error(undefined).message; //$string 'test'
 new Error('yy').message; //$string 'yy'
+
 )");
 
     RUN_TEST_SPEC(R"(
@@ -915,6 +953,7 @@ eval;//$number 42
     if (tested_version() >= version::es3) {
         RUN_TEST_SPEC(R"(
 try { eval("*"); } catch(e) { e.toString(); } //$string 'SyntaxError: Invalid argument to eval'
+try { eval('/') } catch(e) { e instanceof SyntaxError; } //$boolean true
 )");
     }
 
@@ -1140,7 +1179,6 @@ try {
 }
 
 void test_main() {
-    //test_string_object(); std::wcout << "TODO: Remove from " << __FILE__ << ":" << __LINE__ << "\n";
     eval_tests();
     if (tested_version() >= version::es3) {
         test_es3_statements();
