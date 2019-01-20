@@ -638,7 +638,12 @@ void check_resered_words() {
 }
 
 void test_strict_mode() {
+    gc_heap h{8192};
     const auto v = tested_version();
+
+    //
+    // Parsing of the directve
+    //
     auto is_strict_global = [](const char* text) { return parse_text(text)->strict_mode(); };
     REQUIRE_EQ(is_strict_global("'use strict'"), v >= version::es5);
     REQUIRE_EQ(is_strict_global("\"use strict\""), v >= version::es5);
@@ -672,6 +677,9 @@ void test_strict_mode() {
     REQUIRE_EQ(is_strict_function("1;'use strict'"), false);
     REQUIRE_EQ(is_strict_function("'\\x75se strict'"), false);
 
+    //
+    // WithStatements are not allowed
+    //
     const char* with_code = "o=Object.create(null);with(o){}";
     {
         auto bs = parse_text(with_code);
@@ -684,7 +692,7 @@ void test_strict_mode() {
             std::rethrow_exception(ep);
         } catch (const std::exception& e) {
             REQUIRE(std::string(e.what()).find("Strict mode code may not include a WithStatement") != std::string::npos);
-            REQUIRE(std::string(e.what()).find("token{with}") != std::string::npos);
+            REQUIRE(std::string(e.what()).find("at \"with\"") != std::string::npos);
         }
 
         auto ep2 = test_parse_fails((std::string("function f(){'use strict';with({}){}}")).c_str());
@@ -692,10 +700,55 @@ void test_strict_mode() {
             std::rethrow_exception(ep);
         } catch (const std::exception& e) {
             REQUIRE(std::string(e.what()).find("Strict mode code may not include a WithStatement") != std::string::npos);
-            REQUIRE(std::string(e.what()).find("token{with}") != std::string::npos);
+            REQUIRE(std::string(e.what()).find("at \"with\"") != std::string::npos);
         }
     }
 
+    //
+    // OctalIntgerLiterals are not allowed
+    //
+    {
+        const auto es = parse_expression("0123");
+        REQUIRE_EQ(es->e().type(), expression_type::literal);
+        const auto& le = static_cast<const literal_expression&>(es->e());
+        REQUIRE_EQ(le.t().type(), token_type::numeric_literal);
+        REQUIRE_EQ(le.t().dvalue(), 83);
+    }
+    RUN_TEST(L"'use strict'; 0", value{0.});
+    RUN_TEST(L"'use strict'; 0.5", value{0.5});
+    if (v >= version::es5) {
+        auto ep = test_parse_fails("'use strict';0123");
+        try {
+            std::rethrow_exception(ep);
+        } catch (const std::exception& e) {
+            REQUIRE(std::string(e.what()).find("Octal literals may not be used in strict mode") != std::string::npos);
+            REQUIRE(std::string(e.what()).find("at \"0123\"") != std::string::npos);
+        }
+
+        auto ep2 = test_parse_fails("'use strict';({0123:1})");
+        try {
+            std::rethrow_exception(ep2);
+        } catch (const std::exception& e) {
+            REQUIRE(std::string(e.what()).find("Octal literals may not be used in strict mode") != std::string::npos);
+            REQUIRE(std::string(e.what()).find("at \"0123\"") != std::string::npos);
+        }
+    }
+
+    //
+    // OctalEscapeSequences are not allowed
+    //
+    const wchar_t* const octal_escape_sequences = L"'\\164es\\164\\130'";
+    RUN_TEST(octal_escape_sequences, value{string{h, "testX"}});
+    RUN_TEST(L"'use strict';'\\x34\\\\0'", value{string{h, "\x34\\0"}});
+    if (v >= version::es5) {
+        auto ep = test_parse_fails(std::wstring(L"'use strict';")+octal_escape_sequences);
+        try {
+            std::rethrow_exception(ep);
+        } catch (const std::exception& e) {
+            REQUIRE(std::string(e.what()).find("Octal escape sequences may not be used in strict mode") != std::string::npos);
+            REQUIRE(std::string(e.what()).find(R"(at "'\\164es\\164\\130'")") != std::string::npos);
+        }
+    }
 }
 
 void test_main() {

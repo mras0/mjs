@@ -178,7 +178,28 @@ bool is_strict_mode_directive(const expression& e) {
     }
     assert(le.t().text() == strict_directive);
     return true;
+}
 
+constexpr bool is_octal_char(char16_t ch) { return ch >= '0' && ch <= '7'; }
+
+bool is_octal_literal(const std::wstring_view s) {
+    assert(s.length() > 0);
+    return s.length() > 1 && s[0] == '0' && is_octal_char(s[1]);
+}
+
+bool has_octal_escape_sequence(const std::wstring_view s) {
+    bool quote = false;
+    for (const auto& ch: s) {
+        if (quote) {
+            if (is_octal_char(ch)) {
+                return true;
+            }
+            quote = false;
+        } else if (ch == '\\') {
+            quote = true;
+        }
+    }
+    return false;
 }
 
 class parser {
@@ -343,6 +364,10 @@ private:
         return t;
     }
 
+    source_extend active_extend() const {
+        return source_extend{source_, token_start_, lexer_.text_position()};
+    }
+
     token accept(token_type tt) {
         if (current_token_type() == tt) {
             return get_token();
@@ -358,6 +383,19 @@ private:
             throw std::runtime_error(oss.str());
         }
         return t;
+    }
+
+    void check_literal() {
+        const auto tt = current_token_type();
+        assert(is_literal(tt));
+        if (!strict_mode_) {
+            return;
+        }
+        if (tt == token_type::numeric_literal && is_octal_literal(active_extend().source_view())) {
+            SYNTAX_ERROR("Octal literals may not be used in strict mode");
+        } else if (tt == token_type::string_literal && has_octal_escape_sequence(active_extend().source_view())) {
+            SYNTAX_ERROR("Octal escape sequences may not be used in strict mode");
+        }
     }
 
     void expect_semicolon_allow_insertion(const char* func, int line) {
@@ -436,6 +474,7 @@ private:
             EXPECT(token_type::rparen);
             return e;
         } else if (is_literal(current_token_type())) {
+            check_literal();
             return make_expression<literal_expression>(get_token());
         }
         UNHANDLED();
@@ -851,7 +890,8 @@ private:
 
     [[noreturn]] void syntax_error(const char* function, int line, const std::string_view message) {
         std::ostringstream oss;
-        oss << "Syntax error in " << function  << " line " << line << " at " << current_token() << ": " << message;
+        auto s = cpp_quote(active_extend().source_view());
+        oss << "Syntax error in " << function  << " line " << line << " at \"" << std::string(s.begin(),s.end()) << "\": " << message;
         throw std::runtime_error(oss.str());
     }
 };
@@ -886,10 +926,9 @@ expression_ptr parser::parse_identifier_name(const char* func, int line) {
 
 expression_ptr parser::parse_property_name() {
     RECORD_EXPRESSION_START;
-    if (auto sl = accept(token_type::string_literal)) {
-        return make_expression<literal_expression>(sl);
-    } else if (auto nl = accept(token_type::numeric_literal)) {
-        return make_expression<literal_expression>(nl);
+    if (current_token_type() == token_type::string_literal || current_token_type() == token_type::numeric_literal) {
+        check_literal();
+        return make_expression<literal_expression>(get_token());
     } else {
         auto p = parse_identifier_name(__func__, __LINE__);
         assert(p && p->type() == expression_type::identifier);

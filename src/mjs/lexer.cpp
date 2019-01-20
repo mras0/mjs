@@ -403,7 +403,7 @@ bool is_whitespace_or_line_terminator(char16_t ch, version ver) {
 std::wstring cpp_quote(const std::wstring_view& s) {
     std::wstring r;
     for (const auto c: s) {
-        if (c < 32 || c > 127 || c == '\'' || c == '\"' || c == '\\') {
+        if (c < 32 || c > 127 || c == '\"' || c == '\\') {
             cpp_quote_escape(r, c);
         } else {
             r += c;

@@ -2,8 +2,6 @@
 
 ## TODO
 - Annex C Strict Mode (Changes need to be done at parser level to support emitting `SyntaxError` in various places)
-- Strict Mode: No octal literals
-- Strict Mode: No octal literal escape sequences
 - Strict Mode: `ReferenceError` when assigning to an undeclared
   identifier
 - Strict Mode: `eval` and `arguments` may not be assigned to (or
@@ -77,6 +75,8 @@
 - `get` / `set`
 - Strict Mode: `FutureReservedWords`
 - Strict Mode: `WithStatement` is a `SyntaxError`
+- Strict Mode: No octal literals
+- Strict Mode: No octal literal escape sequences
 
 ## Notes:
 - 7.1 Form Control Characters changed from ES1 -> ES3 -> ES5
