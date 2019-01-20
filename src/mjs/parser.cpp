@@ -128,6 +128,10 @@ function_base::function_base(const source_extend& body_extend, const std::wstrin
     block_.reset(static_cast<block_statement*>(block.release()));
 }
 
+bool function_base::strict_mode() const {
+    return block_->strict_mode();
+}
+
 void function_base::base_print(std::wostream& os) const {
     os << "{";
     if (!id_.empty()) os << id_ << ", ";
@@ -156,6 +160,27 @@ std::wstring property_name_string(const expression& e) {
 #define RECORD_EXPRESSION_START position_stack_node _expression_position##__LINE__{*this, expression_pos_}
 #define RECORD_STATEMENT_START position_stack_node _statement_position##__LINE__{*this, statement_pos_}
 
+// See ES5.1, 10.1.1 and 14.1. The directive can only occur as the first statement in a function/global scope/eval
+
+const wchar_t strict_directive[] = L"use strict";
+
+bool is_strict_mode_directive(const expression& e) {
+    if (e.type() != expression_type::literal) {
+        return false;
+    }
+    const auto& le = static_cast<const literal_expression&>(e);
+    if (le.t().type() != token_type::string_literal) {
+        return false;
+    }
+    // Check spelling of directive, "A Use Strict Directive may not contain an EscapeSequence or LineContinuation."
+    if (le.extend().source_view().compare(1, sizeof(strict_directive)/sizeof(*strict_directive) -1, strict_directive) != 0) {
+        return false;
+    }
+    assert(le.t().text() == strict_directive);
+    return true;
+
+}
+
 class parser {
 public:
     explicit parser(const std::shared_ptr<source_file>& source)
@@ -181,7 +206,7 @@ public:
         skip_whitespace();
         while (current_token()) {
             try {
-                l.push_back(parse_statement());
+                l.push_back(parse_statement(version_ >= version::es5));
             } catch (const std::exception& e) {
                 std::ostringstream oss;
                 oss << source_extend{source_, token_start_, lexer_.text_position()} << ": " << e.what();
@@ -191,7 +216,7 @@ public:
 #ifdef PARSER_DEBUG
         std::wcout << "\n\n";
 #endif
-        return std::make_unique<block_statement>(source_extend{source_, 0, lexer_.text_position()}, std::move(l));
+        return std::make_unique<block_statement>(source_extend{source_, 0, lexer_.text_position()}, std::move(l), strict_mode_);
     }
 
 private:
@@ -209,10 +234,22 @@ private:
             return source_extend{parent_.source_, pos_, parent_.token_start_};
         }
     private:
-        parser& parent_;
-        position_stack_node* prev_;
-        position_stack_node*& stack_;
-        uint32_t pos_;
+        parser&                 parent_;
+        position_stack_node*    prev_;
+        position_stack_node*&   stack_;
+        uint32_t                pos_;
+    };
+
+    class scoped_strict_mode {
+    public:
+        explicit scoped_strict_mode(parser& p) : parser_(p), strict_before_(p.strict_mode_) {
+        }
+        ~scoped_strict_mode() {
+            parser_.strict_mode_ = strict_before_;
+        }
+    private:
+        parser& parser_;
+        bool    strict_before_;
     };
 
     std::shared_ptr<source_file> source_;
@@ -224,6 +261,7 @@ private:
     bool line_break_skipped_ = false;
     bool supress_in_ = false;
     token current_token_{token_type::eof};
+    bool strict_mode_ = false;
 
     template<typename T, typename... Args>
     expression_ptr make_expression(Args&&... args) {
@@ -253,12 +291,20 @@ private:
         return current_token().type();
     }
 
+    //
+    // The need for this function is a bit of a hack. Before the parser gets to look
+    // at a token, the token needs to be validated or transformed depending on the
+    // language version and strict mode setting. This is handled here in coordination
+    // with parse_statement() which makes sure strict mode is enabled at the right time.
+    //
     void check_token() {
         current_token_ = lexer_.current_token();
         if (is_reserved(current_token_type(), version_)) {
             SYNTAX_ERROR(current_token_type() << " is reserved in " << version_);
         } else if (version_ >= version::es5 && find_token(current_token_type(), es5_strict_reserved_tokens)) {
-            // A bit of hack. Convert to an identifier token
+            if (strict_mode_) {
+                SYNTAX_ERROR(current_token_type() << " is reserved in " << version_ << " strict mode");
+            }
             current_token_ = token{token_type::identifier, token_string(current_token_type())};
         }
     }
@@ -486,7 +532,9 @@ private:
             } while (accept(token_type::comma));
             EXPECT(token_type::rparen);
         }
-        auto block = parse_block();
+        scoped_strict_mode ssm{*this};   // Make sure state is restored afterwards
+        // Only check for strict mode if it makes a difference
+        auto block = parse_block(!strict_mode_ && version_ >= version::es5);
         const auto body_end = block->extend().end;
         return std::make_tuple(source_extend{source_, body_start, body_end}, std::move(params), std::move(block));
     }
@@ -566,13 +614,15 @@ private:
         }
     }
 
-    statement_ptr parse_block() {
+    statement_ptr parse_block(bool check_for_strict_mode = false) {
         EXPECT(token_type::lbrace);
         statement_list l;
+
         while (!accept(token_type::rbrace)) {
-            l.push_back(parse_statement());
+            l.push_back(parse_statement(check_for_strict_mode));
+            check_for_strict_mode = false;
         }
-        return make_statement<block_statement>(std::move(l));
+        return make_statement<block_statement>(std::move(l), strict_mode_);
     }
 
     declaration::list parse_variable_declaration_list() {
@@ -599,7 +649,7 @@ private:
         return L"";
     }
 
-    statement_ptr parse_statement() {
+    statement_ptr parse_statement(bool check_for_strict_mode = false) {
         RECORD_STATEMENT_START;
         // Statement :
         //  Block
@@ -776,6 +826,12 @@ private:
                     UNHANDLED();
                 }
                 return make_statement<labelled_statement>(static_cast<const identifier_expression&>(*e).id(), parse_statement());
+            }
+            if (check_for_strict_mode && is_strict_mode_directive(*e)) {
+                strict_mode_ = true;
+#ifdef PARSER_DEBUG
+                std::wcout << s->extend() << ": Strict mode enabled\n";
+#endif
             }
             EXPECT_SEMICOLON_ALLOW_INSERTION();
             return make_statement<expression_statement>(std::move(e));

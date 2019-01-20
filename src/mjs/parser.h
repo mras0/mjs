@@ -436,6 +436,7 @@ public:
     const std::vector<std::wstring>& params() const { return params_; }
     const block_statement& block() const { return *block_; }
     const std::shared_ptr<block_statement>& block_ptr() const { return block_; }
+    bool strict_mode() const;
 
 protected:
     explicit function_base(const source_extend& body_extend, const std::wstring& id, std::vector<std::wstring>&& params, statement_ptr&& block);
@@ -490,21 +491,24 @@ auto accept(const expression& e, Visitor& v) {
 
 class block_statement : public statement {
 public:
-    explicit block_statement(const source_extend& extend, statement_list&& l) : statement(extend), l_(std::move(l)) {}
+    explicit block_statement(const source_extend& extend, statement_list&& l, bool strict = false) : statement(extend), l_(std::move(l)), strict_mode_(strict) {}
 
     statement_type type() const override { return statement_type::block; }
 
     const statement_list& l() const { return l_; }
+    bool strict_mode() const { return strict_mode_; }
+
 private:
     statement_list l_;
+    bool strict_mode_;
 
     void print(std::wostream& os) const override {
-        os << "block_statement{";
+        os << "block_statement{" << (strict_mode_ ? "strict" : "non-strict") << ", {";
         for (size_t i = 0; i < l_.size(); ++i) {
             if (i) os << ", ";
             os << *l_[i];
         }
-        os << "}";
+        os << "}}";
     }
 };
 

@@ -1,7 +1,7 @@
 # Supporting ECMAScript 5th Edition
 
 ## TODO
-- Annex C Strict Mode (Changes need to be done at parser level to support emitting SyntaxError in various places)
+- Annex C Strict Mode (Changes need to be done at parser level to support emitting `SyntaxError` in various places)
 - Annex E: 15.3.4.3,4: Change in handling of `null`/`undefined` when passed to `apply/call` (Note: most e.g. Object.prototype functions have been changed to call `ToObject` on the this argument, need to retest many functions...)
 
 ## Done:
@@ -13,7 +13,7 @@
 - Annex D: 15.10.6: `RegExp.prototype` should be a `RegExp` object
 - Annex D 11.8.2, 11.8.3, 11.8.5: Order of calls to `ToPrimitive` in comparisons
 - Annex D 12.4: Exception object
-- Annex D: 13: Scope rules for FunctionExpression
+- Annex D: 13: Scope rules for `FunctionExpression`
 - Annex E: 15.3.5.2: Make the `prototype` property of function objects non-enumerable
 - Annex E: 7.1: Handling of format control characters
 - Annex E: 7.2: `<BOM>` is white space
@@ -26,38 +26,38 @@
 - Annex E: 15.3.4.3: Relax restrictions on the `arguments` argument to `Function.prototype.apply`
 - Annex E: 15.5.5.2: Array like access to `String` objects
 - Annex E: 15.4.4: `Array.prototype.to(Locale)String()` are now generic
-- Annex E: 7.8.5: Changes to handling of RegExp literals
-- String.prototype.trim
-- Date.now
-- Date.prototype.toISOString
+- Annex E: 7.8.5: Changes to handling of `RegExp` literals
+- `String.prototype.trim`
+- `Date.now`
+- `Date.prototype.toISOString`
 - Annex E: 15.9.4.2: `Date.parse` should attempt to parse as ISO format string
-- Date.prototype.toJSON
-- Object.getPrototypeOf
-- Object.getOwnPropertyNames
-- Object.keys
-- Object.getOwnPropertyDescriptor
-- Object.defineProperty
-- Object.defineProperties
-- Object.preventExtensions
-- Object.isExtensible
-- Object.seal
-- Object.isSealed
-- Object.freeze
-- Object.isFrozen
-- Object.create
-- Array.prototype.indexOf
-- Array.prototype.lastIndexOf
-- Array.prototype.every
-- Array.prototype.some
-- Array.prototype.forEach
-- Array.prototype.map
-- Array.prototype.filter
-- Array.prototype.reduce
-- Array.prototype.reduceRight
-- Function.prototype.bind
-- Array.isArray
-- JSON.stringify
-- JSON.parse
+- `Date.prototype.toJSON`
+- `Object.getPrototypeOf`
+- `Object.getOwnPropertyNames`
+- `Object.keys`
+- `Object.getOwnPropertyDescriptor`
+- `Object.defineProperty`
+- `Object.defineProperties`
+- `Object.preventExtensions`
+- `Object.isExtensible`
+- `Object.seal`
+- `Object.isSealed`
+- `Object.freeze`
+- `Object.isFrozen`
+- `Object.create`
+- `Array.prototype.indexOf`
+- `Array.prototype.lastIndexOf`
+- `Array.prototype.every`
+- `Array.prototype.some`
+- `Array.prototype.forEach`
+- `Array.prototype.map`
+- `Array.prototype.filter`
+- `Array.prototype.reduce`
+- `Array.prototype.reduceRight`
+- `Function.prototype.bind`
+- `Array.isArray`
+- `JSON.stringify`
+- `JSON.parse`
 - `get` / `set`
 
 ## Notes:
@@ -71,3 +71,6 @@
 - Many changes listed as new functions on `Object` actually require major changes (e.g. `defineProperty`). Property attributes can now change at runtime.
 - Ugly that array properties can also be getter/setters
 - Suddenly many more places where garbage collection can happen (user-defined functions are now potentially called everywhere!)
+- Reserved words switch back and forth and differing between strict and non-strict mode!
+- Another parser hack to properly support the strict mode directive
+  (stateful parser already necessary for semicolon insertion and regular expression literals)

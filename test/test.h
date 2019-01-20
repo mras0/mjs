@@ -9,7 +9,7 @@
 #include <mjs/value.h>
 #include <mjs/version.h>
 
-#define REQUIRE_EQ(l, r) do { auto _l = l; auto _r = r; if (_l != _r) { std::wcerr << __func__ << " in " << __FILE__ << ":" << __LINE__ << ":\n" << #l << " != " << #r << "\n" << _l << " != " << _r << "\n"; std::abort(); } } while (0)
+#define REQUIRE_EQ(l, r) do { auto _l = l; auto _r = r; if (_l != _r) { std::wcerr << __func__ << " in " << __FILE__ << ":" << __LINE__ << ":\n" << #l << " != " << #r << "\n" << _l << " != " << _r << "\n" << tested_version() << "\n"; std::abort(); } } while (0)
 #define REQUIRE(e) REQUIRE_EQ(!!(e), true)
 
 template<typename CharT, typename T>

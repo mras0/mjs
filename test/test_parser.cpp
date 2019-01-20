@@ -595,15 +595,14 @@ constexpr struct {
     { "yield"        , none     , none     , strict   },
 };
 
-word_class classify(const char* str) {
+word_class classify(const char* str, bool use_strict) {
     try {
-        const auto bs = parse_text(str);
+        const auto bs = parse_text(use_strict ? (std::string{"'use strict';"} + str).c_str() : str);
         REQUIRE(bs);
-        REQUIRE_EQ(bs->l().size(), 1U);
-        REQUIRE(bs->l()[0]);
-        const auto& s = *bs->l()[0];
+        REQUIRE_EQ(bs->l().size(), use_strict ? 2U : 1U);
+        const auto& s = *bs->l()[use_strict ? 1 : 0];
         if (s.type() == statement_type::expression) {
-            const auto& e = static_cast<const expression_statement&>(*bs->l()[0]).e();
+            const auto& e = static_cast<const expression_statement&>(s).e();
             if (e.type() == expression_type::identifier) {
                 return none;
             }
@@ -613,6 +612,9 @@ word_class classify(const char* str) {
         const auto estr = std::string{e.what()};
         if (estr.find("reserved") != std::string::npos) {
             REQUIRE(estr.find(str) != std::string::npos);
+            if (estr.find("strict") != std::string::npos) {
+                return strict;
+            }
             return reserved;
         }
         return keyword;
@@ -624,13 +626,51 @@ word_class classify(const char* str) {
 void check_resered_words() {
     using namespace identifier_classification;
     for (const auto& in: classifications) {
-        const auto res = classify(in.str);
         auto expect = in.get_class();
-        if (expect == strict) {
-            expect = none; // Strict mode isn't supported yet
+        if (expect != strict) {
+            REQUIRE_EQ(classify(in.str, false), expect);
+            REQUIRE_EQ(classify(in.str, true), expect);
+        } else {
+            REQUIRE_EQ(classify(in.str, false), none);
+            REQUIRE_EQ(classify(in.str, true),  strict);
         }
-        REQUIRE_EQ(res, expect);
     }
+}
+
+void test_strict_mode() {
+    const auto v = tested_version();
+    auto is_strict_global = [](const char* text) { return parse_text(text)->strict_mode(); };
+    REQUIRE_EQ(is_strict_global("'use strict'"), v >= version::es5);
+    REQUIRE_EQ(is_strict_global("\"use strict\""), v >= version::es5);
+    REQUIRE_EQ(is_strict_global("\"use strict\";"), v >= version::es5);
+    REQUIRE_EQ(is_strict_global("'\\u0075se strict';"), false);
+    REQUIRE_EQ(is_strict_global("'use'+'strict'"), false);
+
+    {
+        auto bs = parse_text("if (1) { 'use strict'; }");
+        REQUIRE_EQ(bs->strict_mode(), false);
+        REQUIRE_EQ(bs->l().size(), 1U);
+        REQUIRE_EQ(bs->l()[0]->type(), statement_type::if_);
+        const auto& if_s = static_cast<const if_statement&>(*bs->l()[0]);
+        REQUIRE(!if_s.else_s());
+        REQUIRE_EQ(if_s.if_s().type(), statement_type::block);
+        REQUIRE(!static_cast<const block_statement&>(if_s.if_s()).strict_mode());
+    }
+
+    auto is_strict_function = [](const std::string& body) {
+        auto bs = parse_text(("function f(){" + body + "}").c_str());
+        REQUIRE(!bs->strict_mode());
+        REQUIRE_EQ(bs->l().size(), 1U);
+        REQUIRE_EQ(bs->l()[0]->type(), statement_type::function_definition);
+        const auto& f = static_cast<const function_definition&>(*bs->l()[0]);
+        REQUIRE_EQ(f.id(), L"f");
+        REQUIRE_EQ(f.params().size(), 0U);
+        return f.block().strict_mode();
+    };
+
+    REQUIRE_EQ(is_strict_function("'use strict'"), v >= version::es5);
+    REQUIRE_EQ(is_strict_function("1;'use strict'"), false);
+    REQUIRE_EQ(is_strict_function("'\\x75se strict'"), false);
 }
 
 void test_main() {
@@ -652,4 +692,5 @@ void test_main() {
     if (tested_version() < version::es5) {
         test_fails_with_es5_constructors();
     }
+    test_strict_mode();
 }
