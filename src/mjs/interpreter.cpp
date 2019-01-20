@@ -169,7 +169,10 @@ private:
             return nullptr;
         }
         auto& h = heap();
-        for (auto& p: params_.dereference(h)) {
+        const auto ps = params_.dereference(h);
+        const auto pdat = ps.data();
+        for (uint32_t index = ps.length(); index--;) {
+            auto& p = pdat[index];
             if (p.key.dereference(h).view() == s) {
                 return &p;
             }

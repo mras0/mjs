@@ -749,6 +749,21 @@ void test_strict_mode() {
             REQUIRE(std::string(e.what()).find(R"(at "'\\164es\\164\\130'")") != std::string::npos);
         }
     }
+
+    //
+    // Parameter names may not be repeated
+    //
+    const wchar_t* const repeated_args = L"function f(a,a) { return a+a; }; f(1,2)";
+    RUN_TEST(repeated_args, value{4.});
+    if (v >= version::es5) {
+        auto ep = test_parse_fails(std::wstring(L"'use strict';")+repeated_args);
+        try {
+            std::rethrow_exception(ep);
+        } catch (const std::exception& e) {
+            REQUIRE(std::string(e.what()).find("Parameter names may not be repeated in strict mode") != std::string::npos);
+            REQUIRE(std::string(e.what()).find(R"(at "a")") != std::string::npos);
+        }
+    }
 }
 
 void test_main() {

@@ -568,6 +568,9 @@ private:
         std::vector<std::wstring> params;
         if (!accept(token_type::rparen)) {
             do {
+                if (strict_mode_ && current_token_type() == token_type::identifier &&  std::find(params.begin(), params.end(), current_token().text()) != params.end()) {
+                    SYNTAX_ERROR("Parameter names may not be repeated in strict mode");
+                }
                 params.push_back(EXPECT(token_type::identifier).text());
             } while (accept(token_type::comma));
             EXPECT(token_type::rparen);
