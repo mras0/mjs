@@ -28,4 +28,24 @@ std::wstring utf8_to_utf16(const std::string_view in) {
     return res;
 }
 
+std::string utf16_to_utf8(const std::wstring_view in) {
+    std::string res;
+    const auto l = static_cast<unsigned>(in.length());
+    char buffer[utf8_max_length];
+    for (unsigned i = 0; i < l;) {
+        const auto conv = utf16_to_utf32(&in[i], l - i);
+        if (conv.length == invalid_length) {
+            throw conversion_error{};
+        }
+        const auto out_len = utf32_to_utf8(conv.code_point, buffer);
+        if (!out_len) {
+            throw conversion_error{};
+        }
+        res.insert(res.end(), buffer, buffer + out_len);
+        i += conv.length;
+    }
+
+    return res;
+}
+
 } // namespace mjs::unicode

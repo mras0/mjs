@@ -764,6 +764,25 @@ void test_strict_mode() {
             REQUIRE(std::string(e.what()).find(R"(at "a")") != std::string::npos);
         }
     }
+
+    //
+    // It is a SyntaxError if strict mode code contains an ObjectLiteral with more
+    // than one definition of any data property (only until ES2015?)
+    //
+    const wchar_t* const repeated_data_properties = L"({1e3:1,'1000':2}[1000])";
+    if (v >= version::es3) {
+        RUN_TEST(repeated_data_properties, value{2.});
+    }
+    if (v >= version::es5) {
+        RUN_TEST(L"({get x(){return 42;}, set x(a){}}).x", value{42.});
+        auto ep = test_parse_fails(std::wstring(L"'use strict';")+repeated_data_properties);
+        try {
+            std::rethrow_exception(ep);
+        } catch (const std::exception& e) {
+            REQUIRE(std::string(e.what()).find("Data properties may only be defined once in strict mode") != std::string::npos);
+            REQUIRE(std::string(e.what()).find(R"("1000")") != std::string::npos);
+        }
+    }
 }
 
 void test_main() {

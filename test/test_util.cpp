@@ -5,6 +5,11 @@
 using namespace mjs;
 using namespace mjs::unicode;
 
+// blah
+std::wostream& operator<<(std::wostream& os, const std::string& s) {
+    return os << s.c_str();
+}
+
 void test_utf8_length() {
     const struct {
         uint8_t end;
@@ -115,9 +120,27 @@ void test_utf8_to_utf16() {
         utf8_to_utf16("\xf8\x00\x00\x00\x00");
         REQUIRE(false);
     } catch (const std::exception& e) {
-        REQUIRE_EQ(std::wstring(e.what(), e.what() + std::strlen(e.what())), L"Unicode conversion failed");
+        REQUIRE_EQ(std::string(e.what()), "Unicode conversion failed");
     }
+}
 
+void test_utf16_to_utf8() {
+#define TC(s, d) REQUIRE_EQ(utf16_to_utf8(s), d)
+    TC( L""             , ""                 );
+    TC( L"xyz"          , "xyz"              );
+    TC( L"\x0024"       , "$"                );
+    TC( L"\x00A2"       , "\xC2\xA2"         );
+    TC( L"\x0939"       , "\xE0\xA4\xB9"     );
+    TC( L"\x20AC"       , "\xE2\x82\xAC"     );
+    TC( L"\xD800\xDF48" , "\xF0\x90\x8D\x88" );
+    TC( L"\xDBFF\xDFFF" , "\xf4\x8f\xbf\xbf" );
+#undef TC
+    try {
+        utf16_to_utf8(L"\xDC00\xDC00");
+        REQUIRE(false);
+    } catch (const std::exception& e) {
+        REQUIRE_EQ(std::string(e.what()), "Unicode conversion failed");
+    }
 }
 
 void test_main() {
@@ -125,4 +148,5 @@ void test_main() {
     test_utf8_conversion();
     test_utf16_conversion();
     test_utf8_to_utf16();
+    test_utf16_to_utf8();
 }

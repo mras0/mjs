@@ -1,5 +1,6 @@
 #include "parser.h"
 #include "number_to_string.h"
+#include "char_conversions.h"
 #include <sstream>
 #include <algorithm>
 
@@ -12,7 +13,7 @@
 #define UNHANDLED() unhandled(__FUNCTION__, __LINE__)
 #define EXPECT(tt) expect(tt, __FUNCTION__, __LINE__)
 #define EXPECT_SEMICOLON_ALLOW_INSERTION() expect_semicolon_allow_insertion(__FUNCTION__, __LINE__)
-#define SYNTAX_ERROR(expr) do { std::ostringstream _oss; _oss << expr; syntax_error(__FUNCTION__, __LINE__, _oss.str()); } while (0)
+#define SYNTAX_ERROR(expr) do { std::wostringstream _oss; _oss << expr; syntax_error(__FUNCTION__, __LINE__, _oss.str()); } while (0)
 
 namespace mjs {
 
@@ -457,6 +458,16 @@ private:
                     }
                 }
                 elements.push_back(parse_property_name_and_value());
+                if (strict_mode_ && elements.back().type() == property_assignment_type::normal) {
+                    // Repeated definitions are not allowed for data properties
+                    const auto new_item = elements.back().name_str();
+                    auto it = std::find_if(elements.begin(), elements.end() - 1, [&new_item](const property_name_and_value& v) {
+                        return v.type() == property_assignment_type::normal && v.name_str() == new_item;
+                    });
+                    if (it != elements.end()) {
+                        SYNTAX_ERROR("Data properties may only be defined once in strict mode: \"" << cpp_quote(new_item) << "\"");
+                    }
+                }
             }
             return make_expression<object_literal_expression>(std::move(elements));
         } else if (version_ >= version::es3 && (current_token_type() == token_type::divide || current_token_type() == token_type::divideequal)) {
@@ -891,11 +902,10 @@ private:
         throw std::runtime_error(oss.str());
     }
 
-    [[noreturn]] void syntax_error(const char* function, int line, const std::string_view message) {
-        std::ostringstream oss;
-        auto s = cpp_quote(active_extend().source_view());
-        oss << "Syntax error in " << function  << " line " << line << " at \"" << std::string(s.begin(),s.end()) << "\": " << message;
-        throw std::runtime_error(oss.str());
+    [[noreturn]] void syntax_error(const char* function, int line, const std::wstring_view message) {
+        std::wostringstream oss;
+        oss << "Syntax error in " << function  << " line " << line << " at \"" << cpp_quote(active_extend().source_view()) << "\": " << message;
+        throw std::runtime_error(unicode::utf16_to_utf8(oss.str()));
     }
 };
 
@@ -953,7 +963,7 @@ property_name_and_value parser::parse_property_name_and_value() {
                 auto [extend, params, block] = parse_function();
                 const size_t expected_args = is_get ? 0 : 1;
                 if (expected_args != params.size()) {
-                    SYNTAX_ERROR("Wrong number of arguments to " << std::string(p_id.begin(), p_id.end()) << " " << params.size() << " expected " << expected_args);
+                    SYNTAX_ERROR("Wrong number of arguments to " << p_id << " " << params.size() << " expected " << expected_args);
                 }
 
                 auto f = make_expression<function_expression>(extend, id, std::move(params), std::move(block));

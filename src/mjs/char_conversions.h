@@ -157,6 +157,7 @@ constexpr unsigned utf32_to_utf16(char32_t code_point, CharT* out) {
 }
 
 std::wstring utf8_to_utf16(const std::string_view in);
+std::string utf16_to_utf8(const std::wstring_view in);
 
 } // namespace mjs::unicode
 

@@ -10,8 +10,6 @@
 - Strict Mode: `caller` and `callee` may not be accessed on functions
 - Strict Mode: Arguments don't alias formal parameters
 - Strict Mode: `arguments` is immutable
-- Strict Mode: Object literals may only contain one definition of data
-  property
 - Strict Mode: eval code gets its own environment
 - Strict Mode: `this` is not coerced to an object
 - Strict Mode: `SyntaxError` when trying to delete a variable or function argument/name
@@ -77,6 +75,7 @@
 - Strict Mode: No octal literals
 - Strict Mode: No octal literal escape sequences
 - Strict Mode: function parameters may not have the same name
+- Strict Mode: Object literals may only contain one definition of data property
 
 ## Notes:
 - 7.1 Form Control Characters changed from ES1 -> ES3 -> ES5
