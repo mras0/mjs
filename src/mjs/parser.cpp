@@ -477,10 +477,11 @@ private:
                     }
                     if (elements.back().type() == property_assignment_type::normal) {
                         // Repeated definitions are not allowed for data properties
-                        auto it = std::find_if(elements.begin(), elements.end() - 1, [&new_item](const property_name_and_value& v) {
+                        auto e = elements.end() - 1;
+                        auto it = std::find_if(elements.begin(), e, [&new_item](const property_name_and_value& v) {
                             return v.type() == property_assignment_type::normal && v.name_str() == new_item;
                         });
-                        if (it != elements.end()) {
+                        if (it != e) {
                             SYNTAX_ERROR("Data properties may only be defined once in strict mode: \"" << cpp_quote(new_item) << "\"");
                         }
                     }
@@ -537,8 +538,13 @@ private:
             {
                 accept(t);
                 auto e = parse_unary_expression();
-                if (strict_mode_ && is_strict_mode_unassignable_identifier(*e)) {
-                    SYNTAX_ERROR("\"" << cpp_quote(static_cast<const identifier_expression&>(*e).id()) << "\" may not be modified in strict mode");
+                if (strict_mode_) {
+                    if (t == token_type::delete_ && e->type() == expression_type::identifier) {
+                        SYNTAX_ERROR("May not delete unqualified identifier \"" << cpp_quote(static_cast<const identifier_expression&>(*e).id()) << "\" in strict mode");
+                    }
+                    if (is_strict_mode_unassignable_identifier(*e)) {
+                        SYNTAX_ERROR("\"" << cpp_quote(static_cast<const identifier_expression&>(*e).id()) << "\" may not be modified in strict mode");
+                    }
                 }
                 return make_expression<prefix_expression>(t, std::move(e));
             }

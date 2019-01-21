@@ -2,14 +2,12 @@
 
 ## TODO
 - Annex C Strict Mode (Changes need to be done at parser level to support emitting `SyntaxError` in various places)
-- Strict Mode: `ReferenceError` when assigning to an undeclared
-  identifier
+- Strict Mode: `ReferenceError` when assigning to an undeclared identifier
 - Strict Mode: `caller` and `callee` may not be accessed on functions
 - Strict Mode: Arguments don't alias formal parameters
 - Strict Mode: `arguments` is immutable
 - Strict Mode: eval code gets its own environment
 - Strict Mode: `this` is not coerced to an object
-- Strict Mode: `SyntaxError` when trying to delete a variable or function argument/name
 - Annex E: 15.3.4.3,4: Change in handling of `null`/`undefined` when passed to `apply/call` (Note: most e.g. Object.prototype functions have been changed to call `ToObject` on the this argument, need to retest many functions...)
 
 ## Done:
@@ -75,6 +73,7 @@
 - Strict Mode: Object literals may only contain one definition of data property
 - Strict Mode: `eval` and `arguments` may not be part of object literals
 - Strict Mode: `eval` and `arguments` may not be assigned to (or modified) in many contexts
+- Strict Mode: `SyntaxError` when trying to delete a variable or function argument/name
 
 ## Notes:
 - 7.1 Form Control Characters changed from ES1 -> ES3 -> ES5

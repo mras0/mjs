@@ -497,7 +497,16 @@ public:
             const auto& base = u.reference_value().base();
             const auto& prop = u.reference_value().property_name();
             if (!base) {
+                assert(!strict_mode_);
                 return value{true};
+            }
+            if (strict_mode_) {
+                auto a = base->own_property_attributes(prop.view());
+                if (is_valid(a) && has_attributes(a, property_attribute::dont_delete)) {
+                    std::wostringstream woss;
+                    woss << L"may not delete non-configurable property \"" << prop.view() << "\" in strict mode";
+                    throw native_error_exception{native_error_type::type, stack_trace(), woss.str()};
+                }
             }
             return value{base->delete_property(prop.view())};
         } else if (e.op() == token_type::void_) {

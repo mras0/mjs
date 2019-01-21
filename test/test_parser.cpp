@@ -896,6 +896,46 @@ void test_strict_mode() {
             }
         }
     }
+
+    //
+    // When a delete operator occurs within strict mode code, a SyntaxError is thrown if its
+    // UnaryExpression is a direct reference to a variable, function argument, or function name (11.4.1).
+    //
+
+    (void)parse_text("'use strict'; delete x.y;");
+    (void)parse_text("'use strict'; delete 'x';");
+    (void)parse_text("function f() { 'use strict'; delete x[0]; }");
+    (void)parse_text("function f() { 'use strict'; delete 42; }");
+
+    const struct {
+        version         min_versions;
+        const wchar_t*  text;
+    } delete_cases [] = {
+        { version::es1, L"delete x;" },// Delete of unqualified identifier
+        { version::es1, L"var x; delete x;"} ,
+        { version::es1, L"function f(){}; delete f;" },
+        { version::es1, L"function f() { delete x; }" },
+        { version::es1, L"function f(a) { delete a; }" },
+        { version::es3, L"function f() { if (0) { try { for (;;) { delete x; } } catch(e) {} } }" },
+        { version::es3, L"function f() { if (0) { try { for (var x;;) { delete x; } } catch(e) {} } }" },
+        { version::es5, L"o = { x:42, get a(){ delete x; return 12;} };" },
+    };
+
+    for (const auto tc: delete_cases) {
+        if (tested_version() < tc.min_versions) {
+            continue;
+        }
+        (void)parse_text(tc.text);
+        if (v >= version::es5) {
+            auto ep = test_parse_fails(std::wstring(L"'use strict';")+tc.text);
+            try {
+                std::rethrow_exception(ep);
+            } catch (const std::exception& e) {
+                const auto es = std::string{e.what()};
+                REQUIRE(es.find("May not delete unqualified identifier") != std::string::npos);
+            }
+        }
+    }
 }
 
 void test_main() {

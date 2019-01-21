@@ -38,6 +38,10 @@ void eval_tests() {
     RUN_TEST(L"var x=2; x--;", value{2.0});
     RUN_TEST(L"var x=2; x--; x", value{1.0});
     RUN_TEST(L"var x = 42; delete x; x", value{42.}); // Variables aren't deleted
+    RUN_TEST(L"delete Object.prototype;", value{false});
+    if (tested_version() >= version::es5) {
+        RUN_TEST(L"'use strict';var ge;try{delete Object.prototype;} catch(e) {ge=e;}; ge.toString()", value{string{h, "TypeError: may not delete non-configurable property \"prototype\" in strict mode"}});
+    }
     RUN_TEST(L"var i=42; var x=i; x;", value{42.0});
     RUN_TEST(L"void(2+2)", value::undefined);
     RUN_TEST(L"typeof(2)", value{string{h, "number"}});
