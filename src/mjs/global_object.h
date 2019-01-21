@@ -16,7 +16,7 @@ enum class native_error_type;
 
 class global_object : public object {
 public:
-    static gc_heap_ptr<global_object> make(gc_heap& h, version ver);
+    static gc_heap_ptr<global_object> make(gc_heap& h, version ver, bool& strict_mode);
     virtual ~global_object() {}
 
     virtual object_ptr object_prototype() const = 0;
@@ -26,6 +26,7 @@ public:
     virtual object_ptr regexp_prototype() const = 0;
     virtual object_ptr error_prototype(native_error_type type) const = 0;
     virtual object_ptr to_object(const value& v) = 0;
+    virtual void define_thrower_accessor(object& o, const char* property_name) = 0;
 
     static constexpr auto prototype_attributes = property_attribute::dont_enum | property_attribute::dont_delete | property_attribute::read_only;
     static constexpr auto default_attributes = property_attribute::dont_enum;
@@ -47,6 +48,10 @@ public:
         stack_trace_ = f;
     }
 
+    bool strict_mode() const {
+        return *strict_mode_;
+    }
+
     // Throw TypeError if 'v' is not an object
     object_ptr validate_object(const value& v) const;
 
@@ -58,11 +63,13 @@ public:
 
 protected:
     version version_;
+    bool* strict_mode_;
     using object::object;
     global_object(global_object&&) = default;
 
 private:
     std::function<std::wstring()> stack_trace_;
+    std::function<bool()>         strict_mode_func_;
 };
 
 extern std::wstring index_string(uint32_t index);

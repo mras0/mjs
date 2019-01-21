@@ -432,10 +432,17 @@ global_object_create_result make_console_object(const gc_heap_ptr<global_object>
 
 class string_cache {
 public:
-    explicit string_cache(gc_heap& h, uint32_t capacity) : entries_(gc_vector<entry>::make(h, capacity)) {}
+    explicit string_cache(gc_heap& h, uint32_t capacity)
+        : entries_(gc_vector<entry>::make(h, capacity))
+#ifdef STRING_CACHE_STATS
+        , hack_string_cache_heap_(&h)
+#endif
+    {
+    }
 #ifdef STRING_CACHE_STATS
     ~string_cache() {
-        std::wcout << "string_cache capcity " << entries_->capacity() << " length " << entries_->length() << "\n";
+        auto& e = entries_.dereference(*hack_string_cache_heap_);
+        std::wcout << "string_cache capcity " << e.capacity() << " length " << e.length() << "\n";
         std::wcout << " " << hits_ << " / " << lookups_ << " (" << 100.*hits_/lookups_ << "%) hit rate avg dist: " << 1.*dist_/hits_ << "\n";
     }
 #endif
@@ -506,6 +513,7 @@ private:
     gc_heap_ptr_untracked<gc_vector<entry>> entries_;
 
 #ifdef STRING_CACHE_STATS
+    gc_heap* hack_string_cache_heap_;
     uint32_t lookups_ = 0;
     uint32_t hits_    = 0;
     uint64_t dist_    = 0;
@@ -573,6 +581,10 @@ public:
         }
     }
 
+    void define_thrower_accessor(object& o, const char* property_name) override {
+        o.define_accessor_property(common_string(property_name), thrower_.track(heap()), property_attribute::dont_enum|property_attribute::dont_delete);
+    }
+
 private:
     string_cache string_cache_;
     gc_heap_ptr_untracked<object> object_prototype_;
@@ -583,6 +595,8 @@ private:
     gc_heap_ptr_untracked<object> number_prototype_;
     gc_heap_ptr_untracked<object> regexp_prototype_;
     gc_heap_ptr_untracked<object> error_prototype_[num_native_error_types];
+    gc_heap_ptr_untracked<object> thrower_;
+
 
     void fixup() {
         auto& h = heap();
@@ -597,6 +611,7 @@ private:
         for (auto& e: error_prototype_) {
             e.fixup(h);
         }
+        thrower_.fixup(h);
         global_object::fixup();
     }
 
@@ -713,6 +728,16 @@ private:
             put_string_function("decodeURIComponent", &decode_uri_component);
         }
 
+        if (version_ >= version::es5) {
+            // ES5.1, 13.2.3 [[ThrowTypeError]]
+            auto throw_func = make_function(self, [global = self](const value&, const std::vector<value>&) -> value {
+                // For now only strict mode code uses this...
+                throw native_error_exception{native_error_type::type, global->stack_trace(), "Property may not be accessed in strict mode"};
+            }, common_string("").unsafe_raw_get(), 0);
+            thrower_ = make_accessor_object(self, value{throw_func}, value{throw_func});
+
+        }
+
         // Add this class as the global object
         put(common_string("global"), value{self}, property_attribute::dont_delete | property_attribute::read_only);
     }
@@ -721,8 +746,12 @@ private:
         return string_cache_.get(heap(), str);
     }
 
-    explicit global_object_impl(gc_heap& h, version ver) : global_object(string{h, "Global"}, h.make<object>(string{h, "Object"}, nullptr)), string_cache_(h, 16) {
+    explicit global_object_impl(gc_heap& h, version ver, bool& strict_mode)
+        : global_object(string{h, "Global"}
+            , h.make<object>(string{h, "Object"}, nullptr))
+        , string_cache_(h, 16) {
         version_ = ver;
+        strict_mode_ = &strict_mode;
     }
 
     global_object_impl(global_object_impl&& other) = default;
@@ -730,8 +759,8 @@ private:
     friend global_object;
 };
 
-gc_heap_ptr<global_object> global_object::make(gc_heap& h, version ver) {
-    auto global = h.make<global_object_impl>(h, ver);
+gc_heap_ptr<global_object> global_object::make(gc_heap& h, version ver, bool& strict_mode) {
+    auto global = h.make<global_object_impl>(h, ver, strict_mode);
     global->popuplate_global(); // Populate here so the self_ptr() won't fail the assert
     return global;
 }

@@ -4,6 +4,10 @@
 using namespace mjs;
 
 void test_main() {
+    // TEMP
+    if (tested_version() < version::es5) return;
+    RUN_TEST(L"function f() {}; delete f.arguments;", value{false});
+
     gc_heap h{256};
     // In ES3 prototype only has attributes DontDelete, in ES1 it's DontEnum
     const string expected_keys{h, tested_version() != version::es3 ? "" : "prototype,"};
@@ -160,6 +164,27 @@ r=new x(42,43,44);
 s; //$string 'this={},arguments={ length=4:number 0=y:object 1=42:number 2=43:number 3=44:number callee=function f(a,b) { s+=\'this=\'+fmtall(this)+\',arguments=\'+fmtall(arguments); this.x=a; this.y=b; }:function}'
 r instanceof f; //$boolean true
 fmtall(r); //$string '{ x=y:object y=42:number}'
+)");
+
+        RUN_TEST_SPEC(R"(
+try { (function(){'use strict'; return arguments.callee;})() } catch (e) { e.toString(); } //$string 'TypeError: Property may not be accessed in strict mode'
+try { (function(){'use strict'; arguments.callee = 42;})()   } catch (e) { e.toString(); } //$string 'TypeError: Property may not be accessed in strict mode'
+try { (function(){'use strict'; return arguments.caller;})() } catch (e) { e.toString(); } //$string 'TypeError: Property may not be accessed in strict mode'
+try { (function(){'use strict'; arguments.caller = 42;})()   } catch (e) { e.toString(); } //$string 'TypeError: Property may not be accessed in strict mode'
+
+function f(){};
+(function(){'use strict'; f.callee=42; return f.callee; })(); //$number 42
+(function(){'use strict'; f.caller=55; return f.caller; })(); //$number 55
+
+(function(){
+    'use strict';
+    function g(){};
+    try { g.arguments;      } catch (e) { e.toString(); } //$string 'TypeError: Property may not be accessed in strict mode'
+    try { g.arguments = 42; } catch (e) { e.toString(); } //$string 'TypeError: Property may not be accessed in strict mode'
+    try { g.caller;         } catch (e) { e.toString(); } //$string 'TypeError: Property may not be accessed in strict mode'
+    try { g.caller = 42;    } catch (e) { e.toString(); } //$string 'TypeError: Property may not be accessed in strict mode'
+})();
+
 )");
     }
 }

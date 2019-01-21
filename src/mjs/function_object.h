@@ -55,25 +55,11 @@ private:
         return value{static_cast<double>(named_args_)};
     }
 
-    value get_arguments() const {
-        return value::null;
-    }
-
     void put_prototype(const value& val) {
         prototype_prop_ = value_representation{val};
     }
 
-    explicit function_object(const gc_heap_ptr<global_object>& global, const string& class_name, const object_ptr& prototype)
-        : native_object(class_name, prototype)
-        , global_(global)
-        , prototype_prop_(value_representation{value::null}) {
-        DEFINE_NATIVE_PROPERTY_READONLY(function_object, length);
-        DEFINE_NATIVE_PROPERTY_READONLY(function_object, arguments);
-        DEFINE_NATIVE_PROPERTY(function_object, prototype);
-
-        static_assert(!gc_type_info_registration<function_object>::needs_destroy);
-        static_assert(gc_type_info_registration<function_object>::needs_fixup);
-    }
+    explicit function_object(const gc_heap_ptr<global_object>& global, const string& class_name, const object_ptr& prototype);
 
     void fixup();
 

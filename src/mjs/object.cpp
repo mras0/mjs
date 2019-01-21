@@ -57,7 +57,7 @@ void object::define_accessor_property(const string& name, const object_ptr& acce
         it->attributes(attr);
         return;
     }
-    assert(!has_property(name.view()));
+    assert(!is_valid(own_property_attributes(name.view())));
     properties_.dereference(heap()).emplace_back(name, value{accessor}, attr);
 }
 

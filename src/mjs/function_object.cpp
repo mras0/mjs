@@ -74,6 +74,22 @@ private:
 static_assert(!gc_type_info_registration<bound_function_args>::needs_destroy);
 static_assert(gc_type_info_registration<bound_function_args>::needs_fixup);
 
+function_object::function_object(const gc_heap_ptr<global_object>& global, const string& class_name, const object_ptr& prototype)
+    : native_object(class_name, prototype)
+    , global_(global)
+    , prototype_prop_(value_representation{value::null}) {
+    DEFINE_NATIVE_PROPERTY_READONLY(function_object, length);
+    DEFINE_NATIVE_PROPERTY(function_object, prototype);
+    if (global->language_version() < version::es5 || !global->strict_mode()) {
+        object::redefine_own_property(global->common_string("arguments"), value::null, property_attribute::dont_delete|property_attribute::dont_enum|property_attribute::read_only);
+    } else {
+        global->define_thrower_accessor(*this, "arguments");
+        global->define_thrower_accessor(*this, "caller");
+    }
+
+    static_assert(!gc_type_info_registration<function_object>::needs_destroy);
+    static_assert(gc_type_info_registration<function_object>::needs_fixup);
+}
 
 void function_object::fixup() {
     auto& h = heap();

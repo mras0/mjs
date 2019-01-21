@@ -228,7 +228,7 @@ public:
     explicit impl(gc_heap& h, version ver, const block_statement& program, const on_statement_executed_type& on_statement_executed)
         : heap_(h)
         , program_(program)
-        , global_(global_object::make(h, ver))
+        , global_(global_object::make(h, ver, strict_mode_))
         , on_statement_executed_(on_statement_executed) {
 
 
@@ -300,7 +300,6 @@ public:
             return value{create_function(static_cast<const function_definition&>(*bs->l().front()), make_scope(global_, nullptr))};
         }, func_obj->class_name().unsafe_raw_get(), nullptr, 1);
         static_cast<function_object&>(*func_obj).default_construct_function();
-
 
         for (const auto& id: hoisting_visitor::scan(program)) {
             global_->put(string{heap_, id}, value::undefined, property_attribute::dont_delete);
@@ -1182,6 +1181,7 @@ private:
 
     gc_heap&                       heap_;
     const block_statement&         program_;
+    bool                           strict_mode_ = false; // Must be before global
     scope_ptr                      active_scope_;
     gc_heap_ptr<global_object>     global_;
     on_statement_executed_type     on_statement_executed_;
@@ -1191,7 +1191,6 @@ private:
     const statement*               labels_valid_for_ = nullptr;
     source_extend                  current_extend_;
     bool                           was_direct_call_to_eval_ = false; // To support ES5.1, 15.1.2.1.1 Direct Call to Eval (TODO: Do this smarter...)
-    bool                           strict_mode_ = false;
 
     static scope_ptr make_scope(const object_ptr& act, const scope_ptr& prev) {
         return act.heap().make<scope>(act, prev);
@@ -1249,7 +1248,12 @@ private:
             // Scope
             auto activation = heap_.make<activation_object>(*global_, param_names, args);
             activation->put(global_->common_string("this"), this_, property_attribute::dont_delete | property_attribute::dont_enum | property_attribute::read_only);
-            activation->arguments()->put(global_->common_string("callee"), value{callee}, property_attribute::dont_enum);
+            if (!block->strict_mode()) { // TODO: && this->strict_mode_ ?
+                activation->arguments()->put(global_->common_string("callee"), value{callee}, property_attribute::dont_enum);
+            } else {
+                global_->define_thrower_accessor(*activation->arguments(), "callee");
+                global_->define_thrower_accessor(*activation->arguments(), "caller");
+            }
             // Variables
             for (const auto& var_id: ids) {
                 assert(!activation->has_property(var_id)); // TODO: Handle this..
