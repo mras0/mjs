@@ -152,6 +152,7 @@ constexpr bool is_relational(token_type tt) {
     return tt == token_type::lt || tt == token_type::ltequal || tt == token_type::gt || tt == token_type::gtequal;
 }
 
+extern bool is_assignment_op(token_type t);
 extern token_type without_assignment(token_type t);
 
 const char* op_text(token_type tt);

@@ -461,7 +461,28 @@ const char* op_text(token_type tt) {
     }
 }
 
+bool is_assignment_op(token_type t) {
+    switch (t) {
+    case token_type::equal:
+    case token_type::plusequal:
+    case token_type::minusequal:
+    case token_type::multiplyequal:
+    case token_type::divideequal:
+    case token_type::modequal:
+    case token_type::lshiftequal:
+    case token_type::rshiftequal:
+    case token_type::rshiftshiftequal:
+    case token_type::andequal:
+    case token_type::orequal:
+    case token_type::xorequal:
+        return true;
+    default:
+        return false;
+    }
+}
+
 token_type without_assignment(token_type t) {
+    assert(is_assignment_op(t));
     switch (t) {
     case token_type::plusequal:         return token_type::plus;
     case token_type::minusequal:        return token_type::minus;

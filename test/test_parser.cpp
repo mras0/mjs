@@ -783,6 +783,119 @@ void test_strict_mode() {
             REQUIRE(std::string(e.what()).find(R"("1000")") != std::string::npos);
         }
     }
+
+    //
+    // It is a SyntaxError if the Identifier "eval" or the Identifier "arguments" occurs as the
+    // Identifier in a PropertySetParameterList of a PropertyAssignment that is contained in
+    // strict code or if its FunctionBody is strict code
+    //
+    const wchar_t* const eval_prop = L"({eval:42}.eval)";
+    const wchar_t* const args_prop = L"({arguments:60}.arguments)";
+    if (v >= version::es3) {
+        RUN_TEST(eval_prop, value{42.});
+        RUN_TEST(args_prop, value{60.});
+    }
+    if (v >= version::es5) {
+        RUN_TEST(L"({get eval(){return 12;}}).eval + ({get arguments(){return 34;}}).arguments", value{46.});
+
+        auto ep1 = test_parse_fails(std::wstring(L"'use strict';")+eval_prop);
+        try {
+            std::rethrow_exception(ep1);
+        } catch (const std::exception& e) {
+            REQUIRE(std::string(e.what()).find("\"eval\" may not be used as a property name in strict mode") != std::string::npos);
+        }
+
+        auto ep2 = test_parse_fails(std::wstring(L"'use strict';")+args_prop);
+        try {
+            std::rethrow_exception(ep2);
+        } catch (const std::exception& e) {
+            REQUIRE(std::string(e.what()).find("\"arguments\" may not be used as a property name in strict mode") != std::string::npos);
+        }
+
+        auto ep3 = test_parse_fails(L"(function(){'use strict';({arguments:1})})();");
+        try {
+            std::rethrow_exception(ep3);
+        } catch (const std::exception& e) {
+            REQUIRE(std::string(e.what()).find("\"arguments\" may not be used as a property name in strict mode") != std::string::npos);
+        }
+    }
+
+    //
+    // It is a SyntaxError if a VariableDeclaration or VariableDeclarationNoIn occurs within strict code
+    // and its Identifier is eval or arguments (12.2.1).
+    //
+    // It is a SyntaxError if the identifier eval or arguments appears within a FormalParameterList of a
+    // strict mode FunctionDeclaration or FunctionExpression
+    //
+    // The identifier eval or arguments may not appear as the LeftHandSideExpression of an Assignment
+    // operator (11.13) or of a PostfixExpression (11.3) or as the UnaryExpression operated upon by
+    // a Prefix Increment (11.4.4) or a Prefix Decrement (11.4.5) operator.
+    //
+    const wchar_t* const var_syntax_error_tests[] = {
+        L"var a,arguments;",
+        L"var eval,x;",
+        L"for (var q,eval;;) {};",
+        L"o = Object.create(null); for (var arguments in o) {};",
+        L"function eval(){};",
+        L"function arguments(){};",
+        L"function x(a,eval){};",
+        L"function x(arguments){};",
+        L"eval=1;",
+        L"arguments<<=2;",
+        L"++eval;",
+        L"--arguments;",
+        L"eval--",
+        L"arguments++",
+    };
+
+    for (const auto t: var_syntax_error_tests) {
+        (void)parse_text(t);
+        if (v >= version::es5) {
+            auto ep = test_parse_fails(std::wstring(L"'use strict';")+t);
+            try {
+                std::rethrow_exception(ep);
+            } catch (const std::exception& e) {
+                REQUIRE(std::string(e.what()).find("in strict mode") != std::string::npos);
+                REQUIRE(std::string(e.what()).find(R"("eval")") != std::string::npos || std::string(e.what()).find(R"("arguments")") != std::string::npos);
+            }
+        }
+    }
+
+    if (v >= version::es5) {
+        const wchar_t* const function_expr = L"(function eval(){})";
+        (void)parse_text(function_expr);
+        auto ep = test_parse_fails(std::wstring(L"'use strict';")+function_expr);
+        try {
+            std::rethrow_exception(ep);
+        } catch (const std::exception& e) {
+            REQUIRE(std::string(e.what()).find("\"eval\" may not be used as a function name in strict mode") != std::string::npos);
+            REQUIRE(std::string(e.what()).find(R"(at "eval")") != std::string::npos);
+        }
+    }
+
+    //
+    // It is a SyntaxError if a TryStatement with a Catch occurs within strict code and the Identifier of
+    // the Catch production is eval or arguments (12.14.1)
+    //
+    if (v >= version::es3) {
+        const wchar_t* const try_catch_syntax_error[] = {
+            L"try {} catch (eval) {}",
+            L"try {} catch (arguments) {}",
+        };
+
+        for (const auto t: try_catch_syntax_error) {
+            (void)parse_text(t);
+            if (v >= version::es5) {
+                auto ep = test_parse_fails(std::wstring(L"'use strict';")+t);
+                try {
+                    std::rethrow_exception(ep);
+                } catch (const std::exception& e) {
+                    REQUIRE(std::string(e.what()).find("may not be used as an identifier in strict mode") != std::string::npos);
+                    REQUIRE(std::string(e.what()).find(R"(at "eval")") != std::string::npos || std::string(e.what()).find(R"(at "arguments")") != std::string::npos);
+                }
+            }
+        }
+    }
 }
 
 void test_main() {

@@ -203,6 +203,17 @@ bool has_octal_escape_sequence(const std::wstring_view s) {
     return false;
 }
 
+bool is_strict_mode_unassignable_identifier(const std::wstring_view name) {
+    return name == L"eval" || name == L"arguments";
+}
+
+bool is_strict_mode_unassignable_identifier(const expression& e) {
+    if (e.type() != expression_type::identifier) {
+        return false;
+    }
+    return is_strict_mode_unassignable_identifier(static_cast<const identifier_expression&>(e).id());
+}
+
 class parser {
 public:
     explicit parser(const std::shared_ptr<source_file>& source, bool strict_mode)
@@ -458,14 +469,20 @@ private:
                     }
                 }
                 elements.push_back(parse_property_name_and_value());
-                if (strict_mode_ && elements.back().type() == property_assignment_type::normal) {
-                    // Repeated definitions are not allowed for data properties
+                if (strict_mode_) {
                     const auto new_item = elements.back().name_str();
-                    auto it = std::find_if(elements.begin(), elements.end() - 1, [&new_item](const property_name_and_value& v) {
-                        return v.type() == property_assignment_type::normal && v.name_str() == new_item;
-                    });
-                    if (it != elements.end()) {
-                        SYNTAX_ERROR("Data properties may only be defined once in strict mode: \"" << cpp_quote(new_item) << "\"");
+                    if (is_strict_mode_unassignable_identifier(new_item)) {
+                        // "args" and "arguments" may not be used as the property name
+                        SYNTAX_ERROR("\"" << cpp_quote(new_item) << "\" may not be used as a property name in strict mode");
+                    }
+                    if (elements.back().type() == property_assignment_type::normal) {
+                        // Repeated definitions are not allowed for data properties
+                        auto it = std::find_if(elements.begin(), elements.end() - 1, [&new_item](const property_name_and_value& v) {
+                            return v.type() == property_assignment_type::normal && v.name_str() == new_item;
+                        });
+                        if (it != elements.end()) {
+                            SYNTAX_ERROR("Data properties may only be defined once in strict mode: \"" << cpp_quote(new_item) << "\"");
+                        }
                     }
                 }
             }
@@ -498,6 +515,9 @@ private:
             return lhs;
         }
         if (auto t = current_token_type(); accept(token_type::plusplus) || accept(token_type::minusminus)) {
+            if (strict_mode_ && is_strict_mode_unassignable_identifier(*lhs)) {
+                SYNTAX_ERROR("\"" << cpp_quote(static_cast<const identifier_expression&>(*lhs).id()) << "\" may not be modified in strict mode");
+            }
             return make_expression<postfix_expression>(t, std::move(lhs));
         }
         return lhs;
@@ -514,8 +534,14 @@ private:
         case token_type::minus:
         case token_type::tilde:
         case token_type::not_:
-            accept(t);
-            return make_expression<prefix_expression>(t, parse_unary_expression());
+            {
+                accept(t);
+                auto e = parse_unary_expression();
+                if (strict_mode_ && is_strict_mode_unassignable_identifier(*e)) {
+                    SYNTAX_ERROR("\"" << cpp_quote(static_cast<const identifier_expression&>(*e).id()) << "\" may not be modified in strict mode");
+                }
+                return make_expression<prefix_expression>(t, std::move(e));
+            }
         default:
             return parse_postfix_expression();
         }
@@ -537,6 +563,10 @@ private:
                 lhs = make_expression<conditional_expression>(std::move(lhs), std::move(l), parse_assignment_expression());
                 continue;
             }
+            if (strict_mode_ && is_assignment_op(op) && is_strict_mode_unassignable_identifier(*lhs)) {
+                SYNTAX_ERROR("\"" << cpp_quote(static_cast<const identifier_expression&>(*lhs).id()) << "\" may not be assigned in strict mode");
+            }
+
             auto rhs = parse_unary_expression();
             for (;;) {
                 const auto look_ahead = current_token_type();
@@ -546,6 +576,7 @@ private:
                 }
                 rhs = parse_expression1(std::move(rhs), look_ahead_precedence);
             }
+
             lhs = make_expression<binary_expression>(op, std::move(lhs), std::move(rhs));
         }
         return std::move(lhs);
@@ -579,8 +610,14 @@ private:
         std::vector<std::wstring> params;
         if (!accept(token_type::rparen)) {
             do {
-                if (strict_mode_ && current_token_type() == token_type::identifier &&  std::find(params.begin(), params.end(), current_token().text()) != params.end()) {
-                    SYNTAX_ERROR("Parameter names may not be repeated in strict mode");
+                if (strict_mode_ && current_token_type() == token_type::identifier) {
+                    auto n = current_token().text();
+                    if (is_strict_mode_unassignable_identifier(n)) {
+                        SYNTAX_ERROR("\"" << cpp_quote(n) << "\" may not be used as a parameter name in strict mode");
+                    }
+                    if (std::find(params.begin(), params.end(), current_token().text()) != params.end()) {
+                        SYNTAX_ERROR("Parameter names may not be repeated in strict mode");
+                    }
                 }
                 params.push_back(EXPECT(token_type::identifier).text());
             } while (accept(token_type::comma));
@@ -610,6 +647,12 @@ private:
             me = make_expression<prefix_expression>(token_type::new_, std::move(e));
         } else if (version_ >= version::es3 && accept(token_type::function_)) {
             std::wstring id{};
+            if (strict_mode_ && current_token_type() == token_type::identifier) {
+                auto n = current_token().text();
+                if (is_strict_mode_unassignable_identifier(n)) {
+                    SYNTAX_ERROR("\"" << cpp_quote(n) << "\" may not be used as a function name in strict mode");
+                }
+            }
             if (auto id_token = accept(token_type::identifier)) {
                 id = id_token.text();
             }
@@ -682,7 +725,15 @@ private:
     declaration::list parse_variable_declaration_list() {
         declaration::list l;
         do {
+            if (strict_mode_ && current_token_type() == token_type::identifier) {
+                if (auto n = current_token().text(); is_strict_mode_unassignable_identifier(n)) {
+                    // "args" and "arguments" may not be used as variable names
+                    SYNTAX_ERROR("\"" << cpp_quote(n) << "\" may not appear in a variable declaration in strict mode");
+                }
+            }
+
             auto id = EXPECT(token_type::identifier).text();
+
             expression_ptr init{};
             if (accept(token_type::equal)) {
                 RECORD_EXPRESSION_START;
@@ -724,6 +775,13 @@ private:
         if (current_token_type() == token_type::lbrace) {
             return parse_block();
         } else if (accept(token_type::function_)) {
+            if (strict_mode_ && current_token_type() == token_type::identifier) {
+                auto n = current_token().text();
+                if (is_strict_mode_unassignable_identifier(n)) {
+                    SYNTAX_ERROR("\"" << cpp_quote(n) << "\" may not be used as a function name in strict mode");
+                }
+            }
+
             auto id = EXPECT(token_type::identifier).text();
             auto [extend, params, block] = parse_function();
             return make_statement<function_definition>(extend, id, std::move(params), std::move(block));
@@ -864,6 +922,12 @@ private:
             std::wstring catch_id;
             if (accept(token_type::catch_)) {
                 EXPECT(token_type::lparen);
+                if (strict_mode_ && current_token_type() == token_type::identifier) {
+                    auto n = current_token().text();
+                    if (is_strict_mode_unassignable_identifier(n)) {
+                        SYNTAX_ERROR("\"" << cpp_quote(n) << "\" may not be used as an identifier in strict mode");
+                    }
+                }
                 catch_id = EXPECT(token_type::identifier).text();
                 EXPECT(token_type::rparen);
                 catch_ = parse_block();
