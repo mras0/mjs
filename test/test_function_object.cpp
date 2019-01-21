@@ -39,6 +39,9 @@ void test_main() {
     // In ES3 prototype is DontDelete
     RUN_TEST(L"function a(){}; (delete a.prototype)", value{false});
 
+    // The function identifier is DontDelete, ReadOnly
+    RUN_TEST(L"function f(){ f=42; return f==42||delete f;}; f()", value{false});
+
     RUN_TEST_SPEC(R"(
 Function.prototype.apply.length; //$number 2
 function f(a,b,c) { return ''+this['x']+a+b+c; }

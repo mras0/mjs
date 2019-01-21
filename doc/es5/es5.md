@@ -2,7 +2,6 @@
 
 ## TODO
 - Annex C Strict Mode (Changes need to be done at parser level to support emitting `SyntaxError` in various places)
-- Strict Mode: `ReferenceError` when assigning to an undeclared identifier
 - Strict Mode: `caller` and `callee` may not be accessed on functions
 - Strict Mode: Arguments don't alias formal parameters
 - Strict Mode: `arguments` is immutable
@@ -74,6 +73,7 @@
 - Strict Mode: `eval` and `arguments` may not be part of object literals
 - Strict Mode: `eval` and `arguments` may not be assigned to (or modified) in many contexts
 - Strict Mode: `SyntaxError` when trying to delete a variable or function argument/name
+- Strict Mode: `ReferenceError` when assigning to an undeclared identifier
 
 ## Notes:
 - 7.1 Form Control Characters changed from ES1 -> ES3 -> ES5

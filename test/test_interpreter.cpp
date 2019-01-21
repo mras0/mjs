@@ -986,6 +986,27 @@ try {
 }
 
 )");
+
+    // ES5.1, 8.72 and  11.13.1
+    if (tested_version() >= version::es5) {
+        RUN_TEST_SPEC(R"(
+'use strict';
+try { a = 42; } catch (e) { e.toString(); } //$string 'ReferenceError: a is not defined'
+try { b ^= 'x'; } catch (e) { e.toString(); } //$string 'ReferenceError: b is not defined'
+try { c++; } catch (e) { e.toString(); } //$string 'ReferenceError: c is not defined'
+try { --d; } catch (e) { e.toString(); } //$string 'ReferenceError: d is not defined'
+try { e >>>= 42; } catch (e) { e.toString(); } //$string 'ReferenceError: e is not defined'
+try { f /=2 } catch (e) { e.toString(); } //$string 'ReferenceError: f is not defined'
+try { 'x' in g } catch (e) { e.toString(); } //$string 'ReferenceError: g is not defined'
+try { h() } catch (e) { e.toString(); } //$string 'ReferenceError: h is not defined'
+try { new i() } catch (e) { e.toString(); } //$string 'ReferenceError: i is not defined'
+try { var o=Object.defineProperty({}, 'x',{value:40,configurable:true,enumerable:true}); o.x=42; } catch (e) { e.toString(); } //$string 'TypeError: Cannot assign to read only property x in strict mode'
+try { var o={get a(){}}; o.a=42; } catch (e) { e.toString(); } //$string 'TypeError: Cannot assign to read only property a in strict mode'
+try { Object.prototype=42; } catch (e) { e.toString(); } //$string 'TypeError: Cannot assign to read only property prototype in strict mode'
+try { (function f(){f=1;})(); } catch (e) { e.toString(); } //$string 'TypeError: Cannot assign to read only property f in strict mode'
+try { var o=Object.preventExtensions({}); o.a=42;} catch (e) { e.toString(); } //$string 'TypeError: Cannot add property a to non-extensible object in strict mode'
+)");
+    }
 }
 
 void test_boolean_object() {
@@ -1196,4 +1217,3 @@ void test_main() {
     test_eval_exception();
     test_console();
 }
-

@@ -1260,7 +1260,7 @@ private:
                 // It's needed for function expressions since `a=function x() { x(...); }` is legal, but x isn't added to the containing scope
                 // TODO: Should actually be done a separate scope object (See ES3, 13)
                 assert(!activation->has_property(id.view())); // TODO: Handle this..
-                activation->put(id, value{callee}, property_attribute::dont_enum);
+                activation->put(id, value{callee}, property_attribute::dont_delete|property_attribute::read_only);
             }
             auto_scope auto_scope_{*this, activation, prev_scope};
             return top_level_eval(*block);
@@ -1292,10 +1292,38 @@ private:
         auto b = r.base();
         if (!b) {
             std::wostringstream woss;
-            woss << r.property_name().view() << " is not defined";
+            woss << cpp_quote(r.property_name().view()) << " is not defined";
             throw native_error_exception{native_error_type::reference, stack_trace(), woss.str()};
         }
         return b->get(r.property_name().view());
+    }
+
+    void check_strict_mode_put(const object_ptr& o, const std::wstring_view p) const {
+        if (!o) {
+            std::wostringstream woss;
+            woss << cpp_quote(p) << " is not defined";
+            throw native_error_exception{native_error_type::reference, stack_trace(), woss.str()};
+        }
+
+        // ES5.1, 11.13.1
+        if (const auto a = o->own_property_attributes(p); is_valid(a)) {
+            if (!has_attributes(a, property_attribute::read_only)) {
+                // OK property is writable
+                return;
+            }
+            std::wostringstream woss;
+            woss << "Cannot assign to read only property " << cpp_quote(p) << " in strict mode";
+            throw native_error_exception{native_error_type::type, stack_trace(), woss.str()};
+        }
+
+        if (o->is_extensible()) {
+            // OK property doesn't exist, but object is extensible
+            return;
+        }
+
+        std::wostringstream woss;
+        woss << "Cannot add property " << cpp_quote(p) << " to non-extensible object in strict mode";
+        throw native_error_exception{native_error_type::type, stack_trace(), woss.str()};
     }
 
     // ES3, 8.7.2
@@ -1308,6 +1336,9 @@ private:
         }
         auto& r = v.reference_value();
         auto b = r.base();
+        if (strict_mode_) {
+            check_strict_mode_put(b, r.property_name().view());
+        }
         if (!b) {
             b = global_;
         }
