@@ -191,26 +191,31 @@ private:
             params_ = gc_vector<param>::make(heap(), static_cast<uint32_t>(param_names.size()));
         }
 
+        const auto ver    = global.language_version();
+        const bool strict = ver >= version::es5 && global.strict_mode();
+
         // Arguments array
         auto as = global.make_arguments_array();
         arguments_ = as;
         as->put(global.common_string("length"), value{static_cast<double>(args.size())}, property_attribute::dont_enum);
         for (uint32_t i = 0; i < args.size(); ++i) {
             string is{heap(), index_string(i)};
-            as->put(is, args[i], global.language_version() >= version::es5 ? property_attribute::none : property_attribute::dont_enum);
+            as->put(is, args[i], ver >= version::es5 ? property_attribute::none : property_attribute::dont_enum);
 
-            //
-            // Handle the (ugly) fact that the arguments array aliases the parameters
-            //
             if (i < param_names.size()) {
-                params_.dereference(heap()).emplace_back(string{heap(), param_names[i]}, is);
+                if (!strict) {
+                    // Handle the (ugly) fact that the arguments array aliases the parameters
+                    params_.dereference(heap()).emplace_back(string{heap(), param_names[i]}, is);
+                } else {
+                    object::put(string{heap(), param_names[i]}, args[i], property_attribute::dont_delete);
+                }
             }
         }
 
         object::put(global.common_string("arguments"), value{as}, property_attribute::dont_delete);
 
         // Add placeholders (see note above)
-        for (size_t i = 0; i < param_names.size(); ++i) {
+        for (size_t i = strict ? args.size() : 0; i < param_names.size(); ++i) {
             object::put(string{heap(), param_names[i]}, value::undefined, property_attribute::dont_delete);
         }
     }
@@ -819,8 +824,7 @@ public:
     }
 
     completion operator()(const block_statement& s) {
-        strict_mode_scope sms{*this};
-        strict_mode_ = s.strict_mode();
+        strict_mode_scope sms{*this, s.strict_mode()};
         completion c{};
         for (const auto& bs: s.l()) {
             c = eval(*bs);
@@ -1172,8 +1176,13 @@ private:
     };
     class strict_mode_scope {
     public:
-        explicit strict_mode_scope(impl& i) : impl_(i), prev_(i.strict_mode_) {}
-        ~strict_mode_scope() { impl_.strict_mode_ = prev_; }
+        explicit strict_mode_scope(impl& i, bool next_) : impl_(i), prev_(i.strict_mode_) {
+            assert(!i.strict_mode_ || next_);
+            i.strict_mode_ = next_;
+        }
+        ~strict_mode_scope() {
+            impl_.strict_mode_ = prev_;
+        }
     private:
         impl& impl_;
         bool  prev_;
@@ -1245,10 +1254,11 @@ private:
         // §15.3.2.1
         auto callee = make_raw_function(global_);
         auto func = [this, block, param_names, prev_scope, callee, id, ids = hoisting_visitor::scan(*block)](const value& this_, const std::vector<value>& args) {
+            strict_mode_scope sms{*this, block->strict_mode()};
             // Scope
             auto activation = heap_.make<activation_object>(*global_, param_names, args);
             activation->put(global_->common_string("this"), this_, property_attribute::dont_delete | property_attribute::dont_enum | property_attribute::read_only);
-            if (!block->strict_mode()) { // TODO: && this->strict_mode_ ?
+            if (!strict_mode_) {
                 activation->arguments()->put(global_->common_string("callee"), value{callee}, property_attribute::dont_enum);
             } else {
                 global_->define_thrower_accessor(*activation->arguments(), "callee");

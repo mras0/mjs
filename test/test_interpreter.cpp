@@ -372,7 +372,7 @@ count(make(4)); //$number 31
     RUN_TEST(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; s.prototype.prop", value::undefined);
     RUN_TEST(L"function s(){} s.prototype.foo = 'bar'; var si = new s(); si.prop = 'some value'; s.prototype.foo", value{string{h, "bar"}});
 
-    // Test arguments
+    // Test arguments alias
     RUN_TEST_SPEC(R"(
 function evil(x, y) {
     arguments.length; //$ number 2
@@ -392,6 +392,25 @@ evil(12, 34);
 
     if (tested_version() >= version::es5) {
         RUN_TEST(L"debugger", value::undefined);
+
+        // No argument aliasing in strict mode
+        RUN_TEST_SPEC(R"(
+function evil(x, y) {
+    'use strict';
+    arguments.length; //$ number 2
+    arguments[0]; //$number 12
+    arguments[1]; //$number 34
+    x; //$number 12
+    y; //$number 34
+    arguments[0] = 56;
+    y = 78;
+    arguments[0]; //$number 56
+    arguments[1]; //$number 34
+    x;            //$number 12
+    y;            //$number 78
+}
+evil(12, 34);
+)");
     }
 
     RUN_TEST_SPEC(R"(
