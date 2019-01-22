@@ -1231,6 +1231,78 @@ try {
 }
 
 void test_main() {
+#if 0
+    RUN_TEST_SPEC(R"(
+function f() { return this; }
+f() == global; //$boolean true
+f(undefined) == global; //$boolean true
+f(null) == global; //$boolean true
+Number.prototype.toString = f;
+n=(42).toString();
+typeof n; //$string 'object'
+n.valueOf(); //$number 42
+)");
+#endif
+#if 1
+    if (tested_version() >= version::es5) {
+        RUN_TEST_SPEC(R"(
+(function () {
+      'use strict';
+
+      function test(Class, instance) {
+        Object.defineProperty(Class.prototype, 'test', {
+          get: function () { passed = passed && this === instance; },
+          set: function () { passed = passed && this === instance; },
+          configurable: true
+        });
+
+        var passed = true;
+        instance.test;
+        instance.test = 42;
+        return passed;
+      }
+
+      test(String, '');    //$boolean true
+      test(Number, 1);     //$boolean true
+      test(Boolean, true); //$boolean true
+    })();
+
+s="(function () {\r\n      'use strict';\r\n\r\n      function test(Class, instance) {\r\n        Object.defineProperty(Class.prototype, 'test', {\r\n          get: function () { passed = passed && this === instance; },\r\n          set: function () { passed = passed && this === instance; },\r\n          configurable: true\r\n        });\r\n\r\n        var passed = true;\r\n        instance.test;\r\n        instance.test = 42;\r\n        return passed;\r\n      }\r\n\r\n      return test(String, '')\r\n        && test(Number, 1)\r\n        && test(Boolean, true);\r\n    })() ";
+console.log(s);
+r=eval(s);
+r//$boolean true
+
+function f() { "use strict"; return this; }
+f(); //$undefined
+f(undefined); //$undefined
+Number.prototype.toString = f;
+n=(42+1).toString();
+typeof n; //$string 'number'
+n === 43; //$boolean true
+n.valueOf(); //$number 43
+
+f.apply(); //$undefined
+f.apply(undefined); //$undefined
+// maybe undefined???
+f.apply(null); //$null
+f.apply(false); //$boolean false
+f.apply(60); //$number 60
+f.apply('x'); //$string 'x'
+
+f.call(); //$undefined
+f.call(undefined); //$undefined
+f.call(null); //$null
+f.call(false); //$boolean false
+f.call(60); //$number 60
+f.call('x'); //$string 'x'
+)");
+
+    }
+
+    std::wcerr << "REMOVE IN " << __FILE__ << ":" << __LINE__ << "\n";
+    if (1) return;
+#endif
+
     eval_tests();
     if (tested_version() >= version::es3) {
         test_es3_statements();

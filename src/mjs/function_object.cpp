@@ -6,7 +6,6 @@ namespace mjs {
 
 namespace {
 static value get_this_arg(const gc_heap_ptr<global_object>& global, const value& this_arg) {
-    // TODO: Check ES5.1, 10.4.3
     if (this_arg.type() == value_type::undefined || this_arg.type() == value_type::null) {
         return value{global};
     } else {
@@ -132,7 +131,9 @@ string function_object::to_string() const {
 
 value function_object::call(const value& this_, const std::vector<value>& args) const {
     if (!call_) throw not_callable_exception{};
-    return call_.dereference(heap()).call(get_this_arg(global_.track(heap()), this_), args);
+    auto global = global_.track(heap());
+    const bool strict = strict_ || global->strict_mode();
+    return call_.dereference(heap()).call(strict ? this_  : get_this_arg(global, this_), args);
 }
 
 value function_object::construct(const value& this_, const std::vector<value>& args) const {

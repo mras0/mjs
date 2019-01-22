@@ -232,6 +232,10 @@ private:
     }
 };
 
+constexpr bool is_reference_op(token_type t) {
+    return t == token_type::dot || t == token_type::lbracket;
+}
+
 class interpreter::impl {
 public:
     explicit impl(gc_heap& h, version ver, const block_statement& program, const on_statement_executed_type& on_statement_executed)
@@ -469,9 +473,25 @@ public:
         return value{make_regexp(global_, e.re())};
     }
 
+    auto eval_call_member(const expression& member) {
+        // For strict mode we need to check if the MemberExpresson results in a primtive type
+        // to be able to pass it on to the called function (even if the expression occurs in
+        // a non-strict context)
+        if (member.type() == expression_type::binary) {
+            const auto& be = static_cast<const binary_expression&>(member);
+            if (is_reference_op(be.op())) {
+                // Commit to handling the evaluation
+                auto l = get_value(eval(be.lhs()));
+                auto r = eval(be.rhs());
+                return std::tuple(make_reference(l, r), l);
+            }
+        }
+        return std::tuple(eval(member), value::undefined);
+    }
+
     value operator()(const call_expression& e) {
-        auto member = eval(e.member());
         // 11.2.3 The order of these two steps are actually reversed prior to ES5, but it's unlikely to be observable
+        auto [member, this_] = eval_call_member(e.member());
         auto mval = get_value(member);
         auto args = eval_argument_list(e.arguments());
         if (mval.type() != value_type::object) {
@@ -482,10 +502,9 @@ public:
         // See ES5.1, 10.4.2 and 15.1.2.1.1
         const bool is_es5_or_later = global_->language_version() >= version::es5;
         was_direct_call_to_eval_ = !is_es5_or_later;
-        auto this_ = value::null;
-        if (member.type() == value_type::reference) {
+        if (this_.type() == value_type::undefined && member.type() == value_type::reference) {
             const auto& ref = member.reference_value();
-            if (auto o = ref.base(); !o.has_type<activation_object>()) {
+            if (auto o = ref.base(); o && !o.has_type<activation_object>() && !is_global_object(o)) {
                 this_ = value{o};
             }
             if (is_es5_or_later && ref.property_name().view() == L"eval") {
@@ -715,6 +734,10 @@ public:
         }
     }
 
+    value make_reference(const value& obj, const value& prop) {
+        return value{reference{global_->to_object(obj), to_string(heap_, prop)}};
+    }
+
     value operator()(const binary_expression& e) {
         if (e.op() == token_type::comma) {
             (void)get_value(eval(e.lhs()));;
@@ -738,8 +761,8 @@ public:
         auto r = get_value(eval(e.rhs()));
         if (e.op() == token_type::andand || e.op() == token_type::oror) {
             return r;
-        } else if (e.op() == token_type::dot || e.op() == token_type::lbracket) {
-            return value{reference{global_->to_object(l), to_string(heap_, r)}};
+        } else if (is_reference_op(e.op())) {
+            return make_reference(l, r);
         } else if (e.op() == token_type::in_) {
             if (r.type() != value_type::object) {
                 std::wostringstream woss;
@@ -1263,6 +1286,9 @@ private:
     object_ptr create_function(const string& id, const std::shared_ptr<block_statement>& block, const std::vector<std::wstring>& param_names, const std::wstring& body_text, const scope_ptr& prev_scope) {
         // §15.3.2.1
         auto callee = make_raw_function(global_);
+        if (block->strict_mode()) {
+            callee->set_strict();
+        }
         auto func = [this, block, param_names, prev_scope, callee, id, ids = hoisting_visitor::scan(*block)](const value& this_, const std::vector<value>& args) {
             strict_mode_scope sms{*this, block->strict_mode()};
             // Scope

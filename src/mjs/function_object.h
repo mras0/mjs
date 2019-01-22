@@ -19,6 +19,11 @@ public:
         construct_function(gc_function::make(heap(), f));
     }
 
+    void set_strict() {
+        assert(!strict_);
+        strict_ = true;
+    }
+
     string to_string() const;
 
     value get_prototype() const {
@@ -50,6 +55,7 @@ private:
     value_representation                 prototype_prop_;
     int named_args_ = 0;
     bool is_native_ = false;
+    bool strict_ = false;
 
     value get_length() const {
         return value{static_cast<double>(named_args_)};
