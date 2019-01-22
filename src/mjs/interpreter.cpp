@@ -132,6 +132,10 @@ private:
 
 class activation_object : public object {
 public:
+    static auto make(const gc_heap_ptr<global_object>& global, const std::vector<std::wstring>& param_names, const std::vector<value>& args) {
+        return global.heap().make<activation_object>(*global, param_names, args);
+    }
+
     object_ptr arguments() const { return arguments_.track(heap()); }
 
     value get(const std::wstring_view& name) const override {
@@ -250,10 +254,16 @@ public:
                 return args.front();
             }
             std::unique_ptr<block_statement> bs;
+
             try {
                 bs = parse(std::make_shared<source_file>(L"eval", args.front().string_value().view(), global_->language_version()), strict_mode_);
             } catch (const std::exception&) {
                 throw native_error_exception{native_error_type::syntax, stack_trace(), L"Invalid argument to eval"};
+            }
+
+            std::unique_ptr<auto_scope> eval_scope;
+            if (bs->strict_mode()) {
+                eval_scope.reset(new auto_scope{*this, activation_object::make(global_, {}, {}), active_scope_});
             }
 
             for (const auto& var_id: hoisting_visitor::scan(*bs)) {
@@ -294,7 +304,7 @@ public:
 
             std::unique_ptr<block_statement> bs;
             try {
-                bs = parse(std::make_shared<source_file>(L"Function definition", L"function anonymous(" + p + L") {\n" + body + L"\n}", global_->language_version()));
+                bs = parse(std::make_shared<source_file>(L"Function definition", L"function anonymous(" + p + L") {\n" + body + L"\n}", global_->language_version()), strict_mode_);
             } catch (const std::exception&) {
                 throw native_error_exception{native_error_type::syntax, stack_trace(), L"Invalid argument to function constructor"};
             }
@@ -1256,7 +1266,7 @@ private:
         auto func = [this, block, param_names, prev_scope, callee, id, ids = hoisting_visitor::scan(*block)](const value& this_, const std::vector<value>& args) {
             strict_mode_scope sms{*this, block->strict_mode()};
             // Scope
-            auto activation = heap_.make<activation_object>(*global_, param_names, args);
+            auto activation = activation_object::make(global_, param_names, args);
             activation->put(global_->common_string("this"), this_, property_attribute::dont_delete | property_attribute::dont_enum | property_attribute::read_only);
             if (!strict_mode_) {
                 activation->arguments()->put(global_->common_string("callee"), value{callee}, property_attribute::dont_enum);

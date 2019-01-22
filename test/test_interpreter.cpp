@@ -454,12 +454,20 @@ eval('var x;'); //$undefined
     if (tested_version() < version::es5) {
         RUN_TEST_SPEC(R"(
 eval('"use strict"; var let;'); //$undefined
+global['x']; //$undefined
+eval('"use strict";var x=42');
+global['x']; //$number 42
 )");
     } else {
         RUN_TEST_SPEC(R"(
 try { eval('"use strict"; var let;'); } catch (e) { e.toString(); } //$string 'SyntaxError: Invalid argument to eval'
 try { eval('(function(){"use strict";var let;})()'); } catch (e) { e.toString(); } //$string 'SyntaxError: Invalid argument to eval'
 try { eval('(function(){"use strict";var let;})()'); } catch (e) { e instanceof SyntaxError; } //$boolean true
+
+global['x']; //$undefined
+eval('"use strict"; var x=42');
+global['x']; //$undefined
+
 )");
 
     }
