@@ -689,16 +689,9 @@ value json_str(stringify_state& state, const std::wstring_view key, const object
     state.call_replacer(v, key, holder);
 
     // 4. If Type(value) is Object then, 
-    if (v.type() == value_type::object) {
-        auto o = v.object_value();
-        // FIXME: Check actual class or handle differently
-        const auto class_name = o->class_name();
-        if (class_name.view() == L"Number") {
-            v = value{to_number(v)};
-        } else if (class_name.view() == L"String") {
-            v = value{to_string(h, v)};
-        } else if (class_name.view() == L"Boolean") {
-            v = value{static_cast<bool>(to_number(v))};
+    if (v.type() == value_type::object) {        
+        if (auto o = v.object_value(); is_primitive_object(*o)) {
+            v = o->internal_value();
         }
     }
 

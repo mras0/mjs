@@ -4,26 +4,34 @@
 using namespace mjs;
 
 void test_main() {
-    // TEMP
-    if (tested_version() < version::es5) return;
-    RUN_TEST(L"function f() {}; delete f.arguments;", value{false});
-
     gc_heap h{256};
     // In ES3 prototype only has attributes DontDelete, in ES1 it's DontEnum
     const string expected_keys{h, tested_version() != version::es3 ? "" : "prototype,"};
     RUN_TEST(L"s=''; function a(){}; for(k in a) { s+=k+','; }; s", value{expected_keys});
     // length and are arguments should be DontDelete|DontEnum|ReadOnly
     RUN_TEST_SPEC(R"(
-    function a(x,y,z){};
-    delete a.length; //$boolean false
-    a.length;//$number 3
-    delete a.arguments; //$boolean false
-    a.arguments; //$null
-    delete a.prototype.constructor; //$boolean true
-    Function.prototype(1,2,3); //$undefined
-    Function.toString(); //$string 'function Function() { [native code] }'
-    Function.prototype.toString(); //$string 'function () { [native code] }'
+function a(x,y,z){};
+delete a.length; //$boolean false
+a.length;//$number 3
+delete a.arguments; //$boolean false
+a.arguments; //$null
+delete a.prototype.constructor; //$boolean true
+Function.prototype(1,2,3); //$undefined
+Function.toString(); //$string 'function Function() { [native code] }'
+Function.prototype.toString(); //$string 'function () { [native code] }'
+
+function f() {}; delete f.arguments; // $boolean false
+
+function f() { return this; }
+f() == global; //$boolean true
+f(undefined) == global; //$boolean true
+f(null) == global; //$boolean true
+Number.prototype.toString = f;
+n=(42).toString();
+typeof n; //$string 'object'
+n.valueOf(); //$number 42
 )");
+
 
     // ES5.1, 15.3.5.2 "In Edition 5, the prototype property of Function instances is not enumerable. In Edition 3, this property was enumerable"
     RUN_TEST(L"function a(){}; s=''; for(k in a)s+=k+','; s", value{string{h, tested_version() != version::es3 ? "" : "prototype,"}});
@@ -186,5 +194,82 @@ function f(){};
 })();
 
 )");
+    }
+
+    //
+    // Check the value of 'this' in strict-mode functions 
+    //
+    if (tested_version() >= version::es5) {
+        RUN_TEST_SPEC(R"(
+(function() {
+    'use strict';
+    var q;
+    Object.defineProperty(Number.prototype, 'foo', {
+        configurable: true,
+        get: function() { return this; },
+        set: function() { q=this; },
+    });
+    var x = 60;
+    x.foo; //$number 60
+    q;//$undefined
+    x.foo *= 2;
+    q;//$number 60
+})();
+
+(function() {
+    'use strict';
+    var q;
+    Object.defineProperty(Boolean.prototype, 'foo', {
+        configurable: true,
+        get: function() { return this; },
+        set: function() { q=this; },
+    });
+    var x = true;
+    x.foo; //$boolean true
+    q;//$undefined
+    x.foo *= 2;
+    q;//$boolean true
+})();
+
+(function() {
+    'use strict';
+    var q;
+    Object.defineProperty(String.prototype, 'foo', {
+        configurable: true,
+        get: function() { return this; },
+        set: function() { q=this; },
+    });
+    var x = 'test';
+    x.foo; //$string 'test'
+    q;//$undefined
+    x.foo *= 2;
+    q;//$string 'test'
+})();
+
+function f() { "use strict"; return this; }
+f(); //$undefined
+f(undefined); //$undefined
+Number.prototype.toString = f;
+n=(42+1).toString();
+typeof n; //$string 'number'
+n === 43; //$boolean true
+n.valueOf(); //$number 43
+
+f.apply(); //$undefined
+f.apply(undefined); //$undefined
+// maybe undefined???
+f.apply(null); //$null
+f.apply(false); //$boolean false
+f.apply(60); //$number 60
+f.apply('x'); //$string 'x'
+
+f.call(); //$undefined
+f.call(undefined); //$undefined
+f.call(null); //$null
+f.call(false); //$boolean false
+f.call(60); //$number 60
+f.call('x'); //$string 'x'
+)");
+
     }
 }

@@ -153,6 +153,8 @@ bool object::can_put(const std::wstring_view& name) const {
 }
 
 void object::put(const string& name, const value& val, property_attribute attr) {
+    //ES5.1, 8.12.5
+
     // See if there is already a property with this name
     auto& props = properties_.dereference(heap_);
     if (auto [it, pp] = deep_find(name.view()); it) {
@@ -160,8 +162,8 @@ void object::put(const string& name, const value& val, property_attribute attr) 
         if (has_attributes(it->attributes(), property_attribute::read_only)) {
             return;
         }
-        // Did the property come from this object's property list?
-        if (pp == &props) {
+        // Did the property come from this object's property list? Or is it an accessor on the prototype?
+        if (pp == &props || has_attributes(it->attributes(), property_attribute::accessor)) {
             // Yes, update
             it->put(*this, val);
             return;
@@ -197,8 +199,10 @@ value object::property::get(const object& self) const {
     auto v = raw_get(h);
     if (is_accessor()) {
         assert(v.type() == value_type::object);
-        auto g = v.object_value()->get(L"get");
-        return g.type() != value_type::undefined ? call_function(g, value{h.unsafe_track(self)}, {}) : g;
+        auto a = v.object_value();
+        auto g = a->get(L"get");
+        const bool strict = a->get(L"__strict__").boolean_value() && is_primitive_object(self);
+        return g.type() != value_type::undefined ? call_function(g, strict ? self.internal_value() : value{h.unsafe_track(self)}, {}) : g;
     }
     return v;
 }
@@ -215,12 +219,23 @@ void object::property::put(const object& self, const value& val) {
     assert(!has_attributes(attributes_, property_attribute::read_only));
     if (is_accessor()) {
         auto& h = self.heap();
-        auto s = value_.get_value(h).object_value()->get(L"set");
-        call_function(s, value{h.unsafe_track(self)}, {val});
+        auto a = value_.get_value(h).object_value();
+        auto s = a->get(L"set");
+        const bool strict = a->get(L"__strict__").boolean_value() && is_primitive_object(self);
+        call_function(s, strict ? self.internal_value() : value{h.unsafe_track(self)}, {val});
     } else {
         assert(val.type() != value_type::object || val.object_value()->class_name().view() != L"Accessor");
         raw_put(val);
     }
+}
+
+value object::internal_value() const {
+    throw no_internal_value{};
+}
+
+bool is_primitive_object(const object& o) {
+    const auto class_name = o.class_name();
+    return class_name.view() == L"Number" || class_name.view() == L"String" || class_name.view() == L"Boolean";
 }
 
 } // namespace mjs

@@ -8,6 +8,12 @@
 
 namespace mjs {
 
+class no_internal_value : public std::exception {
+public:
+    explicit no_internal_value() {}
+    virtual const char* what() const noexcept override { return "object has no internal value"; }
+};
+
 class object {
 public:
     friend gc_type_info_registration<object>;
@@ -73,6 +79,8 @@ public:
         // When hint is undefined, assume Number unless it's a Date object in which case assume String
         return value_type::number;
     }
+
+    virtual value internal_value() const;
 
     std::vector<string> enumerable_property_names() const;
     std::vector<string> own_property_names(bool check_enumerable) const;
@@ -146,6 +154,9 @@ private:
         return fr.first || !prototype_ ? fr : prototype_.dereference(heap_).deep_find(key);
     }
 };
+
+// Returns true if o is a Number, Boolean or String
+bool is_primitive_object(const object& o);
 
 } // namespace mjs
 

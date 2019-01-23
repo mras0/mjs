@@ -354,6 +354,8 @@ public:
 #endif
         } catch (const to_primitive_failed_error& e) {
             throw native_error_exception{native_error_type::type, stack_trace(), e.what()};
+        } catch (const no_internal_value& e) {
+            throw native_error_exception{native_error_type::type, stack_trace(), e.what()};
         } catch (const not_callable_exception& e) {
             std::wostringstream woss;
             woss << e.type() << " is not a function";

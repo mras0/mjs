@@ -13,12 +13,10 @@ works. As such, it neither strives to be fast, secure nor particularly
 beautiful.  In fact, some things are downright terribly implemented;
 also no real programs were actually tested.
 
-All ES1 and ES3 features should be implemented (to some
-degree...), and full ES5.1 support is getting there, but conformance is
-always work in progress.
+All ES1, ES3 and ES5.1 features should be implemented (to some
+degree...), but conformance is always work in progress.
 
-See the [TODO](TODO.md) file some of the known pain points and the ES5
-notes for missing features.
+See the [TODO](TODO.md) file some of the known pain points.
 
 ## Building
 

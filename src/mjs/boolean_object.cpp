@@ -16,6 +16,10 @@ public:
         return value_;
     }
 
+    value internal_value() const override {
+        return value{value_};
+    }
+
 private:
     bool value_;
 

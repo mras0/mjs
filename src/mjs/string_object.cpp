@@ -39,6 +39,10 @@ public:
         return value_.track(heap());
     }
 
+    value internal_value() const override {
+        return value{string_value()};
+    }
+
 private:
     friend gc_type_info_registration<string_object>;
     gc_heap_ptr_untracked<gc_string> value_;

@@ -14,6 +14,7 @@ object_ptr make_accessor_object(const gc_heap_ptr<global_object>& global, const 
     auto a = global->heap().make<object>(global->common_string("Accessor"), nullptr);
     a->put(global->common_string("get"), get);
     a->put(global->common_string("set"), set);
+    a->put(global->common_string("__strict__"), value{global->strict_mode()}); // Hack
     return a;
 }
 
@@ -70,9 +71,10 @@ void define_accessor_property(const gc_heap_ptr<global_object>& global, const ob
 void copy_accessor_methods(const object_ptr& dst, const object_ptr& src) {
     assert(dst && src && src->class_name().view() == L"Accessor");
     const auto& names = src->own_property_names(false);
-    assert(names.size() == 2);
+    assert(names.size() == 3);
     for (const auto& p: names) {
-        assert(p.view() == L"get" || p.view() == L"set");
+        assert(p.view() == L"get" || p.view() == L"set" || p.view() == L"__strict__");
+        if (p.view() == L"__strict__")continue;
         dst->put(p, src->get(p.view()));
     }
 }
