@@ -39,3 +39,5 @@ mjs_add_file_test(es1 array_literal.js WILL_FAIL TRUE)
 mjs_add_file_test(es3 array_literal.js PASS_REGULAR_EXPRESSION "OK")
 mjs_add_file_test(es3 main.js PASS_REGULAR_EXPRESSION "OK")
 mjs_add_file_test(es5 main.js PASS_REGULAR_EXPRESSION "OK")
+mjs_add_file_test(es5 test-compat-es5.js PASS_REGULAR_EXPRESSION "All tests OK")
+
