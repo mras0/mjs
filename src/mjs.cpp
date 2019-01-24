@@ -51,12 +51,19 @@ value load_file(interpreter& i, const std::wstring_view path) {
 
 void add_functions(interpreter& i) {
     auto global = i.global();
-    std::wcout << "Base_dir: " << base_dir << "\n";
     put_native_function(global, global, "load", [&i](const value&, const std::vector<value>& args) {
         if (args.size() != 1 || args[0].type() != value_type::string) {
             throw native_error_exception{native_error_type::eval, i.global()->stack_trace(), "path must be a string"};
         }
         return load_file(i, args[0].string_value().view());
+    }, 1);
+    put_native_function(global, global, "print", [](const value&, const std::vector<value>& args) {
+        for (size_t j = 0; j < args.size(); ++j) {
+            if (j) std::wcout << " ";
+            debug_print(std::wcout, args[j], 4, 1);
+        }
+        std::wcout << "\n";
+        return value::undefined;
     }, 1);
 }
 

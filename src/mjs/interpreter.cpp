@@ -119,6 +119,7 @@ public:
 
     void operator()(const function_definition& f) {
         assert(!f.id().empty());
+        // For functions it's important that we start out by registering the first encutered definition
         if (std::find(ids_.begin(), ids_.end(), f.id()) == ids_.end()) {
             ids_.push_back(f.id());
             funcs_.push_back(&f);
@@ -344,7 +345,7 @@ public:
             }
         }
         for (const auto f: funcs) {
-            active_scope_->put_local(string{heap_, f->id()}, value{create_function(*f, active_scope_)});
+            active_scope_->put_local_function(*this, *f);
         }
     }
 
@@ -1102,7 +1103,7 @@ public:
     }
 
     completion operator()(const function_definition& s) {
-        active_scope_->put_local(string{heap_, s.id()}, value{create_function(s, active_scope_)});
+        active_scope_->put_local_function(*this, s);
         return completion{};
     }
 
@@ -1152,22 +1153,69 @@ private:
             }
         }
 
+        void put_local_function(impl& i, const function_definition& func) {
+            // We only want the function defined once, but want to allow re-definitions
+            auto& funcs     = active_functions_.dereference(heap_);
+            auto& func_vals = active_function_values_.dereference(heap_);
+
+            // If this function has already been registered in this scope
+            if (auto it = std::find_if(funcs.begin(), funcs.end(), [&func](const function_definition* f) { return f == &func; }); it != funcs.end()) {
+                // And the original value hasn't expired
+                const auto index = static_cast<uint32_t>(it - funcs.begin());
+                const auto expected = func_vals[index];
+                if (expected) {
+                    // And still matches
+                    auto current_val = activation_.dereference(heap_).get(func.id());
+                    if (current_val.type() == value_type::object && current_val.object_value().get() == &expected.dereference(heap_)) {
+                        // Then don't (re-)create the function
+                        return;
+                    }
+                }
+                // There's some kind of mismatch, remove the old references
+                funcs.erase(it);
+                func_vals.erase(func_vals.begin() + index);
+            }
+
+            // Create the function object
+            auto f = i.create_function(func, heap_.unsafe_track(*this));
+
+            // And record its info
+            funcs.push_back(&func);
+            func_vals.push_back(f);
+
+            // Update the value in the activation object
+            put_local(string{heap_, func.id()}, value{f});
+        }
+
         const scope* get_prev() const {
             return prev_ ? &prev_.dereference(heap_) : nullptr;
         }
 
     private:
-        explicit scope(const object_ptr& act, const scope_ptr& prev) : heap_(act.heap()), activation_(act), prev_(prev) {}
+        using weak_object_ptr = gc_heap_weak_ptr_untracked<object>;
+
+        explicit scope(const object_ptr& act, const scope_ptr& prev)
+            : heap_(act.heap())
+            , activation_(act)
+            , prev_(prev)
+            , active_functions_(gc_vector<const function_definition*>::make(heap_, 4))
+            , active_function_values_(gc_vector<weak_object_ptr>::make(heap_, 4)) {
+        }
         scope(scope&&) = default;
 
         void fixup() {
             activation_.fixup(heap_);
             prev_.fixup(heap_);
+            active_functions_.fixup(heap_);
+            active_function_values_.fixup(heap_);
         }
 
-        gc_heap& heap_;
-        gc_heap_ptr_untracked<object> activation_;
-        gc_heap_ptr_untracked<scope>  prev_;
+        gc_heap&                                                     heap_;
+        gc_heap_ptr_untracked<object>                                activation_;
+        gc_heap_ptr_untracked<scope>                                 prev_;
+        gc_heap_ptr_untracked<gc_vector<const function_definition*>> active_functions_;
+        gc_heap_ptr_untracked<gc_vector<weak_object_ptr>>            active_function_values_;
+
     };
     static_assert(!gc_type_info_registration<scope>::needs_destroy);
     class auto_scope {

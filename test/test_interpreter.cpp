@@ -114,6 +114,14 @@ void eval_tests() {
 
     // functions are defined at the start of scope
     RUN_TEST(L"a=f.length; function f(x,y) {} a", value{2.0});
+    RUN_TEST_SPEC(R"(
+function g() { return ''+this.x; }
+f.prototype.toString = g;
+function f(x)  {this.x=x; }
+
+(''+new f('test'));//$string 'test'
+
+)");
     //TODO: Test more advanced cases
 
     RUN_TEST(L";", value::undefined);
