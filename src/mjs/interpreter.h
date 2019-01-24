@@ -50,13 +50,12 @@ class interpreter {
 public:
     using on_statement_executed_type = std::function<void (const statement&, const completion& c)>;
 
-    explicit interpreter(gc_heap& h, version ver, const block_statement& program, const on_statement_executed_type& on_statement_executed = on_statement_executed_type{});
+    explicit interpreter(gc_heap& h, version ver, const on_statement_executed_type& on_statement_executed = on_statement_executed_type{});
     ~interpreter();
 
-    value eval(const expression& e);
-    completion eval(const statement& s);
-    completion hoist_and_eval(const statement& s); // For use in repl
-    value eval_program();
+    gc_heap_ptr<global_object> global() const;
+
+    value eval(const statement& bs);
 
 private:
     class impl;

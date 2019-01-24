@@ -39,6 +39,7 @@ void eval_tests() {
     RUN_TEST(L"var x=2; x--; x", value{1.0});
     RUN_TEST(L"var x = 42; delete x; x", value{42.}); // Variables aren't deleted
     RUN_TEST(L"delete Object.prototype;", value{false});
+    RUN_TEST(L"this==global", value{true});
     if (tested_version() >= version::es5) {
         RUN_TEST(L"'use strict';var ge;try{delete Object.prototype;} catch(e) {ge=e;}; ge.toString()", value{string{h, "TypeError: may not delete non-configurable property \"prototype\" in strict mode"}});
     }
@@ -110,6 +111,11 @@ void eval_tests() {
     RUN_TEST(L"function f(){if(1){function a(){return 42;} return a(); }}; f()", value{42.});
     RUN_TEST(L"{if(1) function a(){return 42;}} a(42);", value{42.});
     RUN_TEST(L"function a(){return 1;}; a()", value{1.});
+
+    // functions are defined at the start of scope
+    RUN_TEST(L"a=f.length; function f(x,y) {} a", value{2.0});
+    //TODO: Test more advanced cases
+
     RUN_TEST(L";", value::undefined);
     RUN_TEST(L"if (1) 2;", value{2.0});
     RUN_TEST(L"if (0) 2;", value::undefined);

@@ -35,10 +35,12 @@ std::wostream& operator<<(std::wostream& os, const completion& c) {
 
 class hoisting_visitor {
 public:
-    static std::vector<std::wstring> scan(const statement& s) {
+    using scan_result = std::tuple<std::vector<std::wstring>, std::vector<const function_definition*>>;
+
+    static scan_result scan(const statement& s) {
         hoisting_visitor hv{};
         accept(s, hv);
-        return hv.ids_;
+        return std::tuple(std::move(hv.ids_), std::move(hv.funcs_));
     }
 
     void operator()(const block_statement& s) {
@@ -116,7 +118,11 @@ public:
     void operator()(const throw_statement&) {}
 
     void operator()(const function_definition& f) {
-        ids_.push_back(f.id());
+        assert(!f.id().empty());
+        if (std::find(ids_.begin(), ids_.end(), f.id()) == ids_.end()) {
+            ids_.push_back(f.id());
+            funcs_.push_back(&f);
+        }
     }
 
     void operator()(const statement& s) {
@@ -128,6 +134,7 @@ public:
 private:
     explicit hoisting_visitor() {}
     std::vector<std::wstring> ids_;
+    std::vector<const function_definition*> funcs_;
 };
 
 class activation_object : public object {
@@ -238,12 +245,10 @@ constexpr bool is_reference_op(token_type t) {
 
 class interpreter::impl {
 public:
-    explicit impl(gc_heap& h, version ver, const block_statement& program, const on_statement_executed_type& on_statement_executed)
+    explicit impl(gc_heap& h, version ver, const on_statement_executed_type& on_statement_executed)
         : heap_(h)
-        , program_(program)
         , global_(global_object::make(h, ver, strict_mode_))
         , on_statement_executed_(on_statement_executed) {
-
 
         global_->set_stack_trace_function([this]() {
             return stack_trace();
@@ -270,11 +275,7 @@ public:
                 eval_scope.reset(new auto_scope{*this, activation_object::make(global_, {}, {}), active_scope_});
             }
 
-            for (const auto& var_id: hoisting_visitor::scan(*bs)) {
-                if (!active_scope_->has_property(var_id)) {
-                    active_scope_->put_local(string{heap_, var_id}, value::undefined);
-                }
-            }
+            hoist(*bs);
 
             const std::unique_ptr<force_global_scope> fgs{!was_direct_call_to_eval_ ? new force_global_scope{*this} : nullptr};
             auto c = eval(*bs);
@@ -320,10 +321,6 @@ public:
         }, func_obj->class_name().unsafe_raw_get(), nullptr, 1);
         static_cast<function_object&>(*func_obj).default_construct_function();
 
-        for (const auto& id: hoisting_visitor::scan(program)) {
-            global_->put(string{heap_, id}, value::undefined, property_attribute::dont_delete);
-        }
-
         active_scope_ = make_scope(global_, nullptr);
     }
 
@@ -337,6 +334,22 @@ public:
 
     void current_extend(const source_extend& e) {
         current_extend_ = e;
+    }
+
+    void hoist(const hoisting_visitor::scan_result& sr) {
+        const auto& [ids, funcs] = sr;
+        for (const auto& var_id: ids) {
+            if (!active_scope_->has_property(var_id)) {
+                active_scope_->put_local(string{heap_, var_id}, value::undefined);
+            }
+        }
+        for (const auto f: funcs) {
+            active_scope_->put_local(string{heap_, f->id()}, value{create_function(*f, active_scope_)});
+        }
+    }
+
+    void hoist(const statement& s) {
+        hoist(hoisting_visitor::scan(s));
     }
 
     value eval(const expression& e) {
@@ -407,10 +420,6 @@ public:
         std::wostringstream woss;
         woss << "Top level evaluation resulted in abrupt termination: " << c;
         throw native_error_exception(native_error_type::eval, stack_trace(), woss.str());
-    }
-
-    value eval_program() {
-        return top_level_eval(program_, false);
     }
 
     value operator()(const identifier_expression& e) {
@@ -1136,7 +1145,7 @@ private:
             auto act = activation_.track(heap_);
             // Hack-ish, but variable/function definitions end up in e.g. in the "with" object
             if (act.has_type<activation_object>() || is_global_object(act)) {
-                act->put(key, val);
+                act->redefine_own_property(key, val, property_attribute::dont_delete);
             } else {
                 assert(prev_);
                 prev_.dereference(heap_).put_local(key, val);
@@ -1224,7 +1233,6 @@ private:
     };
 
     gc_heap&                       heap_;
-    const block_statement&         program_;
     bool                           strict_mode_ = false; // Must be before global
     scope_ptr                      active_scope_;
     gc_heap_ptr<global_object>     global_;
@@ -1291,7 +1299,7 @@ private:
         if (block->strict_mode()) {
             callee->set_strict();
         }
-        auto func = [this, block, param_names, prev_scope, callee, id, ids = hoisting_visitor::scan(*block)](const value& this_, const std::vector<value>& args) {
+        auto func = [this, block, param_names, prev_scope, callee, id, hv_result = hoisting_visitor::scan(*block)](const value& this_, const std::vector<value>& args) {
             strict_mode_scope sms{*this, block->strict_mode()};
             // Scope
             auto activation = activation_object::make(global_, param_names, args);
@@ -1302,11 +1310,9 @@ private:
                 global_->define_thrower_accessor(*activation->arguments(), "callee");
                 global_->define_thrower_accessor(*activation->arguments(), "caller");
             }
+            auto_scope auto_scope_{*this, activation, prev_scope};
             // Variables
-            for (const auto& var_id: ids) {
-                assert(!activation->has_property(var_id)); // TODO: Handle this..
-                activation->put(string{heap_, var_id}, value::undefined, property_attribute::dont_delete);
-            }
+            hoist(hv_result);
             if (!id.view().empty()) {
                 // Add name of function to activation record even if it's not necessary for function_definition
                 // It's needed for function expressions since `a=function x() { x(...); }` is legal, but x isn't added to the containing scope
@@ -1314,7 +1320,6 @@ private:
                 assert(!activation->has_property(id.view())); // TODO: Handle this..
                 activation->put(id, value{callee}, property_attribute::dont_delete|property_attribute::read_only);
             }
-            auto_scope auto_scope_{*this, activation, prev_scope};
             return top_level_eval(*block);
         };
         callee->put_function(func, nullptr, string{heap_, L"function " + std::wstring{id.view()} + body_text}.unsafe_raw_get(), static_cast<int>(param_names.size()));
@@ -1398,30 +1403,26 @@ private:
     }
 };
 
-interpreter::interpreter(gc_heap& h, version ver, const block_statement& program, const on_statement_executed_type& on_statement_executed) : impl_(new impl{h, ver, program, on_statement_executed}) {
+interpreter::interpreter(gc_heap& h, version ver, const on_statement_executed_type& on_statement_executed) : impl_(new impl{h, ver, on_statement_executed}) {
 }
 
 interpreter::~interpreter() = default;
 
-value interpreter::eval(const expression& e) {
-    impl_->current_extend(e.extend());
-    return impl_->eval(e);
+gc_heap_ptr<global_object> interpreter::global() const {
+    return impl_->global();
 }
 
-completion interpreter::eval(const statement& s) {
-    return impl_->eval(s);
-}
-
-value interpreter::eval_program() {
-    return impl_->eval_program();
-}
-
-completion interpreter::hoist_and_eval(const statement& s) {
-    auto global = impl_->global();
-    for (const auto& id: hoisting_visitor::scan(s)) {
-        global->put(string{global.heap(), id}, value::undefined, property_attribute::dont_delete);
+value interpreter::eval(const statement& s) {
+    impl_->hoist(s);
+    auto c = impl_->eval(s);
+    if (!c) {
+        return c.result;
+    } else if (c.type == completion_type::throw_) {
+        rethrow_error(c.result.object_value());
     }
-    return impl_->eval(s);
+    std::wostringstream woss;
+    woss << "Eval resulted in unexpected completion type " << c;
+    throw native_error_exception{native_error_type::eval, impl_->global()->stack_trace(), woss.str()};
 }
 
 } // namespace mjs

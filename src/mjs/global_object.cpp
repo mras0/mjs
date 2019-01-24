@@ -740,6 +740,8 @@ private:
 
         // Add this class as the global object
         put(common_string("global"), value{self}, property_attribute::dont_delete | property_attribute::read_only);
+
+        put(common_string("this"), value{self}, prototype_attributes);
     }
 
     string common_string(const char* str) override {

@@ -24,7 +24,7 @@ You need a modern C++ compiler that supports C++17 and CMake 3.7 or
 later. It has currently been tested with the following compilers:
 
 * Visual C++ 2017 15.9.5 on Windows 10
-* GCC 7.1.0 (x64 distribution from [Stephan T. Lavavej](https://nuwen.net/mingw.html)) on Windows 10
+* GCC 8.2.0 (x64 distribution from [Stephan T. Lavavej](https://nuwen.net/mingw.html)) on Windows 10
 * GCC 8.2.0 (on x64 Linux, Debian testing as of October 2018)
 * Clang 7.0.0 (on Windows 10 and x64 Linux)
 

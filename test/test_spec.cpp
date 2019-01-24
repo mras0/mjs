@@ -152,7 +152,7 @@ public:
         std::wcout << "\n";
 #endif
         test_spec_runner tsr{h, specs, statements};
-        tsr.i_.eval_program();
+        tsr.i_.eval(statements);
         tsr.check_test_spec_done(statements.extend().end);
 #ifdef TEST_SPEC_DEBUG
         std::wcout << "\n";
@@ -174,7 +174,7 @@ private:
     explicit test_spec_runner(gc_heap& h, const std::vector<test_spec>& specs, const block_statement& statements)
         : specs_(specs)
         , source_(statements.extend().file)
-        , i_(h, tested_version(), statements, [this](const statement& s, const completion& res) {
+        , i_(h, tested_version(), [this](const statement& s, const completion& res) {
 #ifdef TEST_SPEC_DEBUG
             std::wcout << pos_w << s.extend().start << "-" << pos_w << s.extend().end << ": ";
             print(std::wcout, s);

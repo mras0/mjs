@@ -71,23 +71,18 @@ void run_test(const std::wstring_view& text, const value& expected) {
 
             error_stream << "\n";
         };
-        completion c;
+        value res;
         try {
-            interpreter i{h, tested_version(), *bs};
-            c = i.eval(*bs);
+            interpreter i{h, tested_version()};
+            res = i.eval(*bs);
         } catch (const std::exception& e) {
             pb();
             error_stream << "Unexpected exception thrown: " << e.what() << "\n";
             THROW_RUNTIME_ERROR(error_stream.str());
         }
-        if (c) {
+        if (res != expected) {
             pb();
-            error_stream << "Got unexpected abrupt completion: " << c << "\n";
-            THROW_RUNTIME_ERROR(error_stream.str());
-        }
-        if (c.result != expected) {
-            pb();
-            error_stream << "Expecting " << debug_string(expected) << " got " << debug_string(c.result) << "\n";
+            error_stream << "Expecting " << debug_string(expected) << " got " << debug_string(res) << "\n";
             THROW_RUNTIME_ERROR(error_stream.str());
         }
     }
@@ -111,8 +106,8 @@ std::string expect_eval_exception(const std::wstring_view& text) {
 
     try {
         gc_heap h{1<<20}; // Use local heap, even if expected lives in another heap
-        interpreter i{h, tested_version(), *bs};
-        (void) i.eval_program();
+        interpreter i{h, tested_version()};
+        (void) i.eval(*bs);
     } catch (const eval_exception& e) {
         return e.what();
     } catch (const std::exception& e) {
