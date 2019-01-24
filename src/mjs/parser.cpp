@@ -472,7 +472,7 @@ private:
                 if (strict_mode_) {
                     const auto new_item = elements.back().name_str();
                     if (is_strict_mode_unassignable_identifier(new_item)) {
-                        // "args" and "arguments" may not be used as the property name
+                        // "eval" and "arguments" may not be used as the property name
                         SYNTAX_ERROR("\"" << cpp_quote(new_item) << "\" may not be used as a property name in strict mode");
                     }
                     if (elements.back().type() == property_assignment_type::normal) {

@@ -3,6 +3,7 @@
 #include <mjs/lexer.h>
 #include <vector>
 #include <sstream>
+#include <cmath>
 
 using namespace mjs;
 
@@ -89,6 +90,10 @@ void basic_tests() {
     SIMPLE_TEST(LR"(false)", T(false_));
     //  - numeric literal
     SIMPLE_TEST(LR"(60)", token{60.});
+    SIMPLE_TEST(LR"(123.123)", token{123.123});
+    SIMPLE_TEST(LR"(1E+309)", token{INFINITY});
+    SIMPLE_TEST(LR"(1E-323)", token{1e-323});
+    SIMPLE_TEST(LR"(1E-324)", token{0});
     SIMPLE_TEST(LR"(42.25)", token{42.25});
     SIMPLE_TEST(LR"(1.11e2)", token{111});
     SIMPLE_TEST(LR"(0x100)", token{256});

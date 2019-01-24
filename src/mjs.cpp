@@ -45,7 +45,12 @@ std::shared_ptr<source_file> make_source(const std::wstring_view s, version ver)
 
 value load_file(interpreter& i, const std::wstring_view path) {
     auto& global = *i.global();
-    auto bs = parse(read_utf8_file(global.language_version(), base_dir + std::wstring{path}), global.strict_mode());
+    std::unique_ptr<block_statement> bs;
+    try {
+        bs = parse(read_utf8_file(global.language_version(), base_dir + std::wstring{path}), global.strict_mode());
+    } catch (const std::exception& e) {
+        throw native_error_exception{native_error_type::syntax, global.stack_trace(), e.what()};
+    }
     return i.eval(*bs);
 }
 
@@ -57,10 +62,10 @@ void add_functions(interpreter& i) {
         }
         return load_file(i, args[0].string_value().view());
     }, 1);
-    put_native_function(global, global, "print", [](const value&, const std::vector<value>& args) {
+    put_native_function(global, global, "print", [&h = global.heap()](const value&, const std::vector<value>& args) {
         for (size_t j = 0; j < args.size(); ++j) {
             if (j) std::wcout << " ";
-            debug_print(std::wcout, args[j], 4, 1);
+            std::wcout << to_string(h, args[j]);
         }
         std::wcout << "\n";
         return value::undefined;
@@ -77,11 +82,18 @@ int interpret_file(const std::shared_ptr<source_file>& source) {
 void set_base_dir(const std::wstring_view fname) {
     const wchar_t* last_slash = fname.data();
     for (const auto& ch: fname) {
-        if (ch == '\\' || ch == '/') {
+        if (ch == '/'
+#ifdef _WIN32
+            || ch == '\\'
+#endif
+            ) {
             last_slash = &ch;
         }
     }
     base_dir = std::wstring{fname.data(), last_slash};
+#ifdef _WIN32
+    std::replace(base_dir.begin(), base_dir.end(), L'\\', L'/');
+#endif
     base_dir.push_back(L'/');
 }
 

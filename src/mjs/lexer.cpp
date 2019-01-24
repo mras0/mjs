@@ -6,6 +6,7 @@
 #include <tuple>
 #include <climits>
 #include <algorithm>
+#include <cmath>
 
 namespace mjs {
 
@@ -371,10 +372,17 @@ std::pair<token, size_t> get_number_literal(const std::wstring_view text_, const
         }
 
         std::string s{text_.begin() + token_start, text_.begin() + token_end};
-        size_t len;
-        const double v = std::stod(s, &len);
-        if (len != s.length()) {
+        char* end;
+        errno = 0;
+        double v = std::strtod(s.c_str(), &end);
+        if (end != s.data() + s.length()) {
             throw std::runtime_error("Invalid string literal " + s);
+        }
+        if (errno == ERANGE) {
+            if (v == HUGE_VAL) {
+                v = INFINITY;
+            }
+            errno = 0;
         }
         return { token{v}, token_end };
     }
