@@ -208,7 +208,8 @@ Object.defineProperty(s, 'length', {value:3});
 try { Object.defineProperty(s, 'length', {value:4}); } catch (e) { e.toString(); } //$string 'TypeError: cannot redefine property: length'
 try { Object.defineProperty(s, '0', {value:3}); } catch (e) { e.toString(); } //$string 'TypeError: cannot redefine property: 0'
 
-
+try { Object.defineProperty({}, 'x', {get:42}); } catch (e) { e.toString(); } //$string 'TypeError: Getter for "x" must be a function: 42'
+try { Object.defineProperty({}, 'x', {set:42}); } catch (e) { e.toString(); } //$string 'TypeError: Setter for "x" must be a function: 42'
 
 Object.defineProperties.length;//$number 2
 try { Object.defineProperties(); } catch (e) { e.toString(); } //$string 'TypeError: undefined is not an object'

@@ -2,6 +2,7 @@
 #include "function_object.h"
 #include "array_object.h"
 #include "error_object.h"
+#include "lexer.h"
 #include <sstream>
 
 namespace mjs {
@@ -100,7 +101,20 @@ define_own_property_result define_own_property(const gc_heap_ptr<global_object>&
             o->put(p, desc->get(L"value"), new_attributes);
             return define_own_property_result::ok;
         } else {
-            define_accessor_property(global, o, p, desc->get(L"get"), desc->get(L"set"), new_attributes);
+            auto get = desc->get(L"get");
+            auto set = desc->get(L"set");
+            assert(get.type() != value_type::undefined || set.type() != value_type::undefined); // Should be handle above
+
+            auto check_accessor = [&](const char* name, const value v) {
+                if (v.type() != value_type::undefined && !is_function(v)) {
+                    std::wostringstream woss;
+                    woss << name << " for \"" << cpp_quote(p.view()) << "\" must be a function: " << to_string(global.heap(), v);
+                    throw native_error_exception{native_error_type::type, global->stack_trace(), woss.str()};
+                }
+            };
+            check_accessor("Getter", get);
+            check_accessor("Setter", set);
+            define_accessor_property(global, o, p, get, set, new_attributes);
             return define_own_property_result::ok;
         }
     }
