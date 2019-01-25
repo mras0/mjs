@@ -39,6 +39,7 @@ void eval_tests() {
     RUN_TEST(L"var x=2; x--; x", value{1.0});
     RUN_TEST(L"var x = 42; delete x; x", value{42.}); // Variables aren't deleted
     RUN_TEST(L"delete Object.prototype;", value{false});
+    RUN_TEST(L"delete !global", value{true});
     RUN_TEST(L"this==global", value{true});
     if (tested_version() >= version::es5) {
         RUN_TEST(L"'use strict';var ge;try{delete Object.prototype;} catch(e) {ge=e;}; ge.toString()", value{string{h, "TypeError: may not delete non-configurable property \"prototype\" in strict mode"}});

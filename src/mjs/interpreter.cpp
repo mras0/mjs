@@ -536,8 +536,9 @@ public:
 
         auto u = eval(e.e());
         if (e.op() == token_type::delete_) {
+            // ES1-5.1, 11.4.1: The delete Pperator
             if (u.type() != value_type::reference) {
-                NOT_IMPLEMENTED(u.type());
+                return value{true};
             }
             const auto& base = u.reference_value().base();
             const auto& prop = u.reference_value().property_name();
