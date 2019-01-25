@@ -138,7 +138,14 @@ bool operator==(const token& l, const token& r) {
 int main() {
     platform_init();
     try {
+        // Start by testing latest version
+        tested_version_ = version::latest;
+        test_main();
         for (const auto ver: supported_versions) {
+            if (ver == version::latest) {
+                // no need to recheck
+                continue;
+            }
             tested_version_ = ver;
             test_main();
         }

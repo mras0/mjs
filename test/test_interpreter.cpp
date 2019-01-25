@@ -1028,8 +1028,8 @@ try {
 
 )");
 
-    // ES5.1, 8.72 and  11.13.1
     if (tested_version() >= version::es5) {
+        // ES5.1, 8.72 and  11.13.1
         RUN_TEST_SPEC(R"(
 'use strict';
 try { a = 42; } catch (e) { e.toString(); } //$string 'ReferenceError: a is not defined'
@@ -1046,6 +1046,10 @@ try { var o={get a(){}}; o.a=42; } catch (e) { e.toString(); } //$string 'TypeEr
 try { Object.prototype=42; } catch (e) { e.toString(); } //$string 'TypeError: Cannot assign to read only property prototype in strict mode'
 try { (function f(){f=1;})(); } catch (e) { e.toString(); } //$string 'TypeError: Cannot assign to read only property f in strict mode'
 try { var o=Object.preventExtensions({}); o.a=42;} catch (e) { e.toString(); } //$string 'TypeError: Cannot add property a to non-extensible object in strict mode'
+)");
+
+        RUN_TEST_SPEC(R"(
+({n:1,get n(){return 2;}}).n; //$number 2
 )");
     }
 }

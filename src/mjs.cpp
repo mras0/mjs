@@ -43,7 +43,10 @@ std::shared_ptr<source_file> make_source(const std::wstring_view s, version ver)
     return std::make_shared<source_file>(std::wstring(L"inline code"), std::wstring(s), ver);
 }
 
-value load_file(interpreter& i, const std::wstring_view path) {
+value load_file(interpreter& i, const std::wstring_view path) {   
+#if 0
+    std::wcout << "Loading " << path << "\n";
+#endif
     auto& global = *i.global();
     std::unique_ptr<block_statement> bs;
     try {
@@ -74,7 +77,13 @@ void add_functions(interpreter& i) {
 
 int interpret_file(const std::shared_ptr<source_file>& source) {
     gc_heap heap{deafult_heap_size};
-    interpreter i{heap, source->language_version()};
+    interpreter i{heap, source->language_version()
+#if 0
+        , [](const statement& s, const completion& c) {
+        std::wcout << s << " ----> " << c << "\n\n";
+    }
+#endif
+    };
     add_functions(i);
     return to_int32(i.eval(*parse(source)));
 }

@@ -469,7 +469,7 @@ public:
                 // getter/setter
                 assert(is_function(v));
                 const bool is_get = i.type() == property_assignment_type::get;
-                if (!is_valid(prev_attr)) {
+                if (!is_valid(prev_attr) || !has_attributes(prev_attr, property_attribute::accessor)) {
                     // Define new property with get or set
                     o->define_accessor_property(string{heap_, name}, make_accessor_object(global_, is_get ? v : value::undefined, !is_get ? v : value::undefined), property_attribute::none);
                 } else {
