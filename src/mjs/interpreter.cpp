@@ -276,9 +276,8 @@ public:
                 eval_scope.reset(new auto_scope{*this, activation_object::make(global_, {}, {}), active_scope_});
             }
 
-            hoist(*bs);
-
             const std::unique_ptr<force_global_scope> fgs{!was_direct_call_to_eval_ ? new force_global_scope{*this} : nullptr};
+            hoist(*bs);
             auto c = eval(*bs);
             if (!c) {
                 return c.result;

@@ -483,6 +483,9 @@ global['x']; //$undefined
 eval('"use strict"; var x=42');
 global['x']; //$undefined
 
+
+({ x: function() { var f = eval; f("var arguments;"); }, }).x(); //$undefined
+
 )");
 
     }
