@@ -498,7 +498,7 @@ public:
             }
 
             if (space.type() == value_type::number) {
-                gap_ = std::wstring(std::min(10, static_cast<int>(to_integer(space.number_value()))), ' ');
+                gap_ = std::wstring(std::max(0, std::min(10, static_cast<int>(to_integer(space.number_value())))), ' ');
             } else if (space.type() == value_type::string) {
                 auto s = space.string_value().view(); 
                 gap_ = s.substr(0, std::min(size_t{10}, s.length()));

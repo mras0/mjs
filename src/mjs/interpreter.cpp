@@ -373,6 +373,11 @@ public:
             std::wostringstream woss;
             woss << e.type() << " is not a function";
             throw native_error_exception{native_error_type::type, stack_trace(), woss.str()};
+#if 0
+        } catch (std::exception& e) {
+            std::wcerr << e.what() << " at\n" << stack_trace() << "\n\n";
+            throw;
+#endif
         }
     }
 

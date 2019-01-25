@@ -76,6 +76,9 @@ JSON.stringify([1,2], null, 'x \n \f');         //$string '[\nx \n \f1,\nx \n \f
 JSON.stringify([1,2], null, new String(' '));   //$string '[\n 1,\n 2\n]'
 JSON.stringify([1,2], null, new String('0123456789abcdef'));   //$string '[\n01234567891,\n01234567892\n]'
 
+JSON.stringify({42:0},null,-1); //$string '{"42":0}'
+JSON.stringify({42:0},null,1);  //$string '{\n "42": 0\n}'
+
 JSON.stringify([[1,2],[3,4]], undefined, 4);    //$string '[\n    [\n        1,\n        2\n    ],\n    [\n        3,\n        4\n    ]\n]'
 
 JSON.stringify({}, null, null);                 //$string '{}'
