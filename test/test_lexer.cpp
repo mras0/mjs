@@ -104,7 +104,15 @@ void basic_tests() {
     //      SingleEscapeCharacter
     SIMPLE_TEST(LR"('\'\"\\\b\f\n\r\t')", STR("\'\"\\\b\f\n\r\t"));
 
-    check_lex_fails(L"'\\\n'"); // a line terminator cannot appear in a string literal (even if preceded by a backslash)
+    check_lex_fails(L"'\n'"); // an unescaped line terminator cannot appear in a string literal in any version
+
+    // Line continutations aren't supported until ES5
+    const auto line_continuation = L"'Test\\\nblah!'";
+    if (tested_version() < version::es5) {
+        check_lex_fails(line_continuation);
+    } else {
+        SIMPLE_TEST(line_continuation, STR("Testblah!"));
+    }
 
     // Vertical tab (<VT>) supported from es3 on
     const auto vert_tab_str = LR"('\v')";

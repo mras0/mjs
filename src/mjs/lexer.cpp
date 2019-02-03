@@ -221,11 +221,8 @@ std::pair<token, size_t> get_string_literal(const std::wstring_view text_, const
             throw std::runtime_error("Unterminated string");
         }
         const auto qch = text_[token_end];
-        if (is_line_terminator(qch, ver)) {
-            throw std::runtime_error("Line terminator in string");
-        }
         if (escape) {
-            escape = !escape;
+            escape = false;
             switch (qch) {
             case '\'': s.push_back('\''); break;
             case '\"': s.push_back('\"'); break;
@@ -271,6 +268,13 @@ std::pair<token, size_t> get_string_literal(const std::wstring_view text_, const
                 token_end += 3; // Incremented in loop
                 break;
             default:
+                if (is_line_terminator(qch, ver)) {
+                    if (ver >= version::es5) {
+                        // OK, line continuation
+                        break;
+                    }
+                    throw std::runtime_error("Line continuations in string literals not supported until ES5");
+                }
             invalid_escape_sequence:
                 std::ostringstream oss;
                 oss << "Unhandled escape sequence: \\" << (char)qch;
@@ -281,6 +285,8 @@ std::pair<token, size_t> get_string_literal(const std::wstring_view text_, const
         } else if (qch == ch) {
             ++token_end;
             break;
+        } else if (is_line_terminator(qch, ver)) {
+            throw std::runtime_error("Line terminator in string");
         } else {        
             if (ver == version::es3 && classify(qch) == unicode::classification::format) {
                 throw std::runtime_error("Format control characters not allowed in string literals in ES3");
