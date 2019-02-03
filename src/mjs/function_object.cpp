@@ -13,7 +13,31 @@ static value get_this_arg(const gc_heap_ptr<global_object>& global, const value&
     }
 }
 
+gc_heap_ptr<function_object> get_function_object_ptr(const value& v) {
+    if (v.type() == value_type::object) {
+        if (auto o = v.object_value(); o.has_type<function_object>()) {
+            return gc_heap_ptr<function_object>{o};
+        }
+    }
+    throw not_callable_exception{v};
+}
+
+function_object& get_function_object(const value& v) {
+    return *get_function_object_ptr(v);
+}
+
 } // unnamed namespace
+
+std::string not_callable_exception::format_error_message(const value& v) {
+    std::ostringstream oss;
+    if (v.type() == value_type::object) {
+        oss << v.object_value()->class_name();
+    } else {
+        oss << v.type();
+    }
+    oss << " is not a function";
+    return oss.str();
+}
 
 class bound_function_args {
 public:
@@ -130,14 +154,14 @@ string function_object::to_string() const {
 }
 
 value function_object::call(const value& this_, const std::vector<value>& args) const {
-    if (!call_) throw not_callable_exception{};
+    if (!call_) throw not_callable_exception{value{heap().unsafe_track(*this)}};
     auto global = global_.track(heap());
     const bool strict = strict_ || global->strict_mode();
     return call_.dereference(heap()).call(strict ? this_  : get_this_arg(global, this_), args);
 }
 
 value function_object::construct(const value& this_, const std::vector<value>& args) const {
-    if (!construct_) throw not_callable_exception{};
+    if (!construct_) throw not_callable_exception{value{heap().unsafe_track(*this)}};
     return construct_.dereference(heap()).call(this_, args);
 }
 
@@ -182,26 +206,20 @@ global_object_create_result make_function_object(const gc_heap_ptr<global_object
     }, nullptr, nullptr, 0);
 
     put_native_function(global, prototype, "toString", [global, prototype](const value& this_, const std::vector<value>&) {
-        // HACK to make Function.prototype.toString() work..
-        if (this_.type() != value_type::object || this_.object_value().get() != prototype.get()) {
-            global->validate_type(this_, prototype, "function");
-        }
-        assert(this_.object_value().has_type<function_object>());
-        return value{static_cast<function_object&>(*this_.object_value()).to_string()};
+        return value{get_function_object(this_).to_string()};
     }, 0);
 
     if (global->language_version() >= version::es3) {
         put_native_function(global, prototype, "call", [global](const value& this_, const std::vector<value>& args) {
-            global->validate_type(this_, global->function_prototype(), "function");
             std::vector<value> new_args;
             if (args.size() > 1) {
                 new_args.insert(new_args.end(), args.cbegin() + 1, args.cend());
             }
-            return static_cast<const function_object&>(*this_.object_value()).call(!args.empty() ? args.front() : value::undefined, new_args);
+            return get_function_object(this_).call(!args.empty() ? args.front() : value::undefined, new_args);
         }, 1);
 
         put_native_function(global, prototype, "apply", [global](const value& this_, const std::vector<value>& args) {
-            global->validate_type(this_, global->function_prototype(), "function");
+            auto f = get_function_object_ptr(this_);
             std::vector<value> new_args;
 
             if (args.size() > 1 && args[1].type() != value_type::undefined && args[1].type() != value_type::null) {
@@ -227,28 +245,18 @@ global_object_create_result make_function_object(const gc_heap_ptr<global_object
                 throw native_error_exception(native_error_type::type, global->stack_trace(), woss.str());
             }
 do_call:
-            return static_cast<const function_object&>(*this_.object_value()).call(!args.empty() ? args.front() : value::undefined, new_args);
+            return f->call(!args.empty() ? args.front() : value::undefined, new_args);
         }, 2);
     }
 
     if (global->language_version() >= version::es5) {
         put_native_function(global, prototype, "bind", [global](const value& this_, const std::vector<value>& args) {
-            global->validate_type(this_, global->function_prototype(), "function");
-            return value{function_object::bind(gc_heap_ptr<function_object>{this_.object_value()}, args)};
+            return value{function_object::bind(get_function_object_ptr(this_), args)};
         }, 1);
     }
 
     auto obj = make_raw_function(global); // Note: function constructor is added by interpreter
     return { obj, prototype };
-}
-
-function_object& get_function_object(const value& v) {
-    if (v.type() == value_type::object) {
-        if (auto o = v.object_value(); o.has_type<function_object>()) {
-            return static_cast<function_object&>(*o);
-        }
-    }
-    throw not_callable_exception{v.type()};
 }
 
 value call_function(const value& v, const value& this_, const std::vector<value>& args) {

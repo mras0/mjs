@@ -14,7 +14,7 @@ JSON instanceof Object; //$boolean true
 Object.isExtensible(JSON); //$boolean true
 Object.getOwnPropertyNames(JSON).toString(); //$string 'parse,stringify'
 JSON.toString(); //$string '[object JSON]'
-try { JSON(); } catch (e) { e.toString(); } //$string 'TypeError: object is not a function'
+try { JSON(); } catch (e) { e.toString(); } //$string 'TypeError: JSON is not a function'
 
 JSON.stringify.length;          //$number 3
 JSON.stringify();               //$undefined

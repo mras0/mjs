@@ -97,7 +97,7 @@ try {new Function('a,b','*a');} catch (e) { e.toString(); } //$string 'SyntaxErr
 
 // ES3, 11.2.2, 11.2.3
 try {new 42;} catch (e) { e.toString(); } //$string 'TypeError: 42 is not an object'
-try {({})();} catch (e) { e.toString(); } //$string 'TypeError: object is not a function'
+try {({})();} catch (e) { e.toString(); } //$string 'TypeError: Object is not a function'
 try {42();} catch (e) { e.toString(); } //$string 'TypeError: 42 is not a function'
 
 // ES3, 15.3.4.2
@@ -141,6 +141,11 @@ try { fi instanceof f; } catch (e) { e.toString(); } //$string 'TypeError: Funct
         RUN_TEST_SPEC(R"(
 Function.prototype.bind.length;//$number 1
 try { Function.prototype.bind.call(new String(''),42); } catch (e) { e.toString(); } //$string 'TypeError: String is not a function'
+function f(){};
+f.prototype = Function.prototype;
+var fi = new f();
+try { fi.bind(); } catch (e) { e.toString(); } //$string 'TypeError: f is not a function'
+
 r = (function(){return this}).bind()(); r === global; //$boolean true
 r = (function(){return this}).bind()(undefined); r === global; //$boolean true
 r = (function(){return this}).bind()(null); r === global; //$boolean true

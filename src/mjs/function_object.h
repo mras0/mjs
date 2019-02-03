@@ -108,16 +108,12 @@ void put_native_function(const gc_heap_ptr<global_object>& global, const object_
     put_native_function(global, obj, string{global.heap(), name}, f, named_args);
 }
 
-class not_callable_exception : public std::exception {
+class not_callable_exception : public std::runtime_error {
 public:
-    explicit not_callable_exception(value_type type = value_type::object) : type_{type} {}
-    const char* what() const noexcept override {
-        return "Not callable";
+    explicit not_callable_exception(const value& v) : std::runtime_error(format_error_message(v)) {
     }
-
-    value_type type() const { return type_; }
 private:
-    value_type type_;
+    static std::string format_error_message(const value& v);
 };
 
 inline bool is_function(const object_ptr& o) {
