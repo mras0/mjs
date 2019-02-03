@@ -107,6 +107,11 @@ private:
             attributes_ = nullptr;
             present_mask_ = nullptr;
         } else  {
+            if (len > 1<<16) {
+                std::ostringstream oss;
+                oss << "Large/sparse arrays are not supported yet (len = " << len << ")";
+                throw not_supported_exception{oss.str()};
+            }
             auto& h = heap();
             if (!values_) {
                 values_ = gc_vector<value_representation>::make(h, len);

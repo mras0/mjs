@@ -365,6 +365,8 @@ public:
 #else
             return accept(e, *this);
 #endif
+        } catch (const not_supported_exception& e) {
+            throw native_error_exception{native_error_type::assertion, stack_trace(), e.what()};
         } catch (const to_primitive_failed_error& e) {
             throw native_error_exception{native_error_type::type, stack_trace(), e.what()};
         } catch (const no_internal_value& e) {

@@ -80,6 +80,11 @@ struct global_object_create_result {
     object_ptr prototype;
 };
 
+class not_supported_exception : public std::runtime_error {
+public:
+    explicit not_supported_exception(const std::string& s) : std::runtime_error(s) {}
+};
+
 } // namespace mjs
 
 #endif
