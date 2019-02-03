@@ -945,6 +945,7 @@ void test_strict_mode() {
             } catch (const std::exception& e) {
                 const auto es = std::string{e.what()};
                 REQUIRE(es.find("May not delete unqualified identifier") != std::string::npos);
+                REQUIRE(es.find("at \"delete ") != std::string::npos);
             }
         }
     }

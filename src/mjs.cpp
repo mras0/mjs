@@ -100,7 +100,7 @@ void set_base_dir(const std::wstring_view fname) {
             last_slash = &ch;
         }
     }
-    base_dir = std::wstring{fname.data(), last_slash};
+    base_dir = last_slash == fname.data() ? L"." : std::wstring{fname.data(), last_slash};
 #ifdef _WIN32
     std::replace(base_dir.begin(), base_dir.end(), L'\\', L'/');
 #endif

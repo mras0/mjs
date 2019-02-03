@@ -492,7 +492,7 @@ private:
                     const auto new_item = elements.back().name_str();
                     if (is_strict_mode_unassignable_identifier(new_item)) {
                         // "eval" and "arguments" may not be used as the property name
-                        SYNTAX_ERROR("\"" << cpp_quote(new_item) << "\" may not be used as a property name in strict mode");
+                        SYNTAX_ERROR_AT("\"" << cpp_quote(new_item) << "\" may not be used as a property name in strict mode", elements.back().name().extend());
                     }
                     if (elements.back().type() == property_assignment_type::normal) {
                         // Repeated definitions are not allowed for data properties
@@ -501,7 +501,7 @@ private:
                             return v.type() == property_assignment_type::normal && v.name_str() == new_item;
                         });
                         if (it != e) {
-                            SYNTAX_ERROR("Data properties may only be defined once in strict mode: \"" << cpp_quote(new_item) << "\"");
+                            SYNTAX_ERROR_AT("Data properties may only be defined once in strict mode: \"" << cpp_quote(new_item) << "\"", elements.back().name().extend());
                         }
                     }
                 }
@@ -559,10 +559,10 @@ private:
                 auto e = parse_unary_expression();
                 if (strict_mode_) {
                     if (t == token_type::delete_ && e->type() == expression_type::identifier) {
-                        SYNTAX_ERROR("May not delete unqualified identifier \"" << cpp_quote(static_cast<const identifier_expression&>(*e).id()) << "\" in strict mode");
+                        SYNTAX_ERROR_AT("May not delete unqualified identifier \"" << cpp_quote(static_cast<const identifier_expression&>(*e).id()) << "\" in strict mode", e->extend());
                     }
                     if (is_strict_mode_unassignable_identifier(*e)) {
-                        SYNTAX_ERROR("\"" << cpp_quote(static_cast<const identifier_expression&>(*e).id()) << "\" may not be modified in strict mode");
+                        SYNTAX_ERROR_AT("\"" << cpp_quote(static_cast<const identifier_expression&>(*e).id()) << "\" may not be modified in strict mode", e->extend());
                     }
                 }
                 return make_expression<prefix_expression>(t, std::move(e));

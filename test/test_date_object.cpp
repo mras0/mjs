@@ -155,6 +155,8 @@ Date.parse(new Date(1547233002000).toISOString()); //$number 1547233002000
 n2 = Date.now();
 Date.parse(new Date(n2).toISOString()) === n2; //$boolean true
 
+Date.prototype.toJSON.length; //$number 1
+
 new Date(NaN).toJSON();         //$null
 new Date(1231231).toJSON();     //$string '1970-01-01T00:20:31.231Z'
 

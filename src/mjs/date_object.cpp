@@ -491,7 +491,7 @@ global_object_create_result make_date_object(const gc_heap_ptr<global_object>& g
 
         put_native_function(global, prototype, "toJSON", [global](const value& this_, const std::vector<value>&) {
             return date_helper::to_json(global, this_);
-        }, 0);
+        }, 1);
     }
 
     return { c, prototype };
