@@ -432,7 +432,7 @@ double array_last_index_of(const gc_heap_ptr<global_object>& global, const value
 }
 
 template<typename Init, typename Iter>
-void for_each_helper(const gc_heap_ptr<global_object>& global, const value& this_, const std::vector<value>& args, const Init& init, const Iter& iter) {
+void for_each_helper(gc_heap_ptr<global_object> global, const value& this_, const std::vector<value>& args, const Init& init, const Iter& iter) {
     auto o = global->to_object(this_);
     const auto len = to_uint32(o->get(L"length"));
     const auto callback = !args.empty() ? args[0] : value::undefined;
@@ -504,7 +504,7 @@ object_ptr array_filter(const gc_heap_ptr<global_object>& global, const value& t
     return a;
 }
 
-value array_reduce(const gc_heap_ptr<global_object>& global, const value& this_, const std::vector<value>& args, bool reduce_right) {
+value array_reduce(gc_heap_ptr<global_object> global, const value& this_, const std::vector<value>& args, bool reduce_right) {
     auto o = global->to_object(this_);
     const auto len = to_uint32(o->get(L"length"));
     const auto callback = !args.empty() ? args[0] : value::undefined;

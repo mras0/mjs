@@ -18,11 +18,12 @@ endmacro()
 add_library(test_lib STATIC test_spec.cpp test_spec.h test.cpp test.h)
 target_link_libraries(test_lib mjs_lib)
 
+mjs_add_normal_test(test_util)
 mjs_add_normal_test(test_value)
 mjs_add_normal_test(test_lexer)
 mjs_add_normal_test(test_parser)
+
 mjs_add_normal_test(test_interpreter)
-mjs_add_normal_test(test_util)
 mjs_add_normal_test(test_object_object)
 mjs_add_normal_test(test_function_object)
 mjs_add_normal_test(test_array_object)
@@ -34,6 +35,8 @@ mjs_add_normal_test(test_date_object)
 mjs_add_normal_test(test_regexp_object)
 #error
 mjs_add_normal_test(test_json_object)
+
+mjs_add_normal_test(test_es5_conformance)
 
 mjs_add_file_test(es1 array_literal.js WILL_FAIL TRUE)
 mjs_add_file_test(es3 array_literal.js PASS_REGULAR_EXPRESSION "OK")
