@@ -13,7 +13,8 @@
 #define UNHANDLED() unhandled(__FUNCTION__, __LINE__)
 #define EXPECT(tt) expect(tt, __FUNCTION__, __LINE__)
 #define EXPECT_SEMICOLON_ALLOW_INSERTION() expect_semicolon_allow_insertion(__FUNCTION__, __LINE__)
-#define SYNTAX_ERROR(expr) do { std::wostringstream _oss; _oss << expr; syntax_error(__FUNCTION__, __LINE__, _oss.str()); } while (0)
+#define SYNTAX_ERROR_AT(expr, pos) do { std::wostringstream _oss; _oss << expr; syntax_error(__FUNCTION__, __LINE__, pos, _oss.str()); } while (0)
+#define SYNTAX_ERROR(expr) SYNTAX_ERROR_AT(expr, active_extend())
 
 namespace mjs {
 
@@ -165,7 +166,7 @@ std::wstring property_name_string(const expression& e) {
 
 const wchar_t strict_directive[] = L"use strict";
 
-bool is_strict_mode_directive(const expression& e) {
+bool is_directive(const expression& e) {
     if (e.type() != expression_type::literal) {
         return false;
     }
@@ -173,6 +174,18 @@ bool is_strict_mode_directive(const expression& e) {
     if (le.t().type() != token_type::string_literal) {
         return false;
     }
+    return true;
+}
+
+bool is_directive(const statement& s) {
+    return s.type() == statement_type::expression && is_directive(static_cast<const expression_statement&>(s).e());
+}
+
+bool is_strict_mode_directive(const expression& e) {
+    if (!is_directive(e)) {
+        return false;
+    }
+    const auto& le = static_cast<const literal_expression&>(e);
     // Check spelling of directive, "A Use Strict Directive may not contain an EscapeSequence or LineContinuation."
     if (le.extend().source_view().compare(1, sizeof(strict_directive)/sizeof(*strict_directive) -1, strict_directive) != 0) {
         return false;
@@ -234,19 +247,19 @@ public:
 #ifdef PARSER_DEBUG
         std::wcout << "\nParsing '" << source_->text() << "'\n\n";
 #endif
-        
+
         statement_list l;
 
-        skip_whitespace();
-        while (current_token()) {
-            try {
-                l.push_back(parse_statement(version_ >= version::es5));
-            } catch (const std::exception& e) {
-                std::ostringstream oss;
-                oss << source_extend{source_, token_start_, lexer_.text_position()} << ": " << e.what();
-                throw std::runtime_error(oss.str());
-            }
+        try {
+            skip_whitespace();
+            l = parse_statement_list(version_ >= version::es5);
+            EXPECT_SEMICOLON_ALLOW_INSERTION();
+        } catch (const std::exception& e) {
+            std::ostringstream oss;
+            oss << source_extend{source_, token_start_, lexer_.text_position()} << ": " << e.what();
+            throw std::runtime_error(oss.str());
         }
+
 #ifdef PARSER_DEBUG
         std::wcout << "\n\n";
 #endif
@@ -397,6 +410,12 @@ private:
         return t;
     }
 
+    void check_string_literal(const source_extend& extend) {
+        if (has_octal_escape_sequence(extend.source_view())) {
+            SYNTAX_ERROR_AT("Octal escape sequences may not be used in strict mode", extend);
+        }
+    }
+
     void check_literal() {
         const auto tt = current_token_type();
         assert(is_literal(tt));
@@ -405,8 +424,8 @@ private:
         }
         if (tt == token_type::numeric_literal && is_octal_literal(active_extend().source_view())) {
             SYNTAX_ERROR("Octal literals may not be used in strict mode");
-        } else if (tt == token_type::string_literal && has_octal_escape_sequence(active_extend().source_view())) {
-            SYNTAX_ERROR("Octal escape sequences may not be used in strict mode");
+        } else if (tt == token_type::string_literal) {
+            check_string_literal(active_extend());
         }
     }
 
@@ -717,14 +736,32 @@ private:
         }
     }
 
+    statement_list parse_statement_list(bool check_for_strict_mode) {
+        statement_list l;
+        while (current_token() && current_token_type() != token_type::rbrace) {
+            const bool strict_mode_active_before = strict_mode_;
+            l.push_back(parse_statement(check_for_strict_mode));
+            if (!strict_mode_active_before && strict_mode_) {
+                // HACK: Strict mode was activated. Now go back and check the string literals before for octal escape sequences.
+                for (auto it = l.begin(); it != l.end() - 1; ++it) {
+                    assert(is_directive(**it));
+                    check_string_literal(static_cast<const expression_statement&>(**it).e().extend());
+                }
+            }
+
+            // Check if we're still in the directive prologue (ES5.1, 14.1)
+            // which is an unbroken sequence of expression statements consisting of just a string literal
+            if (check_for_strict_mode && !is_directive(*l.back())) {
+                check_for_strict_mode = false;
+            }
+        }
+        return l;
+    }
+
     statement_ptr parse_block(bool check_for_strict_mode = false) {
         EXPECT(token_type::lbrace);
-        statement_list l;
-
-        while (!accept(token_type::rbrace)) {
-            l.push_back(parse_statement(check_for_strict_mode));
-            check_for_strict_mode = false;
-        }
+        statement_list l = parse_statement_list(check_for_strict_mode);
+        EXPECT(token_type::rbrace);
         return make_statement<block_statement>(std::move(l), strict_mode_);
     }
 
@@ -958,7 +995,7 @@ private:
             if (check_for_strict_mode && is_strict_mode_directive(*e)) {
                 strict_mode_ = true;
 #ifdef PARSER_DEBUG
-                std::wcout << s->extend() << ": Strict mode enabled\n";
+                std::wcout << e->extend() << ": Strict mode enabled\n";
 #endif
             }
             EXPECT_SEMICOLON_ALLOW_INSERTION();
@@ -972,9 +1009,9 @@ private:
         throw std::runtime_error(oss.str());
     }
 
-    [[noreturn]] void syntax_error(const char* function, int line, const std::wstring_view message) {
+    [[noreturn]] static void syntax_error(const char* function, int line, const source_extend& extend, const std::wstring_view message) {
         std::wostringstream oss;
-        oss << "Syntax error in " << function  << " line " << line << " at \"" << cpp_quote(active_extend().source_view()) << "\": " << message;
+        oss << "Syntax error in " << function  << " line " << line << " at \"" << cpp_quote(extend.source_view()) << "\": " << message;
         throw std::runtime_error(unicode::utf16_to_utf8(oss.str()));
     }
 };

@@ -650,6 +650,9 @@ void test_strict_mode() {
     REQUIRE_EQ(is_strict_global("\"use strict\";"), v >= version::es5);
     REQUIRE_EQ(is_strict_global("'\\u0075se strict';"), false);
     REQUIRE_EQ(is_strict_global("'use'+'strict'"), false);
+    REQUIRE_EQ(is_strict_global("'foo';\"bar\";'use strict'"), v >= version::es5);
+    REQUIRE_EQ(is_strict_global("'foo';\"bar\";;'use strict'"), false);
+    REQUIRE_EQ(is_strict_global("'foo';1;'use strict'"), false);
 
     {
         auto bs = parse_text("if (1) { 'use strict'; }");
@@ -744,6 +747,15 @@ void test_strict_mode() {
         auto ep = test_parse_fails(std::wstring(L"'use strict';")+octal_escape_sequences);
         try {
             std::rethrow_exception(ep);
+        } catch (const std::exception& e) {
+            REQUIRE(std::string(e.what()).find("Octal escape sequences may not be used in strict mode") != std::string::npos);
+            REQUIRE(std::string(e.what()).find(R"(at "'\\164es\\164\\130'")") != std::string::npos);
+        }
+
+        // Also check when the escape sequence occurs in an earlier string literal (a possible directive)
+        auto ep2 = test_parse_fails(octal_escape_sequences+std::wstring(L";'use strict'"));
+        try {
+            std::rethrow_exception(ep2);
         } catch (const std::exception& e) {
             REQUIRE(std::string(e.what()).find("Octal escape sequences may not be used in strict mode") != std::string::npos);
             REQUIRE(std::string(e.what()).find(R"(at "'\\164es\\164\\130'")") != std::string::npos);
