@@ -489,13 +489,9 @@ private:
                 }
                 elements.push_back(parse_property_name_and_value());
                 if (strict_mode_) {
-                    const auto new_item = elements.back().name_str();
-                    if (is_strict_mode_unassignable_identifier(new_item)) {
-                        // "eval" and "arguments" may not be used as the property name
-                        SYNTAX_ERROR_AT("\"" << cpp_quote(new_item) << "\" may not be used as a property name in strict mode", elements.back().name().extend());
-                    }
                     if (elements.back().type() == property_assignment_type::normal) {
                         // Repeated definitions are not allowed for data properties
+                        const auto new_item = elements.back().name_str();
                         auto e = elements.end() - 1;
                         auto it = std::find_if(elements.begin(), e, [&new_item](const property_name_and_value& v) {
                             return v.type() == property_assignment_type::normal && v.name_str() == new_item;

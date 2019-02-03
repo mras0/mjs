@@ -801,34 +801,27 @@ void test_strict_mode() {
     // Identifier in a PropertySetParameterList of a PropertyAssignment that is contained in
     // strict code or if its FunctionBody is strict code
     //
-    const wchar_t* const eval_prop = L"({eval:42}.eval)";
-    const wchar_t* const args_prop = L"({arguments:60}.arguments)";
+    const wchar_t* const eval_prop = L"'use strict';({eval:42}.eval)";
+    const wchar_t* const args_prop = L"'use strict';({arguments:60}.arguments)";
     if (v >= version::es3) {
         RUN_TEST(eval_prop, value{42.});
         RUN_TEST(args_prop, value{60.});
     }
     if (v >= version::es5) {
-        RUN_TEST(L"({get eval(){return 12;}}).eval + ({get arguments(){return 34;}}).arguments", value{46.});
+        RUN_TEST(L"'use strict';({get eval(){return 12;}}).eval + ({get arguments(){return 34;}}).arguments", value{46.});
 
-        auto ep1 = test_parse_fails(std::wstring(L"'use strict';")+eval_prop);
+        auto ep1 = test_parse_fails("'use strict';({set x(eval){}});");
         try {
             std::rethrow_exception(ep1);
         } catch (const std::exception& e) {
-            REQUIRE(std::string(e.what()).find("\"eval\" may not be used as a property name in strict mode") != std::string::npos);
+            REQUIRE(std::string(e.what()).find("\"eval\" may not be used as a parameter name in strict mode") != std::string::npos);
         }
 
-        auto ep2 = test_parse_fails(std::wstring(L"'use strict';")+args_prop);
+        auto ep2 = test_parse_fails("'use strict';({set x(arguments){}});");
         try {
             std::rethrow_exception(ep2);
         } catch (const std::exception& e) {
-            REQUIRE(std::string(e.what()).find("\"arguments\" may not be used as a property name in strict mode") != std::string::npos);
-        }
-
-        auto ep3 = test_parse_fails(L"(function(){'use strict';({arguments:1})})();");
-        try {
-            std::rethrow_exception(ep3);
-        } catch (const std::exception& e) {
-            REQUIRE(std::string(e.what()).find("\"arguments\" may not be used as a property name in strict mode") != std::string::npos);
+            REQUIRE(std::string(e.what()).find("\"arguments\" may not be used as a parameter name in strict mode") != std::string::npos);
         }
     }
 

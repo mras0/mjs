@@ -65,15 +65,6 @@ void add_functions(interpreter& i) {
         }
         return load_file(i, args[0].string_value().view());
     }, 1);
-    put_native_function(global, global, "print", [&h = global.heap()](const value&, const std::vector<value>& args) {
-        std::wostringstream woss;
-        for (size_t j = 0; j < args.size(); ++j) {
-            if (j) woss << " ";
-            woss << to_string(h, args[j]);
-        }
-        std::wcout << woss.str() << "\n";
-        return value::undefined;
-    }, 1);
 }
 
 int interpret_file(const std::shared_ptr<source_file>& source) {
