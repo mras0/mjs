@@ -82,7 +82,7 @@ o.set;//$number 43
 Object.getPrototypeOf || Object.getOwnPropertyDescriptor  || Object.getOwnPropertyNames ||
 Object.create ||  Object.defineProperty || Object.defineProperties || Object.seal ||
 Object.freeze || Object.preventExtensions || Object.isSealed || Object.isFrozen ||
-Object.isExtensible || Object.keys; //$undefined
+Object.isExtensible || Object.keys || Object.isPrototypeOf; //$undefined
         )");
     } else {
 
@@ -98,6 +98,23 @@ Object.getPrototypeOf(new String('x')) === Number.prototype; //$boolean false
 Object.getPrototypeOf(new String('x')) === String.prototype; //$boolean true
 Object.getPrototypeOf({}) === Object.prototype; //$boolean true
 Object.getPrototypeOf(Object.prototype); //$null
+
+Object.prototype.isPrototypeOf.length;//$number 1
+Object.prototype.isPrototypeOf(42); //$boolean false
+Object.prototype.isPrototypeOf({}); //$boolean true
+String.prototype.isPrototypeOf('x'); //$boolean false
+String.prototype.isPrototypeOf(42); //$boolean false
+String.prototype.isPrototypeOf(new String('x')); //$boolean true
+
+function o(){};
+function p(){};
+p.prototype=new o();
+i=new p();
+o.prototype.isPrototypeOf(i); //$boolean true
+p.prototype.isPrototypeOf(i); //$boolean true
+String.prototype.isPrototypeOf(i); //$boolean false
+Object.prototype.isPrototypeOf(i); //$boolean true
+Function.prototype.isPrototypeOf(i); //$boolean false
 
 Object.getOwnPropertyNames.length; //$number 1
 function opn(o) { return Object.getOwnPropertyNames(o).toString(); }

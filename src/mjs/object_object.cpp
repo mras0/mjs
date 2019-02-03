@@ -291,6 +291,20 @@ global_object_create_result make_object_object(const gc_heap_ptr<global_object>&
             return p ? value{p} : value::null;
         }, 1);
 
+        put_native_function(global, prototype, "isPrototypeOf", [global](const value& this_, const std::vector<value>& args) {
+            if (!args.empty() && args[0].type() == value_type::object) {
+                auto v = args[0].object_value()->prototype();
+                auto o = global->to_object(this_);
+                while (v) {
+                    if (o.get() == v.get()) {
+                        return value{true};
+                    }
+                    v = v->prototype();
+                }
+            }
+            return value{false};
+        }, 1);
+
         put_native_function(global, o, "getOwnPropertyNames", [global](const value&, const std::vector<value>& args) {
             return get_property_names(global, get_arg(args, 0), false);
         }, 1);
