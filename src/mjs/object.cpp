@@ -94,8 +94,9 @@ object_ptr object::get_accessor_property_object(const std::wstring_view name) {
 
 bool object::do_redefine_own_property(const string& name, const value& val, property_attribute attr) {
     if (auto it = find(name.view()).first) {
-        it->put(*this, val);
+        assert(!has_attributes(attr, property_attribute::accessor));
         it->attributes(attr);
+        it->raw_put(val);
         return true;
     }
     assert(!is_valid(own_property_attributes(name.view())));

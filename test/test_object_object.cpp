@@ -430,6 +430,13 @@ o.q;//$number 42
 o.q=12;
 o.q;//$number 31
 
+// Redefine accessor property to data property
+
+o = Object.defineProperty({}, 'p', { get: function(){}, configurable: true });
+gopd(o,'p');//$string '{get: function (){},set: undefined,enumerable: false,configurable: true,}'
+Object.defineProperty(o, 'p', { value: 42 });
+gopd(o,'p');//$string '{value: 42,writable: false,enumerable: false,configurable: true,}'
+
 )");
     }
 }
