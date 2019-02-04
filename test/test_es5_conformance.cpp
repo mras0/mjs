@@ -33,10 +33,6 @@ constexpr int expected_failures[] = {
      170, // 12.2.1-7-s           eval - a direct eval declaring a var named 'eval' throws EvalError in strict mode
      171, // 12.2.1-8-s           eval - a direct eval assigning into 'eval' throws EvalError in strict mode
      172, // 12.2.1-9-s           eval - an indirect eval declaring a var named 'eval' throws EvalError in strict mode
-     181, // 13.1-2-3-s           eval - a function expr having a formal parameter named 'eval' throws SyntaxError if strict mode body
-     182, // 13.1-2-4-s           arguments - a function declaration having a formal parameter named 'arguments' throws SyntaxError if strict mode body
-     187, // 13.1-2-7-s           arguments - a function expr having a formal parameter named 'arguments' throws SyntaxError if strict mode body
-     188, // 13.1-2-8-s           arguments - a function declaration having a formal parameter named 'arguments' throws SyntaxError if strict mode body
      190, // 13.1-3-10-s          SyntaxError if arguments used as function identifier in function expression with strict body
      191, // 13.1-3-11-s          SyntaxError if arguments used as function identifier in function declaration in strict code
      192, // 13.1-3-12-s          SyntaxError if arguments used as function identifier in function expression in strict code
@@ -56,11 +52,8 @@ constexpr int expected_failures[] = {
      722, // 15.2.3.6-3-4         Object.defineProperty throws TypeError if desc has 'set' and 'writable' present
      737, // 15.2.3.6-4-18        Object.defineProperty throws TypeError when changing setter of non-configurable accessor properties
      740, // 15.2.3.6-4-20        Object.defineProperty throws TypeError when changing getter (if present) of non-configurable accessor properties
-     758, // 15.3.2.1-11-1-s      Duplicate seperate parameter name in Function constructor throws SyntaxError in strict mode
      760, // 15.3.2.1-11-2-s      Duplicate seperate parameter name in Function constructor called from strict mode allowed if body not strict
-     761, // 15.3.2.1-11-3-s      Function constructor having a formal parameter named 'eval' throws SyntaxError if function body is strict mode
      763, // 15.3.2.1-11-4-s      Function constructor call from strict code with formal parameter named 'eval' does not throws SyntaxError if function body is not strict mode
-     764, // 15.3.2.1-11-5-s      Duplicate combined parameter name in Function constructor throws SyntaxError in strict mode
      766, // 15.3.2.1-11-6-s      Duplicate combined parameter name allowed in Function constructor called in strict mode if body not strict
      767, // 15.3.2.1-11-7-s      Function constructor call from strict code with formal parameter named arguments does not throws SyntaxError if function body is not strict mode
      801, // 15.4.4.14-1-1        Array.prototype.indexOf applied to undefined throws a TypeError

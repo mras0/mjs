@@ -645,17 +645,10 @@ private:
         const auto body_start = lexer_.text_position() - 1;
         EXPECT(token_type::lparen);
         std::vector<std::wstring> params;
+        std::vector<source_extend> param_extends;
         if (!accept(token_type::rparen)) {
             do {
-                if (strict_mode_ && current_token_type() == token_type::identifier) {
-                    auto n = current_token().text();
-                    if (is_strict_mode_unassignable_identifier(n)) {
-                        SYNTAX_ERROR("\"" << cpp_quote(n) << "\" may not be used as a parameter name in strict mode");
-                    }
-                    if (std::find(params.begin(), params.end(), current_token().text()) != params.end()) {
-                        SYNTAX_ERROR("Parameter names may not be repeated in strict mode");
-                    }
-                }
+                param_extends.push_back(active_extend());
                 params.push_back(EXPECT(token_type::identifier).text());
             } while (accept(token_type::comma));
             EXPECT(token_type::rparen);
@@ -664,6 +657,20 @@ private:
         // Only check for strict mode if it makes a difference
         auto block = parse_block(!strict_mode_ && version_ >= version::es5);
         const auto body_end = block->extend().end;
+
+        assert(block->type() == statement_type::block);
+        if (static_cast<const block_statement&>(*block).strict_mode()) {
+            for (size_t i = 0; i < params.size(); ++i) {
+                auto n = params[i];
+                if (is_strict_mode_unassignable_identifier(n)) {
+                    SYNTAX_ERROR_AT("\"" << cpp_quote(n) << "\" may not be used as a parameter name in strict mode", param_extends[i]);
+                }
+                if (std::find(params.begin() + i + 1, params.end(), n) != params.end()) {
+                    SYNTAX_ERROR_AT("Parameter names may not be repeated in strict mode", param_extends[i]);
+                }
+            }
+        }
+
         return std::make_tuple(source_extend{source_, body_start, body_end}, std::move(params), std::move(block));
     }
 

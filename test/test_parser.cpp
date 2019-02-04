@@ -876,11 +876,20 @@ void test_strict_mode() {
     if (v >= version::es5) {
         const wchar_t* const function_expr = L"(function eval(){})";
         (void)parse_text(function_expr);
-        auto ep = test_parse_fails(std::wstring(L"'use strict';")+function_expr);
+        auto ep1 = test_parse_fails(std::wstring(L"'use strict';")+function_expr);
         try {
-            std::rethrow_exception(ep);
+            std::rethrow_exception(ep1);
         } catch (const std::exception& e) {
             REQUIRE(std::string(e.what()).find("\"eval\" may not be used as a function name in strict mode") != std::string::npos);
+            REQUIRE(std::string(e.what()).find(R"(at "eval")") != std::string::npos);
+        }
+
+        // Check that argument names are check after we know if it's a strict mode function
+        auto ep2 = test_parse_fails(L"function x(eval){'use strict';}");
+        try {
+            std::rethrow_exception(ep2);
+        } catch (const std::exception& e) {
+            REQUIRE(std::string(e.what()).find("\"eval\" may not be used as a parameter name in strict mode") != std::string::npos);
             REQUIRE(std::string(e.what()).find(R"(at "eval")") != std::string::npos);
         }
     }
