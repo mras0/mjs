@@ -293,14 +293,14 @@ global_object_create_result make_math_object(const gc_heap_ptr<global_object>& g
     auto& h = global.heap();
     auto math = global->make_object();
 
-    math->put(string{h, "E"},       value{2.7182818284590452354}, global_object::default_attributes);
-    math->put(string{h, "LN10"},    value{2.302585092994046}, global_object::default_attributes);
-    math->put(string{h, "LN2"},     value{0.6931471805599453}, global_object::default_attributes);
-    math->put(string{h, "LOG2E"},   value{1.4426950408889634}, global_object::default_attributes);
-    math->put(string{h, "LOG10E"},  value{0.4342944819032518}, global_object::default_attributes);
-    math->put(string{h, "PI"},      value{3.14159265358979323846}, global_object::default_attributes);
-    math->put(string{h, "SQRT1_2"}, value{0.7071067811865476}, global_object::default_attributes);
-    math->put(string{h, "SQRT2"},   value{1.4142135623730951}, global_object::default_attributes);
+    math->put(string{h, "E"},       value{2.7182818284590452354},  global_object::prototype_attributes);
+    math->put(string{h, "LN10"},    value{2.302585092994046},      global_object::prototype_attributes);
+    math->put(string{h, "LN2"},     value{0.6931471805599453},     global_object::prototype_attributes);
+    math->put(string{h, "LOG2E"},   value{1.4426950408889634},     global_object::prototype_attributes);
+    math->put(string{h, "LOG10E"},  value{0.4342944819032518},     global_object::prototype_attributes);
+    math->put(string{h, "PI"},      value{3.14159265358979323846}, global_object::prototype_attributes);
+    math->put(string{h, "SQRT1_2"}, value{0.7071067811865476},     global_object::prototype_attributes);
+    math->put(string{h, "SQRT2"},   value{1.4142135623730951},     global_object::prototype_attributes);
 
 
     auto make_math_function1 = [&](const char* name, auto f) {

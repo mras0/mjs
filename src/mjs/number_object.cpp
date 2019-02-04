@@ -54,11 +54,11 @@ global_object_create_result make_number_object(const gc_heap_ptr<global_object>&
         return value{new_number(prototype, args.empty() ? 0.0 : to_number(args.front()))};
     });
 
-    c->put(string{h, "MAX_VALUE"}, value{1.7976931348623157e308}, global_object::default_attributes);
-    c->put(string{h, "MIN_VALUE"}, value{5e-324}, global_object::default_attributes);
-    c->put(string{h, "NaN"}, value{NAN}, global_object::default_attributes);
-    c->put(string{h, "NEGATIVE_INFINITY"}, value{-INFINITY}, global_object::default_attributes);
-    c->put(string{h, "POSITIVE_INFINITY"}, value{INFINITY}, global_object::default_attributes);
+    c->put(string{h, "MAX_VALUE"}, value{1.7976931348623157e308}, global_object::prototype_attributes);
+    c->put(string{h, "MIN_VALUE"}, value{5e-324}, global_object::prototype_attributes);
+    c->put(string{h, "NaN"}, value{NAN}, global_object::prototype_attributes);
+    c->put(string{h, "NEGATIVE_INFINITY"}, value{-INFINITY}, global_object::prototype_attributes);
+    c->put(string{h, "POSITIVE_INFINITY"}, value{INFINITY}, global_object::prototype_attributes);
 
     auto make_number_function = [&](const char* name, int num_args, auto f) {
         put_native_function(global, prototype, string{h, name}, [prototype, global, f](const value& this_, const std::vector<value>& args){

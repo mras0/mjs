@@ -549,6 +549,10 @@ isFinite(Infinity) //$ boolean false
 isFinite(-Infinity) //$ boolean false
 isFinite(42) //$ boolean true
 isFinite(Number.MAX_VALUE) //$ boolean true
+
+// properties on the number object are immutable
+Number.MAX_VALUE=42;
+Number.MAX_VALUE;//$number 1.7976931348623157e+308
 )");
 
     // undefined, NaN and Infinity are immutable in ES5+
@@ -638,6 +642,10 @@ Math.LOG10E;            //$ number 0.4342944819032518
 Math.PI;                //$ number 3.14159265358979323846
 Math.SQRT1_2;           //$ number 0.7071067811865476
 Math.SQRT2;             //$ number 1.4142135623730951
+
+// Properties are read-only
+Math.E = 42;
+Math.E;                 //$ number 2.7182818284590452354
 
 Math.abs(NaN);          //$ number NaN
 Math.abs(-0);           //$ number 0

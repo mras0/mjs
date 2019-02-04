@@ -918,6 +918,7 @@ R"#(
   foo();
   
   // in the browser, the "window" serves as the global object.
+  if (!global['window']) global['window']=global; // In case we're not running in a browser
   var desc = Object.getOwnPropertyDescriptor(window, '__ES3_1_test_suite_test_11_13_1_unique_id_3__');
   if (desc.value === 42 &&
       desc.writable === true &&
