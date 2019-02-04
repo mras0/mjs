@@ -58,10 +58,6 @@ constexpr int expected_failures[] = {
      196, // 13.1-3-5-s           SyntaxError if eval used as function identifier in function declaration in strict code
      197, // 13.1-3-6-s           SyntaxError if eval used as function identifier in function expression in strict code
      200, // 13.1-3-9-s           SyntaxError if arguments used as function identifier in function declaration with strict body
-     254, // 15.12.1.1-g4-1       The JSON lexical grammer does not allow a JSONStringCharacter to be any of the Unicode characters U+0000 thru U+0007
-     255, // 15.12.1.1-g4-2       The JSON lexical grammer does not allow a JSONStringCharacter to be any of the Unicode characters U+0008 thru U+000F
-     256, // 15.12.1.1-g4-3       The JSON lexical grammer does not allow a JSONStringCharacter to be any of the Unicode characters U+0010 thru U+0017
-     257, // 15.12.1.1-g4-4       The JSON lexical grammer does not allow a JSONStringCharacter to be any of the Unicode characters U+0018 thru U+001F
      520, // 15.2.3.3-4-164       Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (RegExp.prototype.compile)
      540, // 15.2.3.3-4-183       Object.getOwnPropertyDescriptor returns undefined for non-existent properties on built-ins (Function.arguments)
      641, // 15.2.3.3-4-74        Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (String.prototype.substr)

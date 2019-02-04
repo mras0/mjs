@@ -137,6 +137,7 @@ try { JSON.parse('"\\"'); } catch (e) { e.toString(); }         //$string 'Synta
 try { JSON.parse('"\\u123"'); } catch (e) { e.toString(); }     //$string 'SyntaxError: Unterminated escape sequence in JSON at position 2'
 try { JSON.parse('"\\u123q"'); } catch (e) { e.toString(); }    //$string 'SyntaxError: Invalid escape sequence in JSON at position 2'
 try { JSON.parse('"\\q"'); } catch (e) { e.toString(); }        //$string 'SyntaxError: Invalid escape sequence "\\q" in JSON at position 2'
+try { JSON.parse('"a\x1f"'); } catch (e) { e.toString(); }      //$string 'SyntaxError: Invalid character "\\x1F" in JSON at position 2'
 
 JSON.parse('null'); //$null
 JSON.parse('false'); //$boolean false

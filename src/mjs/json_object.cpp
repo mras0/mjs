@@ -241,6 +241,10 @@ public:
                     break;
                 } else if (sch == '\\') {
                     escape = true;
+                } else if (sch < 0x20) {
+                    std::wostringstream woss;
+                    woss << "Invalid character \"" << cpp_quote(text_.substr(end - 1, 1)) << "\" in JSON at position " << end - 1;
+                    throw native_error_exception{native_error_type::syntax, global_->stack_trace(), woss.str()};
                 } else {
                     s.push_back(sch);
                 }
