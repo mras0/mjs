@@ -1059,10 +1059,6 @@ try { Object.prototype=42; } catch (e) { e.toString(); } //$string 'TypeError: C
 try { (function f(){f=1;})(); } catch (e) { e.toString(); } //$string 'TypeError: Cannot assign to read only property f in strict mode'
 try { var o=Object.preventExtensions({}); o.a=42;} catch (e) { e.toString(); } //$string 'TypeError: Cannot add property a to non-extensible object in strict mode'
 )");
-
-        RUN_TEST_SPEC(R"(
-({n:1,get n(){return 2;}}).n; //$number 2
-)");
     }
 }
 

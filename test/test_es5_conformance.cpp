@@ -15,14 +15,6 @@ using namespace mjs;
 constexpr int expected_failures[] = {
       24, // 10.6-13-b-3-s        arguments.caller is non-configurable in strict mode
       27, // 10.6-13-c-3-s        arguments.callee is non-configurable in strict mode
-      39, // 11.1.5@4-4-b-1       Object literal - SyntaxError if a data property definition is followed by get accessor definition with the same name
-      40, // 11.1.5@4-4-b-2       Object literal - SyntaxError if a data property definition is followed by set accessor definition with the same name
-      41, // 11.1.5@4-4-c-1       Object literal - SyntaxError if a get accessor property definition is followed by a data property definition with the same name
-      42, // 11.1.5@4-4-c-2       Object literal - SyntaxError if a set accessor property definition is followed by a data property definition with the same name
-      43, // 11.1.5@4-4-d-1       Object literal - SyntaxError for duplicate property name (get,get)
-      44, // 11.1.5@4-4-d-2       Object literal - SyntaxError for duplicate property name (set,set)
-      45, // 11.1.5@4-4-d-3       Object literal - SyntaxError for duplicate property name (get,set,get)
-      46, // 11.1.5@4-4-d-4       Object literal - SyntaxError for duplicate property name (set,get,set)      
       80, // 11.13.1-4-4-s        simple assignment throws TypeError if LeftHandSide is a readonly property in strict mode (Global.length)
      116, // 11.4.1-5-1-s         delete operator throws ReferenceError when deleting a direct reference to a var in strict mode
      118, // 11.4.1-5-2-s         delete operator throws ReferenceError when deleting a direct reference to a function argument in strict mode

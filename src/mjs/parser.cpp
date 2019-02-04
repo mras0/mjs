@@ -488,17 +488,33 @@ private:
                     }
                 }
                 elements.push_back(parse_property_name_and_value());
-                if (strict_mode_) {
-                    if (elements.back().type() == property_assignment_type::normal) {
-                        // Repeated definitions are not allowed for data properties
-                        const auto new_item = elements.back().name_str();
-                        auto e = elements.end() - 1;
-                        auto it = std::find_if(elements.begin(), e, [&new_item](const property_name_and_value& v) {
-                            return v.type() == property_assignment_type::normal && v.name_str() == new_item;
-                        });
-                        if (it != e) {
-                            SYNTAX_ERROR_AT("Data properties may only be defined once in strict mode: \"" << cpp_quote(new_item) << "\"", elements.back().name().extend());
+                if (version_ >= version::es5) {
+                    const auto& new_item = elements.back();
+                    const auto new_item_str = new_item.name_str();
+                    auto e = elements.end() - 1;
+                    auto it = std::find_if(elements.begin(), e, [&](const property_name_and_value& v) {
+                        if (v.name_str() != new_item_str) {
+                            // Item doesn't match
+                            return false;
                         }
+                        // Repeated definitions are not allowed for data properties in strict mode
+                        if (new_item.type() == property_assignment_type::normal && v.type() == property_assignment_type::normal) {
+                            return strict_mode_;
+                        }
+                        // May not change a data property to an accessor property or vice versa
+                        if (new_item.type() == property_assignment_type::normal && v.type() != property_assignment_type::normal) {
+                            return true;
+                        }
+                        if (new_item.type() != property_assignment_type::normal && v.type() == property_assignment_type::normal) {
+                            return true;
+                        }
+                        // May only define getter/setter once
+                        assert(new_item.type() == property_assignment_type::get || new_item.type() == property_assignment_type::set);
+                        assert(v.type() == property_assignment_type::get || v.type() == property_assignment_type::set);
+                        return new_item.type() == v.type();
+                    });
+                    if (it != e) {
+                        SYNTAX_ERROR_AT("Invalid redefinition of property: \"" << cpp_quote(new_item_str) << "\"", elements.back().name().extend());
                     }
                 }
             }

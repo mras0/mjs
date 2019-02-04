@@ -355,10 +355,21 @@ void test_object_literal() {
         test_parse_fails("({set x(){}})");
         test_parse_fails("({set x(a,b){}})");
 
+        // SyntaxError if
+        // 4.b. IsDataDescriptor(previous) is true and IsAccessorDescriptor(propId.descriptor) is true.
+        test_parse_fails("({x:42, set x(a){}})");
+        // 4.c. IsAccessorDescriptor(previous) is true and IsDataDescriptor(propId.descriptor) is true.
+        test_parse_fails("({get x(){}, x:42})");
+        // 4.d. IsAccessorDescriptor(previous) is true and IsAccessorDescriptor(propId.descriptor) is true
+        // and either both previous and propId.descriptor have [[Get]] fields or both previous and propId.descriptor
+        // have [[Set]] fields
+        test_parse_fails("({get x(){}, get x(){}})");
+        test_parse_fails("({set x(a){}, set x(a){}})");
+
         {
-            const auto& [_, oe] = parse_object_literal("({get if(){return 42;}, set if(x){}, set if(y){}, x:42})"); (void)_;
+            const auto& [_, oe] = parse_object_literal("({get if(){return 42;}, set if(x){}, x:42})"); (void)_;
             const auto& oes = oe->elements();
-            REQUIRE_EQ(oes.size(), 4U);
+            REQUIRE_EQ(oes.size(), 3U);
 
             REQUIRE_EQ(oes[0].type(), property_assignment_type::get);
             REQUIRE_EQ(CHECK_EXPR_TYPE(oes[0].name(), identifier).id(), L"if");
@@ -368,13 +379,9 @@ void test_object_literal() {
             REQUIRE_EQ(CHECK_EXPR_TYPE(oes[1].name(), identifier).id(), L"if");
             CHECK_EXPR_TYPE(oes[1].value(), function);
 
-            REQUIRE_EQ(oes[2].type(), property_assignment_type::set);
-            REQUIRE_EQ(CHECK_EXPR_TYPE(oes[2].name(), identifier).id(), L"if");
-            CHECK_EXPR_TYPE(oes[2].value(), function);
-
-            REQUIRE_EQ(oes[3].type(), property_assignment_type::normal);
-            REQUIRE_EQ(CHECK_EXPR_TYPE(oes[3].name(), identifier).id(), L"x");
-            REQUIRE_EQ(CHECK_EXPR_TYPE(oes[3].value(), literal).t(), token{42.});
+            REQUIRE_EQ(oes[2].type(), property_assignment_type::normal);
+            REQUIRE_EQ(CHECK_EXPR_TYPE(oes[2].name(), identifier).id(), L"x");
+            REQUIRE_EQ(CHECK_EXPR_TYPE(oes[2].value(), literal).t(), token{42.});
         }
 
         {
@@ -791,7 +798,7 @@ void test_strict_mode() {
         try {
             std::rethrow_exception(ep);
         } catch (const std::exception& e) {
-            REQUIRE(std::string(e.what()).find("Data properties may only be defined once in strict mode") != std::string::npos);
+            REQUIRE(std::string(e.what()).find("Invalid redefinition") != std::string::npos);
             REQUIRE(std::string(e.what()).find(R"("1000")") != std::string::npos);
         }
     }
