@@ -211,6 +211,42 @@ string array_to_locale_string(const gc_heap_ptr<global_object>& global_, const o
     return string{h, s};
 }
 
+value array_concat(gc_heap_ptr<global_object> global, const value& this_, const std::vector<value>& args) {
+    auto& h = global.heap();
+    auto a = make_array(global, 0);
+    uint32_t n = 0;
+
+    auto add_value = [&](const value& e) {
+        a->put(string{h, index_string(n++)}, e);
+    };
+
+    auto add_object = [&](const object_ptr& e) {
+        if (is_array(e)) {
+            const uint32_t l = to_uint32(e->get(L"length"));
+            for (uint32_t k = 0; k < l; ++k) {
+                const auto is = index_string(k);
+                if (e->has_property(is)) {
+                    add_value(e->get(is));
+                }
+            }
+        } else {
+            add_value(value{e});
+        }
+    };
+
+    add_object(global->to_object(this_));
+
+    for (const auto& item: args) {
+        if (item.type() == value_type::object) {
+            add_object(item.object_value());
+        } else {
+            add_value(item);
+        }
+    }
+
+    return value{a};
+}
+
 string array_join(const object_ptr& o, const std::wstring_view& sep) {
     auto& h = o.heap();
     const uint32_t l = to_uint32(o->get(L"length"));
@@ -572,6 +608,9 @@ global_object_create_result make_array_object(const gc_heap_ptr<global_object>& 
             if (version < version::es5) global->validate_type(this_, global->array_prototype(), "array");
             return value{array_to_locale_string(global, this_.object_value())};
         }, 0);
+        put_native_function(global, prototype, "concat", [global](const value& this_, const std::vector<value>& args) {
+            return array_concat(global, this_, args);
+        }, 1);
         put_native_function(global, prototype, "pop", [global](const value& this_, const std::vector<value>&) {
             global->validate_object(this_);
             return array_pop(global, this_.object_value());

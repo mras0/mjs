@@ -448,6 +448,33 @@ a.toString(); //$string '0'
 
 )");
 
+    RUN_TEST_SPEC(R"(
+Array.prototype.concat.length;           //$number 1
+[].concat().toString();                  //$string ''
+a=[1,2];
+a.concat().toString();                   //$string '1,2'
+a.concat(3).toString();                  //$string '1,2,3'
+a.concat(3,'x').toString();              //$string '1,2,3,x'
+a.toString();                            //$string '1,2'
+[,,2].concat(1,undefined,2).toString();  //$string ',,2,1,,2'
+
+function f() { this.length = 4; this['1']='a'; this['3']='z'; this['4'] = 'w'; }
+f.prototype.concat = Array.prototype.concat;
+f.prototype.toString = function() { return 'f'+this.length; };
+a=(new f()).concat(6,7,8);
+a.length;//$ number 4
+a instanceof Array; //$boolean true
+a.toString(); //$string 'f4,6,7,8'
+
+Array.prototype.concat.call(42,1,2).toString(); //$string '42,1,2'
+
+b=['a','b','c'].concat([1,2,3],[[4,5,6]]);
+b.length;//$number 7
+b[6].length;//$number 3
+b.toString();//$string 'a,b,c,1,2,3,4,5,6'
+
+)");
+
     // Check that `RangeError` is thrown (15.4.2.2, 15.4.5.1)
     RUN_TEST_SPEC(R"(
 
