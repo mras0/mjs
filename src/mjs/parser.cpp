@@ -14,7 +14,7 @@
 #define EXPECT(tt) expect(tt, __FUNCTION__, __LINE__)
 #define EXPECT_SEMICOLON_ALLOW_INSERTION() expect_semicolon_allow_insertion(__FUNCTION__, __LINE__)
 #define SYNTAX_ERROR_AT(expr, pos) do { std::wostringstream _oss; _oss << expr; syntax_error(__FUNCTION__, __LINE__, pos, _oss.str()); } while (0)
-#define SYNTAX_ERROR(expr) SYNTAX_ERROR_AT(expr, active_extend())
+#define SYNTAX_ERROR(expr) SYNTAX_ERROR_AT(expr, current_extend())
 
 namespace mjs {
 
@@ -389,7 +389,7 @@ private:
         return t;
     }
 
-    source_extend active_extend() const {
+    source_extend current_extend() const {
         return source_extend{source_, token_start_, lexer_.text_position()};
     }
 
@@ -422,10 +422,10 @@ private:
         if (!strict_mode_) {
             return;
         }
-        if (tt == token_type::numeric_literal && is_octal_literal(active_extend().source_view())) {
+        if (tt == token_type::numeric_literal && is_octal_literal(current_extend().source_view())) {
             SYNTAX_ERROR("Octal literals may not be used in strict mode");
         } else if (tt == token_type::string_literal) {
-            check_string_literal(active_extend());
+            check_string_literal(current_extend());
         }
     }
 
@@ -648,14 +648,13 @@ private:
         std::vector<source_extend> param_extends;
         if (!accept(token_type::rparen)) {
             do {
-                param_extends.push_back(active_extend());
+                param_extends.push_back(current_extend());
                 params.push_back(EXPECT(token_type::identifier).text());
             } while (accept(token_type::comma));
             EXPECT(token_type::rparen);
         }
         scoped_strict_mode ssm{*this};   // Make sure state is restored afterwards
-        // Only check for strict mode if it makes a difference
-        auto block = parse_block(!strict_mode_ && version_ >= version::es5);
+        auto block = parse_block(version_ >= version::es5);
         const auto body_end = block->extend().end;
 
         assert(block->type() == statement_type::block);
@@ -672,6 +671,12 @@ private:
         }
 
         return std::make_tuple(source_extend{source_, body_start, body_end}, std::move(params), std::move(block));
+    }
+
+    void check_function_name(const std::wstring_view id, const source_extend& extend) {
+        if (is_strict_mode_unassignable_identifier(id)) {
+            SYNTAX_ERROR_AT("\"" << cpp_quote(id) << "\" may not be used as a function name in strict mode", extend);
+        }
     }
 
     expression_ptr parse_member_expression() {
@@ -691,16 +696,15 @@ private:
             me = make_expression<prefix_expression>(token_type::new_, std::move(e));
         } else if (version_ >= version::es3 && accept(token_type::function_)) {
             std::wstring id{};
-            if (strict_mode_ && current_token_type() == token_type::identifier) {
-                auto n = current_token().text();
-                if (is_strict_mode_unassignable_identifier(n)) {
-                    SYNTAX_ERROR("\"" << cpp_quote(n) << "\" may not be used as a function name in strict mode");
-                }
-            }
+            const auto id_extend = current_extend();
             if (auto id_token = accept(token_type::identifier)) {
                 id = id_token.text();
             }
             auto [extend, params, block] = parse_function();
+            assert(block->type() == statement_type::block);
+            if (static_cast<const block_statement&>(*block).strict_mode()) {
+                check_function_name(id, id_extend);
+            }
             return make_expression<function_expression>(extend, id, std::move(params), std::move(block));
         } else {
             me = parse_primary_expression();
@@ -837,15 +841,13 @@ private:
         if (current_token_type() == token_type::lbrace) {
             return parse_block();
         } else if (accept(token_type::function_)) {
-            if (strict_mode_ && current_token_type() == token_type::identifier) {
-                auto n = current_token().text();
-                if (is_strict_mode_unassignable_identifier(n)) {
-                    SYNTAX_ERROR("\"" << cpp_quote(n) << "\" may not be used as a function name in strict mode");
-                }
-            }
-
+            const auto id_extend = current_extend();
             auto id = EXPECT(token_type::identifier).text();
             auto [extend, params, block] = parse_function();
+            assert(block->type() == statement_type::block);
+            if (static_cast<const block_statement&>(*block).strict_mode()) {
+                check_function_name(id, id_extend);
+            }
             return make_statement<function_definition>(extend, id, std::move(params), std::move(block));
         } else if (accept(token_type::var_)) {
             auto dl = parse_variable_declaration_list();

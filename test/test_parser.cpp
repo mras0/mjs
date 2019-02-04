@@ -687,6 +687,18 @@ void test_strict_mode() {
     REQUIRE_EQ(is_strict_function("1;'use strict'"), false);
     REQUIRE_EQ(is_strict_function("'\\x75se strict'"), false);
 
+    // Check nested function
+    {
+        auto bs = parse_text("function f(){function g(){'use strict';}}");
+        REQUIRE_EQ(bs->strict_mode(), false);
+        REQUIRE_EQ(bs->l().size(), 1U);
+        REQUIRE_EQ(bs->l()[0]->type(), statement_type::function_definition);
+        const auto& ibs = static_cast<const function_definition&>(*bs->l()[0]).block();
+        REQUIRE_EQ(ibs.l()[0]->type(), statement_type::function_definition);
+        const auto& iibs = static_cast<const function_definition&>(*ibs.l()[0]).block();
+        REQUIRE_EQ(iibs.strict_mode(), tested_version() >= version::es5);
+    }
+
     //
     // WithStatements are not allowed
     //
@@ -890,6 +902,23 @@ void test_strict_mode() {
             std::rethrow_exception(ep2);
         } catch (const std::exception& e) {
             REQUIRE(std::string(e.what()).find("\"eval\" may not be used as a parameter name in strict mode") != std::string::npos);
+            REQUIRE(std::string(e.what()).find(R"(at "eval")") != std::string::npos);
+        }
+
+        // Also check that function names are verified after body is parsed
+        auto ep3 = test_parse_fails(L"function y() { function arguments(){'use strict';} }");
+        try {
+            std::rethrow_exception(ep3);
+        } catch (const std::exception& e) {
+            REQUIRE(std::string(e.what()).find("\"arguments\" may not be used as a function name in strict mode") != std::string::npos);
+            REQUIRE(std::string(e.what()).find(R"(at "arguments")") != std::string::npos);
+        }
+
+        auto ep4 = test_parse_fails(L"(function eval\n(){'use strict';});");
+        try {
+            std::rethrow_exception(ep4);
+        } catch (const std::exception& e) {
+            REQUIRE(std::string(e.what()).find("\"eval\" may not be used as a function name in strict mode") != std::string::npos);
             REQUIRE(std::string(e.what()).find(R"(at "eval")") != std::string::npos);
         }
     }

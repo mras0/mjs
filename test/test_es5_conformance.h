@@ -3056,7 +3056,7 @@ R"#(
     eval("(function arguments (){'use strict';});");
     return false
   }
-  catch (e) { e instanceof SyntaxError }  
+  catch (e) { return e instanceof SyntaxError; }
  )#"
     },
     {
@@ -3068,7 +3068,7 @@ R"#(
     eval("'use strict' ;function arguments (){};");
     return false
   }
-  catch (e) { e instanceof SyntaxError }  
+  catch (e) { return e instanceof SyntaxError; }
  )#"
     },
     {
@@ -3080,7 +3080,7 @@ R"#(
     eval("'use strict' ;(function arguments (){});");
     return false
   }
-  catch (e) { e instanceof SyntaxError }  
+  catch (e) { return e instanceof SyntaxError; }
  )#"
     },
     {
@@ -3104,7 +3104,7 @@ R"#(
     eval("function eval(){'use strict';};");
     return false
   }
-  catch (e) { e instanceof SyntaxError }  
+  catch (e) { return e instanceof SyntaxError; }
  )#"
     },
     {
@@ -3116,7 +3116,7 @@ R"#(
     eval("(function eval (){'use strict';});");
     return false
   }
-  catch (e) { e instanceof SyntaxError }  
+  catch (e) { return e instanceof SyntaxError; }
  )#"
     },
     {
@@ -3128,7 +3128,7 @@ R"#(
     eval("'use strict' ;function eval(){};");
     return false
   }
-  catch (e) { e instanceof SyntaxError }  
+  catch (e) { return e instanceof SyntaxError; }
  )#"
     },
     {
@@ -3140,7 +3140,7 @@ R"#(
     eval("'use strict' ;(function eval(){});");
     return false
   }
-  catch (e) { e instanceof SyntaxError }  
+  catch (e) { return e instanceof SyntaxError; }
  )#"
     },
     {
@@ -3176,7 +3176,7 @@ R"#(
     eval("function arguments (){'use strict';};");
     return false
   }
-  catch (e) { e instanceof SyntaxError }  
+  catch (e) { return e instanceof SyntaxError; }
  )#"
     },
     {

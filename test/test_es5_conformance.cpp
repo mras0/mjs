@@ -33,14 +33,6 @@ constexpr int expected_failures[] = {
      170, // 12.2.1-7-s           eval - a direct eval declaring a var named 'eval' throws EvalError in strict mode
      171, // 12.2.1-8-s           eval - a direct eval assigning into 'eval' throws EvalError in strict mode
      172, // 12.2.1-9-s           eval - an indirect eval declaring a var named 'eval' throws EvalError in strict mode
-     190, // 13.1-3-10-s          SyntaxError if arguments used as function identifier in function expression with strict body
-     191, // 13.1-3-11-s          SyntaxError if arguments used as function identifier in function declaration in strict code
-     192, // 13.1-3-12-s          SyntaxError if arguments used as function identifier in function expression in strict code
-     194, // 13.1-3-3-s           SyntaxError if eval used as function identifier in function declaration with strict body
-     195, // 13.1-3-4-s           SyntaxError if eval used as function identifier in function expression with strict body
-     196, // 13.1-3-5-s           SyntaxError if eval used as function identifier in function declaration in strict code
-     197, // 13.1-3-6-s           SyntaxError if eval used as function identifier in function expression in strict code
-     200, // 13.1-3-9-s           SyntaxError if arguments used as function identifier in function declaration with strict body
      520, // 15.2.3.3-4-164       Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (RegExp.prototype.compile)
      540, // 15.2.3.3-4-183       Object.getOwnPropertyDescriptor returns undefined for non-existent properties on built-ins (Function.arguments)
      641, // 15.2.3.3-4-74        Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (String.prototype.substr)
