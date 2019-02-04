@@ -75,6 +75,7 @@ struct {
     const char* id;
     const char* description;
     const char* code;
+    const char* prelude = "";
 } tests[] = {
     {
         "7.8.4-1-s",
@@ -107,7 +108,8 @@ R"#(
   if(_eval("\'str\' === __10_4_2_1_1_1") === true &&  // indirect eval
      eval("\'str1\' === __10_4_2_1_1_1") === true)   // direct eval
     return true;
- )#"
+ )#",
+    R"(var __10_4_2_1_1_1 = "str";)"
     },
     {
         "10.4.2-1-2",
@@ -123,7 +125,8 @@ R"#(
       return true;
   }
   return foo();
- )#"
+ )#",
+        R"(var __10_4_2_1_2 = "str";)"
     },
     {
         "10.4.2-1-3",
@@ -143,7 +146,8 @@ R"#(
        eval("\'str2\' === __10_4_2_1_3") === true)    // direct eval
       return true;
   }
- )#"
+ )#",
+    R"(var __10_4_2_1_3 = "str";)"
     },
     {
         "10.4.2-1-4",
@@ -159,7 +163,8 @@ R"#(
        eval("\'str2\' === __10_4_2_1_4") === true)    // direct eval
       return true;
   }
- )#"
+ )#",
+    R"(var __10_4_2_1_4 = "str";)"
     },
     {
         "10.4.2-1-5",
@@ -174,7 +179,8 @@ R"#(
             ");   
   if(r == true)
     return true;
- )#"
+ )#",
+    R"(var __10_4_2_1_5 = "str";)"
     },
     {
         "10.4.2-2-c-1",

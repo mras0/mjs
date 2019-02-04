@@ -13,11 +13,6 @@
 using namespace mjs;
 
 constexpr int expected_failures[] = {
-       2, // 10.4.2-1-1           Indirect call to eval has context set to global context
-       3, // 10.4.2-1-2           Indirect call to eval has context set to global context (nested function)
-       4, // 10.4.2-1-3           Indirect call to eval has context set to global context (catch block)
-       5, // 10.4.2-1-4           Indirect call to eval has context set to global context (with block)
-       6, // 10.4.2-1-5           Indirect call to eval has context set to global context (inside another eval)
       24, // 10.6-13-b-3-s        arguments.caller is non-configurable in strict mode
       27, // 10.6-13-c-3-s        arguments.callee is non-configurable in strict mode
       39, // 11.1.5@4-4-b-1       Object literal - SyntaxError if a data property definition is followed by get accessor definition with the same name
@@ -121,6 +116,7 @@ void test_main() {
     constexpr int num_tests = sizeof(tests)/sizeof(*tests);
     gc_heap h{1<<20};
     int unexpected = 0;
+    const auto helper_code = unicode::utf8_to_utf16(helper_functions) + L";";
     for (int i = 0; i < num_tests; ++i) {
         const auto& t = tests[i];
         const bool expect_failure = std::find(std::begin(expected_failures), std::end(expected_failures), i) != std::end(expected_failures);
@@ -132,7 +128,7 @@ void test_main() {
                 h.garbage_collect();
             }
 
-            auto code = unicode::utf8_to_utf16(helper_functions) + L";" + L"(function(){" + unicode::utf8_to_utf16(t.code) + L"})()";
+            auto code = unicode::utf8_to_utf16(t.prelude) +  helper_code + L"(function(){" + unicode::utf8_to_utf16(t.code) + L"})()";
             auto bs = parse(std::make_unique<source_file>(unicode::utf8_to_utf16(t.id), code, version::es5));
 
             // Could be optimized to reuse interpreter but take to restore global object
