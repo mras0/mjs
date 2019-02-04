@@ -420,7 +420,7 @@ global_object_create_result make_date_object(const gc_heap_ptr<global_object>& g
     };
 
     auto copy_func = [&](const wchar_t* from, const wchar_t* to) {
-        prototype->put(string{h, to}, prototype->get(from));
+        prototype->put(string{h, to}, prototype->get(from), prototype->own_property_attributes(from));
     };
 
     using field_ptr = double date_time::*;

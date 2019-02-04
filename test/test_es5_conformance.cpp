@@ -62,18 +62,6 @@ constexpr int expected_failures[] = {
      255, // 15.12.1.1-g4-2       The JSON lexical grammer does not allow a JSONStringCharacter to be any of the Unicode characters U+0008 thru U+000F
      256, // 15.12.1.1-g4-3       The JSON lexical grammer does not allow a JSONStringCharacter to be any of the Unicode characters U+0010 thru U+0017
      257, // 15.12.1.1-g4-4       The JSON lexical grammer does not allow a JSONStringCharacter to be any of the Unicode characters U+0018 thru U+001F
-     499, // 15.2.3.3-4-145       Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (Date.prototype.setUTCFullYear)
-     500, // 15.2.3.3-4-146       Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (Date.prototype.setUTCMonth)
-     501, // 15.2.3.3-4-147       Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (Date.prototype.setUTCDate)
-     502, // 15.2.3.3-4-148       Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (Date.prototype.setUTCHours)
-     503, // 15.2.3.3-4-149       Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (Date.prototype.setUTCMinutes)
-     505, // 15.2.3.3-4-150       Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (Date.prototype.setUTCSeconds)
-     506, // 15.2.3.3-4-151       Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (Date.prototype.setUTCMilliseconds)
-     507, // 15.2.3.3-4-152       Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (Date.prototype.toLocaleString)
-     509, // 15.2.3.3-4-154       Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (Date.prototype.toUTCString)
-     510, // 15.2.3.3-4-155       Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (Date.prototype.toGMTString)
-     513, // 15.2.3.3-4-158       Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (Date.prototype.toLocaleDateString)
-     514, // 15.2.3.3-4-159       Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (Date.prototype.toLocaleTimeString)
      520, // 15.2.3.3-4-164       Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (RegExp.prototype.compile)
      540, // 15.2.3.3-4-183       Object.getOwnPropertyDescriptor returns undefined for non-existent properties on built-ins (Function.arguments)
      641, // 15.2.3.3-4-74        Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (String.prototype.substr)
