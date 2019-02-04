@@ -457,11 +457,10 @@ R"#(
   var desc = Object.getOwnPropertyDescriptor(arguments,"caller");
   if(desc.configurable === false &&
      desc.enumerable === false &&
-     desc.writable === true &&
      desc.hasOwnProperty('value') == false &&
      desc.hasOwnProperty('writable') == false &&
      desc.hasOwnProperty('get') == true &&
-     desc.hasOwnProperty('put') == true )
+     desc.hasOwnProperty('set') == true )
     return true;
  )#"
     },
@@ -502,7 +501,7 @@ R"#(
      desc.hasOwnProperty('value') == false &&
      desc.hasOwnProperty('writable') == false &&
      desc.hasOwnProperty('get') == true &&
-     desc.hasOwnProperty('put') == true)
+     desc.hasOwnProperty('set') == true)
     return true;
  )#"
     },
@@ -2615,7 +2614,7 @@ R"#(
     },
     {
         "12.2.1-1-s",
-        R"(eval - a function declaring a var named 'eval' throws EvalError in strict mode)",
+        R"(eval - a function declaring a var named 'eval' throws SyntaxError in strict mode)",
 R"#(
   'use strict';
 
@@ -2623,7 +2622,7 @@ R"#(
     eval('function foo() { var eval; }');
   }
   catch (e) {
-    if (e instanceof EvalError) {
+    if (e instanceof SyntaxError) {
       return true;
     }
   }
@@ -2631,7 +2630,7 @@ R"#(
     },
     {
         "12.2.1-10-s",
-        R"(eval - an indirect eval assigning into 'eval' throws EvalError in strict mode)",
+        R"(eval - an indirect eval assigning into 'eval' throws SyntaxError in strict mode)",
 R"#(
   'use strict';
 
@@ -2640,7 +2639,7 @@ R"#(
     s('eval = 42;');
   }
   catch (e) {
-    if (e instanceof EvalError) {
+    if (e instanceof SyntaxError) {
       return true;
     }
   }
@@ -2693,7 +2692,7 @@ R"#(
     },
     {
         "12.2.1-2-s",
-        R"(eval - a function assigning into 'eval' throws EvalError in strict mode)",
+        R"(eval - a function assigning into 'eval' throws SyntaxError in strict mode)",
 R"#(
   'use strict';
 
@@ -2701,7 +2700,7 @@ R"#(
     eval('function foo() { eval = 42; }; foo()');
   }
   catch (e) {
-    if (e instanceof EvalError) {
+    if (e instanceof SyntaxError) {
       return true;
     }
   }
@@ -2709,7 +2708,7 @@ R"#(
     },
     {
         "12.2.1-3-s",
-        R"(eval - a function expr declaring a var named 'eval' throws EvalError in strict mode)",
+        R"(eval - a function expr declaring a var named 'eval' throws SyntaxError in strict mode)",
 R"#(
   'use strict';
 
@@ -2717,7 +2716,7 @@ R"#(
     eval('(function () { var eval; })');
   }
   catch (e) {
-    if (e instanceof EvalError) {
+    if (e instanceof SyntaxError) {
       return true;
     }
   }
@@ -2725,7 +2724,7 @@ R"#(
     },
     {
         "12.2.1-4-s",
-        R"(eval - a function expr assigning into 'eval' throws a EvalError in strict mode)",
+        R"(eval - a function expr assigning into 'eval' throws a SyntaxError in strict mode)",
 R"#(
   'use strict';
 
@@ -2733,7 +2732,7 @@ R"#(
     eval('(function () { eval = 42; })()');
   }
   catch (e) {
-    if (e instanceof EvalError) {
+    if (e instanceof SyntaxError) {
       return true;
     }
   }
@@ -2741,7 +2740,7 @@ R"#(
     },
     {
         "12.2.1-5-s",
-        R"(eval - a Function declaring var named 'eval' throws EvalError in strict mode)",
+        R"(eval - a Function declaring var named 'eval' throws SyntaxError in strict mode)",
 R"#(
   'use strict';
 
@@ -2749,7 +2748,7 @@ R"#(
     Function('var eval;');
   }
   catch (e) {
-    if (e instanceof EvalError) {
+    if (e instanceof SyntaxError) {
       return true;
     }
   }
@@ -2757,7 +2756,7 @@ R"#(
     },
     {
         "12.2.1-6-s",
-        R"(eval - a Function assigning into 'eval' throws EvalError in strict mode)",
+        R"(eval - a Function assigning into 'eval' throws SyntaxError in strict mode)",
 R"#(
   'use strict';
 
@@ -2766,7 +2765,7 @@ R"#(
     f();
   }
   catch (e) {
-    if (e instanceof EvalError) {
+    if (e instanceof SyntaxError) {
       return true;
     }
   }
@@ -2774,7 +2773,7 @@ R"#(
     },
     {
         "12.2.1-7-s",
-        R"(eval - a direct eval declaring a var named 'eval' throws EvalError in strict mode)",
+        R"(eval - a direct eval declaring a var named 'eval' throws SyntaxError in strict mode)",
 R"#(
   'use strict';
 
@@ -2782,7 +2781,7 @@ R"#(
     eval('var eval;');
   }
   catch (e) {
-    if (e instanceof EvalError) {
+    if (e instanceof SyntaxError) {
       return true;
     }
   }
@@ -2790,7 +2789,7 @@ R"#(
     },
     {
         "12.2.1-8-s",
-        R"(eval - a direct eval assigning into 'eval' throws EvalError in strict mode)",
+        R"(eval - a direct eval assigning into 'eval' throws SyntaxError in strict mode)",
 R"#(
   'use strict';
 
@@ -2798,7 +2797,7 @@ R"#(
     eval('eval = 42;');
   }
   catch (e) {
-    if (e instanceof EvalError) {
+    if (e instanceof SyntaxError) {
       return true;
     }
   }
@@ -2806,7 +2805,7 @@ R"#(
     },
     {
         "12.2.1-9-s",
-        R"(eval - an indirect eval declaring a var named 'eval' throws EvalError in strict mode)",
+        R"(eval - an indirect eval declaring a var named 'eval' throws SyntaxError in strict mode)",
 R"#(
   'use strict';
 
@@ -2815,7 +2814,7 @@ R"#(
     s('var eval;');
   }
   catch (e) {
-    if (e instanceof EvalError) {
+    if (e instanceof SyntaxError) {
       return true;
     }
   }

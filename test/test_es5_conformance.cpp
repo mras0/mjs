@@ -13,8 +13,6 @@
 using namespace mjs;
 
 constexpr int expected_failures[] = {
-      24, // 10.6-13-b-3-s        arguments.caller is non-configurable in strict mode
-      27, // 10.6-13-c-3-s        arguments.callee is non-configurable in strict mode
       80, // 11.13.1-4-4-s        simple assignment throws TypeError if LeftHandSide is a readonly property in strict mode (Global.length)
      116, // 11.4.1-5-1-s         delete operator throws ReferenceError when deleting a direct reference to a var in strict mode
      118, // 11.4.1-5-2-s         delete operator throws ReferenceError when deleting a direct reference to a function argument in strict mode
@@ -23,16 +21,6 @@ constexpr int expected_failures[] = {
      145, // 12.14-1              catch doesn't change declaration scope - var initializer in catch with same name as catch parameter changes parameter
      149, // 12.14-13             catch introduces scope - updates are based on scope
      150, // 12.14-2              catch doesn't change declaration scope - var initializer in catch with same name as catch parameter changes parameter
-     158, // 12.2.1-1-s           eval - a function declaring a var named 'eval' throws EvalError in strict mode
-     159, // 12.2.1-10-s          eval - an indirect eval assigning into 'eval' throws EvalError in strict mode
-     165, // 12.2.1-2-s           eval - a function assigning into 'eval' throws EvalError in strict mode
-     166, // 12.2.1-3-s           eval - a function expr declaring a var named 'eval' throws EvalError in strict mode
-     167, // 12.2.1-4-s           eval - a function expr assigning into 'eval' throws a EvalError in strict mode
-     168, // 12.2.1-5-s           eval - a Function declaring var named 'eval' throws EvalError in strict mode
-     169, // 12.2.1-6-s           eval - a Function assigning into 'eval' throws EvalError in strict mode
-     170, // 12.2.1-7-s           eval - a direct eval declaring a var named 'eval' throws EvalError in strict mode
-     171, // 12.2.1-8-s           eval - a direct eval assigning into 'eval' throws EvalError in strict mode
-     172, // 12.2.1-9-s           eval - an indirect eval declaring a var named 'eval' throws EvalError in strict mode
      520, // 15.2.3.3-4-164       Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (RegExp.prototype.compile)
      540, // 15.2.3.3-4-183       Object.getOwnPropertyDescriptor returns undefined for non-existent properties on built-ins (Function.arguments)
      641, // 15.2.3.3-4-74        Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (String.prototype.substr)
