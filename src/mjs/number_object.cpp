@@ -54,6 +54,8 @@ global_object_create_result make_number_object(const gc_heap_ptr<global_object>&
         return value{new_number(prototype, args.empty() ? 0.0 : to_number(args.front()))};
     });
 
+    prototype->put(global->common_string("constructor"), value{c}, global_object::default_attributes);
+
     c->put(string{h, "MAX_VALUE"}, value{1.7976931348623157e308}, global_object::prototype_attributes);
     c->put(string{h, "MIN_VALUE"}, value{5e-324}, global_object::prototype_attributes);
     c->put(string{h, "NaN"}, value{NAN}, global_object::prototype_attributes);

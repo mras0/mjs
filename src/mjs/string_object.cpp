@@ -123,6 +123,8 @@ global_object_create_result make_string_object(const gc_heap_ptr<global_object>&
         return value{new_string(global, args.empty() ? string{h, ""} : to_string(h, args.front()))};
     });
 
+    prototype->put(global->common_string("constructor"), value{c}, global_object::default_attributes);
+
     put_native_function(global, c, string{h, "fromCharCode"}, [&h](const value&, const std::vector<value>& args){
         std::wstring s;
         for (const auto& a: args) {

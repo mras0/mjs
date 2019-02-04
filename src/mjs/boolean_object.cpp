@@ -48,6 +48,8 @@ global_object_create_result make_boolean_object(const gc_heap_ptr<global_object>
         return value{new_boolean(prototype, !args.empty() && to_boolean(args.front()))};
     });
 
+    prototype->put(global->common_string("constructor"), value{c}, global_object::default_attributes);
+
     auto get_bool_obj = [global, prototype](const value& this_) {
         global->validate_type(this_, prototype, "Boolean");
         return gc_heap_ptr<boolean_object>{this_.object_value()};

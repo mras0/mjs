@@ -251,7 +251,7 @@ global_object_create_result make_regexp_object(const gc_heap_ptr<global_object>&
         return value{check_type(global, this_)->exec(to_string(global->heap(), !args.empty()?args[0]:value::undefined)) != value::null};
     }, 0);
 
-    prototype->put(global->common_string("constructor"), value{constructor}, global_object::prototype_attributes);
+    prototype->put(global->common_string("constructor"), value{constructor}, global_object::default_attributes);
 
     return { constructor, prototype };
 }

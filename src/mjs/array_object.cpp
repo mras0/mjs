@@ -592,6 +592,8 @@ global_object_create_result make_array_object(const gc_heap_ptr<global_object>& 
     }, Array_str_.unsafe_raw_get(), 1);
     c->default_construct_function();
 
+    prototype->put(global->common_string("constructor"), value{c}, global_object::default_attributes);
+
     const auto version = global->language_version();
 
     if (version < version::es3) {

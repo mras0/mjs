@@ -321,6 +321,8 @@ public:
         }, func_obj->class_name().unsafe_raw_get(), nullptr, 1);
         static_cast<function_object&>(*func_obj).default_construct_function();
 
+        global_->function_prototype()->put(global_->common_string("constructor"), value{func_obj}, global_object::default_attributes);
+
         active_scope_ = make_scope(global_, nullptr);
     }
 

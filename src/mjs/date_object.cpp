@@ -323,6 +323,8 @@ global_object_create_result make_date_object(const gc_heap_ptr<global_object>& g
         return value{date_helper::time_clip(date_helper::utc(date_helper::time_from_args(args)))};
     });
 
+    prototype->put(global->common_string("constructor"), value{c}, global_object::default_attributes);
+
     put_native_function(global, c, "parse", [&h](const value&, const std::vector<value>& args) {
         if (!args.empty()) {
             const auto s = to_string(h, args.front());

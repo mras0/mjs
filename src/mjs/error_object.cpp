@@ -117,7 +117,7 @@ global_object_create_result make_error_object(const gc_heap_ptr<global_object>& 
 
         constructor->put_prototype_with_attributes(prototype, global_object::prototype_attributes);
 
-        prototype->redefine_own_property(global->common_string("constructor"), value{constructor}, global_object::prototype_attributes);
+        prototype->redefine_own_property(global->common_string("constructor"), value{constructor}, global_object::default_attributes);
         prototype->put(string{global->heap(), "message"}, value{string{global->heap(), ""}}, message_attributes);
 
         if (!error_constructor) {

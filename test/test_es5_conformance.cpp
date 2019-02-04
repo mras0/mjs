@@ -62,7 +62,6 @@ constexpr int expected_failures[] = {
      255, // 15.12.1.1-g4-2       The JSON lexical grammer does not allow a JSONStringCharacter to be any of the Unicode characters U+0008 thru U+000F
      256, // 15.12.1.1-g4-3       The JSON lexical grammer does not allow a JSONStringCharacter to be any of the Unicode characters U+0010 thru U+0017
      257, // 15.12.1.1-g4-4       The JSON lexical grammer does not allow a JSONStringCharacter to be any of the Unicode characters U+0018 thru U+001F
-     467, // 15.2.3.3-4-116       Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (Date.prototype.constructor)
      499, // 15.2.3.3-4-145       Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (Date.prototype.setUTCFullYear)
      500, // 15.2.3.3-4-146       Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (Date.prototype.setUTCMonth)
      501, // 15.2.3.3-4-147       Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (Date.prototype.setUTCDate)
@@ -75,29 +74,11 @@ constexpr int expected_failures[] = {
      510, // 15.2.3.3-4-155       Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (Date.prototype.toGMTString)
      513, // 15.2.3.3-4-158       Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (Date.prototype.toLocaleDateString)
      514, // 15.2.3.3-4-159       Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (Date.prototype.toLocaleTimeString)
-     519, // 15.2.3.3-4-163       Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (RegExp.prototype.constructor)
      520, // 15.2.3.3-4-164       Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (RegExp.prototype.compile)
-     524, // 15.2.3.3-4-168       Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (Error.prototype.constructor)
-     527, // 15.2.3.3-4-170       Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (EvalError.prototype.constructor)
-     528, // 15.2.3.3-4-171       Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (RangeError.prototype.constructor)
-     529, // 15.2.3.3-4-172       Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (ReferenceError.prototype.constructor)
-     530, // 15.2.3.3-4-173       Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (SyntaxError.prototype.constructor)
-     531, // 15.2.3.3-4-174       Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (TypeError.prototype.constructor)
-     532, // 15.2.3.3-4-175       Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (URIError.prototype.constructor)
      540, // 15.2.3.3-4-183       Object.getOwnPropertyDescriptor returns undefined for non-existent properties on built-ins (Function.arguments)
-     597, // 15.2.3.3-4-34        Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (Function.prototype.constructor)
-     602, // 15.2.3.3-4-39        Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (Array.prototype.constructor)
-     628, // 15.2.3.3-4-62        Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (String.prototype.constructor)
      641, // 15.2.3.3-4-74        Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (String.prototype.substr)
-     651, // 15.2.3.3-4-84        Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (Boolean.prototype.constructor)
-     654, // 15.2.3.3-4-88        Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (Number.prototype.constructor)
-     672, // 15.2.3.4-4-12        Object.getOwnPropertyNames returns array of property names (Date.prototype)
      673, // 15.2.3.4-4-13        Object.getOwnPropertyNames returns array of property names (RegExp.prototype)
-     698, // 15.2.3.4-4-4         Object.getOwnPropertyNames returns array of property names (Function.prototype)
-     699, // 15.2.3.4-4-5         Object.getOwnPropertyNames returns array of property names (Array.prototype)
      701, // 15.2.3.4-4-7         Object.getOwnPropertyNames returns array of property names (String.prototype)
-     702, // 15.2.3.4-4-8         Object.getOwnPropertyNames returns array of property names (Boolean.prototype)
-     703, // 15.2.3.4-4-9         Object.getOwnPropertyNames returns array of property names (Number.prototype)
      714, // 15.2.3.6-3-1         Object.defineProperty throws TypeError if desc has 'get' and 'value' present
      720, // 15.2.3.6-3-2         Object.defineProperty throws TypeError if desc has 'get' and 'writable' present
      721, // 15.2.3.6-3-3         Object.defineProperty throws TypeError if desc has 'set' and 'value' present
