@@ -144,7 +144,6 @@ void object::debug_print(std::wostream& os, int indent_incr, int max_nest, int i
 bool object::can_put(const std::wstring_view& name) const {
     auto a = own_property_attributes(name);
     if (is_valid(a)) {
-        assert(!has_attributes(a, property_attribute::accessor));
         return !has_attributes(a, property_attribute::read_only);
     }
     if (!prototype_) {
@@ -153,28 +152,53 @@ bool object::can_put(const std::wstring_view& name) const {
     return prototype_.dereference(heap()).can_put(name);
 }
 
+value object::get(const std::wstring_view& name) const {
+    if (auto it = find(name).first) {
+        return it->get(*this);
+    }
+    for (auto p = prototype_; p; ) {
+        auto& proto = p.dereference(heap());
+        if (auto it = proto.find(name).first) {
+            return it->get(*this);
+        } else if (is_valid(proto.own_property_attributes(name))) {
+            return proto.get(name);
+        }
+        p = proto.prototype_;
+    }
+
+    return value::undefined;
+}
+
 void object::put(const string& name, const value& val, property_attribute attr) {
     //ES5.1, 8.12.5
 
     // See if there is already a property with this name
-    auto& props = properties_.dereference(heap_);
-    if (auto [it, pp] = deep_find(name.view()); it) {
-        // CanPut?
+    if (auto it = find(name.view()).first; it) {
         if (has_attributes(it->attributes(), property_attribute::read_only)) {
             return;
         }
-        // Did the property come from this object's property list? Or is it an accessor on the prototype?
-        if (pp == &props || has_attributes(it->attributes(), property_attribute::accessor)) {
-            // Yes, update
-            it->put(*this, val);
-            return;
-        }
-        // Handle as insertion
-    }
-    if (!extensible_) {
+        it->put(*this, val);
         return;
     }
-    props.emplace_back(name, val, attr);
+
+    // Check if there is an accessor property in a prototype
+    for (auto p = prototype_; p; ) {
+        auto& proto = p.dereference(heap());
+        if (auto it = proto.find(name.view()).first) {
+            if (has_attributes(it->attributes(), property_attribute::accessor)) {
+                it->put(*this, val);
+                return;
+            }
+            // Handle as insertion
+            break;
+        }
+        p = proto.prototype_;
+    }
+
+    // Normal insertion
+    if (extensible_) {
+        properties_.dereference(heap()).emplace_back(name, val, attr);
+    }
 }
 
 bool object::delete_property(const std::wstring_view& name) {

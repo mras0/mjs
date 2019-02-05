@@ -42,10 +42,7 @@ public:
     string class_name() const { return class_.track(heap_); }
 
     // [[Get]] (PropertyName)
-    virtual value get(const std::wstring_view& name) const {
-        auto it = deep_find(name).first;
-        return it ? it->get(*this) : value::undefined;
-    }
+    virtual value get(const std::wstring_view& name) const;
 
     bool redefine_own_property(const string& name, const value& val, property_attribute attr) {
         return do_redefine_own_property(name, val, attr);
@@ -147,11 +144,6 @@ private:
             }
         }
         return {nullptr, &props};
-    }
-
-    std::pair<property*, gc_vector<property>*> deep_find(const std::wstring_view& key) const {
-        auto fr = find(key);
-        return fr.first || !prototype_ ? fr : prototype_.dereference(heap_).deep_find(key);
     }
 };
 

@@ -97,6 +97,18 @@ void eval_tests() {
         RUN_TEST(L"function o(){};function p(){};p.prototype=new o();i=new p(); i instanceof o && i instanceof p;", value{true});
     }
 
+    // Check access to properties in the prototype
+    RUN_TEST_SPEC(R"(
+function C(){}
+C.prototype = new Array('a','b');
+ci = new C();
+ci.join.toString();//$string 'function join() { [native code] }'
+ci.length; //$number 2
+ci[0]; //$string 'a'
+ci[1]; //$string 'b'
+ci[2]; //$undefined
+)");
+
     RUN_TEST(L"255 & 128", value{128.0});
     RUN_TEST(L"255 ^ 128", value{127.0});
     RUN_TEST(L"64 | 128", value{192.0});

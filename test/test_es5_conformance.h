@@ -16834,7 +16834,7 @@ R"#(
   }
   
   [0,1].reduceRight(callbackfn);
-  return lastIndexVisited === 1;  
+  return lastIndexVisited === 0;  
   
  )#"
     },

@@ -54,17 +54,8 @@ constexpr int expected_failures[] = {
      999, // 15.4.4.19-8-c-ii-1   Array.prototype.map - callbackfn called with correct parameters
     1040, // 15.4.4.20-9-6        Array.prototype.filter visits deleted element in array after the call when same index is also present in prototype
     1042, // 15.4.4.20-9-c-ii-1   Array.prototype.filter - callbackfn called with correct parameters
-    1049, // 15.4.4.21-10-3       Array.prototype.reduce - subclassed array of length 1
-    1050, // 15.4.4.21-10-4       Array.prototype.reduce - subclassed array with length more than 1
-    1052, // 15.4.4.21-10-6       Array.prototype.reduce - subclassed array when initialvalue provided
-    1053, // 15.4.4.21-10-7       Array.prototype.reduce - subclassed array with length 1 and initialvalue provided
     1088, // 15.4.4.21-9-6        Array.prototype.reduce visits deleted element in array after the call when same index is also present in prototype
     1094, // 15.4.4.21-9-c-ii-4-s Array.prototype.reduce - null passed as thisValue to strict callbackfn
-    1100, // 15.4.4.22-10-3       Array.prototype.reduceRight - subclassed array with length 1
-    1101, // 15.4.4.22-10-4       Array.prototype.reduceRight - subclassed array with length more than 1
-    1103, // 15.4.4.22-10-6       Array.prototype.reduceRight - subclassed array when initialvalue provided
-    1104, // 15.4.4.22-10-7       Array.prototype.reduceRight - subclassed array when length to 1 and initialvalue provided
-    1134, // 15.4.4.22-9-1        Array.prototype.reduceRight doesn't consider new elements added beyond the initial length of array after it is called
     1139, // 15.4.4.22-9-6        Array.prototype.reduceRight visits deleted element in array after the call when same index is also present in prototype
     1140, // 15.4.4.22-9-7        Array.prototype.reduceRight stops calling callbackfn once the array is deleted during the call
     1146, // 15.4.4.22-9-c-ii-4-s Array.prototype.reduceRight - null passed as thisValue to strict callbackfn
