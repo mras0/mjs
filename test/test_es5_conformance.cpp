@@ -5,6 +5,7 @@
 #include <iostream>
 #include <iomanip>
 #include <sstream>
+#include <chrono>
 
 #include <mjs/char_conversions.h>
 #include <mjs/parser.h>
@@ -38,28 +39,16 @@ constexpr int expected_failures[] = {
      767, // 15.3.2.1-11-7-s      Function constructor call from strict code with formal parameter named arguments does not throws SyntaxError if function body is not strict mode
      801, // 15.4.4.14-1-1        Array.prototype.indexOf applied to undefined throws a TypeError
      802, // 15.4.4.14-1-2        Array.prototype.indexOf applied to null throws a TypeError
-     803, // 15.4.4.14-10-1       Array.prototype.indexOf returns -1 for elements not present in array
-     821, // 15.4.4.14-9-10       Array.prototype.indexOf must return correct index (NaN)
-     829, // 15.4.4.14-9-9        Array.prototype.indexOf must return correct index (Sparse Array)
-     849, // 15.4.4.15-8-10       Array.prototype.lastIndexOf must return correct index (NaN)
-     857, // 15.4.4.15-8-9        Array.prototype.lastIndexOf must return correct index (Sparse Array)
-     858, // 15.4.4.15-9-1        Array.prototype.lastIndexOf returns -1 for elements not present
      879, // 15.4.4.16-7-6        Array.prototype.every visits deleted element in array after the call when same index is also present in prototype
-     882, // 15.4.4.16-7-c-ii-2   Array.prototype.every - callbackfn takes 3 arguments
      906, // 15.4.4.17-4-9        Array.prototype.some returns -1 if 'length' is 0 (subclassed Array, length overridden with [0]
-     922, // 15.4.4.17-7-c-ii-2   Array.prototype.some - callbackfn takes 3 arguments
      925, // 15.4.4.17-8-10       Array.prototype.some - subclassed array when length is reduced
-     959, // 15.4.4.18-7-c-ii-1   Array.prototype.forEach - callbackfn called with correct parameters
      997, // 15.4.4.19-8-6        Array.prototype.map visits deleted element in array after the call when same index is also present in prototype
-     999, // 15.4.4.19-8-c-ii-1   Array.prototype.map - callbackfn called with correct parameters
     1040, // 15.4.4.20-9-6        Array.prototype.filter visits deleted element in array after the call when same index is also present in prototype
-    1042, // 15.4.4.20-9-c-ii-1   Array.prototype.filter - callbackfn called with correct parameters
     1088, // 15.4.4.21-9-6        Array.prototype.reduce visits deleted element in array after the call when same index is also present in prototype
     1094, // 15.4.4.21-9-c-ii-4-s Array.prototype.reduce - null passed as thisValue to strict callbackfn
     1139, // 15.4.4.22-9-6        Array.prototype.reduceRight visits deleted element in array after the call when same index is also present in prototype
     1140, // 15.4.4.22-9-7        Array.prototype.reduceRight stops calling callbackfn once the array is deleted during the call
     1146, // 15.4.4.22-9-c-ii-4-s Array.prototype.reduceRight - null passed as thisValue to strict callbackfn
-    1151, // 15.4.5.1-3.d-3       Set array length property to max value 4294967295 (2**32-1,)
     1156, // 15.5.4.20-1-1        String.prototype.trim throws TypeError when string is undefined
     1157, // 15.5.4.20-1-2        String.prototype.trim throws TypeError when string is null
 };
@@ -79,13 +68,19 @@ void test_main() {
 
         //std::wcout << std::setw(4) <<  (i+1) << "/" << num_tests << "\r" << std::flush;
 
+        std::chrono::high_resolution_clock::time_point t0, t1, t2;
+
         try {
             if (h.use_percentage() > 50) {
                 h.garbage_collect();
             }
 
+            t0 = std::chrono::high_resolution_clock::now();
+
             auto code = unicode::utf8_to_utf16(t.prelude) +  helper_code + L"(function(){" + unicode::utf8_to_utf16(t.code) + L"})()";
             auto bs = parse(std::make_unique<source_file>(unicode::utf8_to_utf16(t.id), code, version::es5));
+
+            t1 = std::chrono::high_resolution_clock::now();
 
             // Could be optimized to reuse interpreter but take to restore global object
             interpreter interpreter_{h, version::es5};
@@ -103,8 +98,18 @@ void test_main() {
             if (!expect_failure) {
                 std::wcerr << "Test " << std::setw(4) << i << " failed: " << std::setw(20) << std::left << t.id << std::right << " " <<  t.description << "\n";
                 std::wcerr << e.what() << "\n";
+            }
+            if (!expect_failure) {
                 ++unexpected;
             }
+        }
+
+        t2 = std::chrono::high_resolution_clock::now();
+
+        const auto d0 = std::chrono::duration<double>(t1-t0).count();
+        const auto d1 = std::chrono::duration<double>(t2-t1).count();
+        if (d1>1) {
+            std::wcout << std::setw(4) << i << " " << std::setw(10) << d0*1000 << " " << std::setw(10) << d1*1000 << " " << t.id << " is slow\n";
         }
     }
     if (unexpected) {

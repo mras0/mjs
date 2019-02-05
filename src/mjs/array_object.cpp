@@ -23,6 +23,8 @@ class array_object : public native_object {
 public:
     friend gc_type_info_registration<array_object>;
 
+    static constexpr uint32_t max_normal_size = 1<<16;  // Maximum size before to grow to, indices beyond are handled as normal object properties
+
     static gc_heap_ptr<array_object> make(const gc_heap_ptr<global_object>& global, const string& class_name, const object_ptr& prototype, uint32_t length) {
         return class_name.heap().make<array_object>(global, class_name, prototype, length);
     }
@@ -34,7 +36,7 @@ public:
 
     value get(const std::wstring_view& name) const override {
         const uint32_t index = index_value_from_string(name);
-        if (index != invalid_index_value) {
+        if (index < max_normal_size) {
             return get_at(index);
         } else {
             return native_object::get(name);
@@ -54,26 +56,24 @@ public:
             if (index >= length_) {
                 resize(index + 1);
             }
-            unchecked_put(index, val);
-        } else {
-            object::put(name, val, attr);
+            if (index < max_normal_size) {
+                put_at(index, val);
+                return;
+            }
+            // Handle as normal put (sparse/large array)
         }
+
+        object::put(name, val, attr);
     }
 
     bool delete_property(const std::wstring_view& name) override {
-        if (const uint32_t index = index_value_from_string(name); index != invalid_index_value) {
+        if (const uint32_t index = index_value_from_string(name); index < max_normal_size) {
             if (index_present(index)) {
                 present_mask_.dereference(heap())[index/64] &= ~(1ULL<<(index%64));
             }
             return true;
         }
         return native_object::delete_property(name);
-    }
-
-    void unchecked_put(uint32_t index, const value& val) {
-        assert(index < length_);
-        values_.dereference(heap())[index] = value_representation{val};
-        present_mask_.dereference(heap())[index/64] |= 1ULL<<(index%64);
     }
 
 private:
@@ -93,24 +93,38 @@ private:
     }
 
     bool index_present(uint32_t index) const {
+        assert(index < max_normal_size);
         return index < length_ && (present_mask_.dereference(heap())[index/64]&(1ULL<<(index%64)));
     }
 
     value get_at(uint32_t index) const {
+        assert(index < max_normal_size);
         auto& h = heap();
         return index_present(index) ? values_.dereference(h)[index].get_value(h) : value::undefined;
     }
 
+    property_attribute attributes_at(uint32_t index) const {
+        assert(index < max_normal_size);
+        return index_present(index) ? attributes_.dereference(heap())[index] : property_attribute::invalid;
+    }
+
+    void put_at(uint32_t index, const value& val, property_attribute attr = property_attribute::none) {
+        assert(index < max_normal_size);
+        auto& h = heap();
+        values_.dereference(h)[index] = value_representation{val};
+        attributes_.dereference(h)[index] = attr;
+        present_mask_.dereference(heap())[index/64] |= 1ULL<<(index%64);
+    }
+
     void resize(uint32_t len) {
+        length_ = len;
         if (len == 0) {
             values_ = nullptr;
             attributes_ = nullptr;
             present_mask_ = nullptr;
         } else  {
-            if (len > 1<<16) {
-                std::ostringstream oss;
-                oss << "Large/sparse arrays are not supported yet (len = " << len << ")";
-                throw not_supported_exception{oss.str()};
+            if (len > max_normal_size) {
+                len = max_normal_size;
             }
             auto& h = heap();
             if (!values_) {
@@ -122,7 +136,6 @@ private:
             attributes_.dereference(h).resize(len);
             present_mask_.dereference(h).resize((len + 63) / 64);
         }
-        length_ = len;
     }
 
     void fixup() {
@@ -135,11 +148,9 @@ private:
     }
 
     bool do_redefine_own_property(const string& name, const value& val, property_attribute attr) override {
-        if (const uint32_t index = index_value_from_string(name.view()); index != invalid_index_value) {
+        if (const uint32_t index = index_value_from_string(name.view()); index < max_normal_size) {
             if (index_present(index)) {
-                auto& h = heap();
-                values_.dereference(h)[index] = value_representation{val};
-                attributes_.dereference(h)[index] = attr;
+                put_at(index, val, attr);
             } else {
                 if (!is_extensible()) {
                     return false;
@@ -152,8 +163,8 @@ private:
     }
 
     property_attribute do_own_property_attributes(const std::wstring_view& name) const override {
-        if (const uint32_t index = index_value_from_string(name); index != invalid_index_value) {
-            return index_present(index) ? attributes_.dereference(heap())[index] : property_attribute::invalid;
+        if (const uint32_t index = index_value_from_string(name); index < max_normal_size) {
+            return attributes_at(index);
         }
         return native_object::do_own_property_attributes(name);
     }
@@ -163,7 +174,7 @@ private:
             auto& h = heap();
             const auto pm = present_mask_.dereference(h).data();
             const auto attrs = attributes_.dereference(h).data();
-            for (uint32_t i = 0; i < length_; ++i) {
+            for (uint32_t i = 0; i < std::min(max_normal_size, length_); ++i) {
                 if (pm[i/64] & (1ULL << (i%64))) {
                     if (!check_enumerable || !has_attributes(attrs[i], property_attribute::dont_enum)) {
                         names.push_back(string{h, index_string(i)});
@@ -178,7 +189,7 @@ private:
         native_object::do_debug_print_extra(os, indent_incr, max_nest, indent);
 
         const auto indent_string = std::wstring(indent, ' ');
-        for (uint32_t i = 0; i < length_; ++i) {
+        for (uint32_t i = 0; i < std::min(max_normal_size, length_); ++i) {
             if (index_present(i)) {
                 os << indent_string << i << ": ";
                 mjs::debug_print(os, get_at(i), indent_incr, 1, indent + indent_incr);
@@ -356,7 +367,7 @@ value array_slice(const gc_heap_ptr<global_object>& global, const object_ptr& o,
         end = static_cast<uint32_t>(e);
     }
 
-    // TODO: Could use unchecked_put since we know the length
+    // TODO: Could use put_at since we know the length
     auto res = make_array(global, 0);
     auto& h = global.heap();
     for (uint32_t n = 0; start + n < end; ++n) {
@@ -435,15 +446,31 @@ double array_index_of(const gc_heap_ptr<global_object>& global, const value& thi
         return -1.0;
     }
     const auto search_element = args.size() > 0 ? args[0] : value::undefined;
+    if (search_element.type() == value_type::number && std::isnan(search_element.number_value())) {
+        // NaN never matches
+        return -1.0;
+    }
     const auto n = args.size() > 1 ? to_integer(args[1]) : 0.;
     if (n >= len) {
         return -1.0;
     }
     auto k = n >= 0 ? static_cast<uint32_t>(n) : len - std::fabs(n) < 0 ? 0 : static_cast<uint32_t>(len - std::fabs(n));
-    for (; k < len; ++k) {
-        const auto is = index_string(k);
-        if (o->has_property(is) && o->get(is) == search_element) {
-            return static_cast<double>(k);
+
+    if (len < array_object::max_normal_size) {
+        for (; k < len; ++k) {
+            const auto is = index_string(k);
+            if (o->has_property(is) && o->get(is) == search_element) {
+                return static_cast<double>(k);
+            }
+        }
+    } else {
+        // For large/sparse arrays only look at the actual properties
+        auto pn = o->enumerable_property_names();
+        for (const auto& name : pn) {
+            const auto kk = index_value_from_string(name.view());
+            if (kk != invalid_index_value && kk >= k && o->get(name.view()) == search_element) {
+                return static_cast<double>(kk);
+            }
         }
     }
     return -1.0;
@@ -456,12 +483,28 @@ double array_last_index_of(const gc_heap_ptr<global_object>& global, const value
         return -1.0;
     }
     const auto search_element = args.size() > 0 ? args[0] : value::undefined;
+    if (search_element.type() == value_type::number && std::isnan(search_element.number_value())) {
+        // NaN never matches
+        return -1.0;
+    }
     const auto n = args.size() > 1 ? to_integer(args[1]) : len-1;
     auto k = n >= 0 ? std::min(n, len-1.) : len - std::fabs(n);
-    for (; k >= 0; --k) {
-        const auto is = index_string(static_cast<uint32_t>(k));
-        if (o->has_property(is) && o->get(is) == search_element) {
-            return k;
+    if (len < array_object::max_normal_size) {
+        for (; k >= 0; --k) {
+            const auto is = index_string(static_cast<uint32_t>(k));
+            if (o->has_property(is) && o->get(is) == search_element) {
+                return k;
+            }
+        }
+    } else {
+        // For large/sparse arrays only look at the actual properties
+        auto pn = o->enumerable_property_names();
+        std::reverse(pn.begin(), pn.end());
+        for (const auto& name : pn) {
+            const auto kk = index_value_from_string(name.view());
+            if (kk <= k && o->get(name.view()) == search_element) {
+                return static_cast<double>(kk);
+            }
         }
     }
     return -1.0;
@@ -476,10 +519,28 @@ void for_each_helper(gc_heap_ptr<global_object> global, const value& this_, cons
     const auto this_arg = args.size() > 1 ? args[1] : value::undefined;
 
     init(len);
-    for (uint32_t k = 0; k < len; ++k) {
-        const auto is = index_string(static_cast<uint32_t>(k));
-        if (o->has_property(is)) {
-            auto kval = o->get(is);
+    if (len < array_object::max_normal_size) {
+        for (uint32_t k = 0; k < len; ++k) {
+            const auto is = index_string(static_cast<uint32_t>(k));
+            if (o->has_property(is)) {
+                auto kval = o->get(is);
+                auto res = call_function(callback, this_arg, { kval, value{static_cast<double>(k)}, value{o} });
+                if (!iter(k, res)) {
+                    break;
+                }
+            }
+        }
+    } else {
+        // For large/sparse array, don't run the loop a billion times...
+        // This is a large win for the es5 conformance suite, but might not
+        // be appropriate otherwise.
+        auto pn = o->enumerable_property_names();
+        for (const auto& n : pn) {
+            const auto k = index_value_from_string(n.view());
+            if (k == invalid_index_value) {
+                continue;
+            }
+            auto kval = o->get(n.view());
             auto res = call_function(callback, this_arg, { kval, value{static_cast<double>(k)}, value{o} });
             if (!iter(k, res)) {
                 break;
@@ -761,7 +822,7 @@ object_ptr make_array(const gc_heap_ptr<global_object>& global, const std::vecto
     }
     auto arr = array_object::make(global, static_cast<uint32_t>(args.size()));
     for (uint32_t i = 0; i < args.size(); ++i) {
-        arr->unchecked_put(i, args[i]);
+        arr->put(string{global.heap(), index_string(i)}, args[i], property_attribute::none);
     }
     return arr;
 }

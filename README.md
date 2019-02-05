@@ -16,14 +16,15 @@ also no real programs were actually tested.
 All ES1, ES3 and ES5.1 features should be implemented (to some
 degree...), but conformance is always work in progress.
 
-See the [TODO](TODO.md) file some of the known pain points.
+See the [TODO](TODO.md) file some of the known pain points and the
+progress on passing the [ES5 Conformance Suite tests](test/test_es5_conformance.cpp).
 
 ## Building
 
 You need a modern C++ compiler that supports C++17 and CMake 3.7 or
 later. It has currently been tested with the following compilers:
 
-* Visual C++ 2017 15.9.5 on Windows 10
+* Visual C++ 2017 15.9.6 on Windows 10
 * GCC 8.2.0 (x64 distribution from [Stephan T. Lavavej](https://nuwen.net/mingw.html)) on Windows 10
 * GCC 8.2.0 (on x64 Linux, Debian testing as of October 2018)
 * Clang 7.0.0 (on Windows 10 and x64 Linux)

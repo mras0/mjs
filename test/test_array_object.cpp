@@ -63,6 +63,16 @@ s = ''; for (var k in a) s += k + ','; s //$string '1e3,'
 a = new Array(); a[4294967296]=1; a.length //$number 0
 
  s = ''; for (var k in a) s += k + ','; s //$string '4294967296,'
+
+// Sparse/Large array
+    var a = new Array();
+    a[1000000] = 42;
+    a[1000000]; //$number 42
+    a.length;//$number 1000001
+    a[123]; //$undefined
+    a[999999]; //$undefined
+    a[1000001]; //$undefined
+
 )");
 
     if (tested_version() < version::es5) {
