@@ -13,14 +13,10 @@ void test_main() {
 function a(x,y,z){};
 delete a.length; //$boolean false
 a.length;//$number 3
-delete a.arguments; //$boolean false
-a.arguments; //$null
 delete a.prototype.constructor; //$boolean true
 Function.prototype(1,2,3); //$undefined
 Function.toString(); //$string 'function Function() { [native code] }'
 Function.prototype.toString(); //$string 'function () { [native code] }'
-
-function f() {}; delete f.arguments; // $boolean false
 
 function f() { return this; }
 f() == global; //$boolean true
@@ -31,6 +27,15 @@ n=(42).toString();
 typeof n; //$string 'object'
 n.valueOf(); //$number 42
 )");
+
+    // No "arguments" in ES3+
+    if (tested_version() < version::es3) {
+        RUN_TEST_SPEC(R"(
+function a(x,y,z){};
+delete a.arguments; //$boolean false
+a.arguments; //$null
+)");
+    }
 
 
     // ES5.1, 15.3.5.2 "In Edition 5, the prototype property of Function instances is not enumerable. In Edition 3, this property was enumerable"

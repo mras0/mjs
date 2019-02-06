@@ -103,11 +103,13 @@ function_object::function_object(const gc_heap_ptr<global_object>& global, const
     , prototype_prop_(value_representation{value::null}) {
     DEFINE_NATIVE_PROPERTY_READONLY(function_object, length);
     DEFINE_NATIVE_PROPERTY(function_object, prototype);
-    if (global->language_version() < version::es5 || !global->strict_mode()) {
+    if (global->language_version() < version::es5) {
         object::redefine_own_property(global->common_string("arguments"), value::null, property_attribute::dont_delete|property_attribute::dont_enum|property_attribute::read_only);
     } else {
-        global->define_thrower_accessor(*this, "arguments");
-        global->define_thrower_accessor(*this, "caller");
+        if (global->strict_mode()) {
+            global->define_thrower_accessor(*this, "arguments");
+            global->define_thrower_accessor(*this, "caller");
+        }
     }
 
     static_assert(!gc_type_info_registration<function_object>::needs_destroy);
