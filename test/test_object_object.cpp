@@ -186,6 +186,7 @@ try { Object.defineProperty(42); } catch (e) { e.toString(); } //$string 'TypeEr
 try { Object.defineProperty('x'); } catch (e) { e.toString(); } //$string 'TypeError: \'x\' is not an object'
 try { Object.defineProperty({},'x'); } catch (e) { e.toString(); } //$string 'TypeError: undefined is not an object'
 try { Object.defineProperty({},'x',60); } catch (e) { e.toString(); } //$string 'TypeError: 60 is not an object'
+
 gopd(Object.defineProperty({},'x',{}),'x'); //$string '{value: undefined,writable: false,enumerable: false,configurable: false,}'
 gopd(Object.defineProperty({},'x',{value:42,writable:true}),'x'); //$string '{value: 42,writable: true,enumerable: false,configurable: false,}'
 gopd(Object.defineProperty({},'x',{value:42,enumerable:true}),'x'); //$string '{value: 42,writable: false,enumerable: true,configurable: false,}'
@@ -371,7 +372,13 @@ Object.getPrototypeOf(o) === o2; //$boolean true
 allProps(o); //$string '{x:{value:42,writable:false,enumerable:false,configurable:false,}}'
 )");
 
-        RUN_TEST_SPEC(R"(
+RUN_TEST_SPEC(R"(
+// ES5.1 8.10.5-9
+try { Object.defineProperty({},'x',{get:function(){},writable:false}); } catch (e) { e.toString(); }    //$string 'TypeError: Accessor property descriptor may not have value or writable attributes'
+try { Object.defineProperty({},'x',{get:function(){},value:0}); } catch (e) { e.toString(); }           //$string 'TypeError: Accessor property descriptor may not have value or writable attributes'
+try { Object.defineProperty({},'x',{set:function(a){},writable:false}); } catch (e) { e.toString(); }   //$string 'TypeError: Accessor property descriptor may not have value or writable attributes'
+try { Object.defineProperty({},'x',{set:function(a){},value:0}); } catch (e) { e.toString(); }          //$string 'TypeError: Accessor property descriptor may not have value or writable attributes'
+
 function gopd(o,p) {
     var d = Object.getOwnPropertyDescriptor(o,p);
     if (d === undefined) return d;

@@ -27,10 +27,6 @@ constexpr int expected_failures[] = {
      641, // 15.2.3.3-4-74        Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (String.prototype.substr)
      673, // 15.2.3.4-4-13        Object.getOwnPropertyNames returns array of property names (RegExp.prototype)
      701, // 15.2.3.4-4-7         Object.getOwnPropertyNames returns array of property names (String.prototype)
-     714, // 15.2.3.6-3-1         Object.defineProperty throws TypeError if desc has 'get' and 'value' present
-     720, // 15.2.3.6-3-2         Object.defineProperty throws TypeError if desc has 'get' and 'writable' present
-     721, // 15.2.3.6-3-3         Object.defineProperty throws TypeError if desc has 'set' and 'value' present
-     722, // 15.2.3.6-3-4         Object.defineProperty throws TypeError if desc has 'set' and 'writable' present
      737, // 15.2.3.6-4-18        Object.defineProperty throws TypeError when changing setter of non-configurable accessor properties
      740, // 15.2.3.6-4-20        Object.defineProperty throws TypeError when changing getter (if present) of non-configurable accessor properties
      760, // 15.3.2.1-11-2-s      Duplicate seperate parameter name in Function constructor called from strict mode allowed if body not strict

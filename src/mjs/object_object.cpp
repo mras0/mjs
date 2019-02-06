@@ -91,6 +91,10 @@ define_own_property_result define_own_property(const gc_heap_ptr<global_object>&
     const auto current_attributes = o->own_property_attributes(p.view());
     const auto new_attributes = attributes_from_descriptor(desc);
 
+    if ((desc->has_property(L"get") || desc->has_property(L"set")) && (desc->has_property(L"value") || desc->has_property(L"writable"))) {
+        throw native_error_exception{native_error_type::type, global->stack_trace(), "Accessor property descriptor may not have value or writable attributes"};
+    }
+
     if (!is_valid(current_attributes)) {
         if (!o->is_extensible()) {
             return define_own_property_result::not_extensible;
