@@ -229,11 +229,12 @@ bool is_strict_mode_unassignable_identifier(const expression& e) {
 
 class parser {
 public:
-    explicit parser(const std::shared_ptr<source_file>& source, bool strict_mode)
+    explicit parser(const std::shared_ptr<source_file>& source, parse_mode mode)
         : source_(source)
         , version_(source_->language_version())
         , lexer_(source_->text(), version_)
-        , strict_mode_(strict_mode) {
+        , strict_mode_(mode != parse_mode::non_strict)
+        , skip_strict_checks_for_first_function_(mode == parse_mode::function_constructor_in_strict_context) {
         check_token();
     }
 
@@ -303,6 +304,7 @@ private:
     const version version_;
     lexer lexer_;
     bool strict_mode_;
+    bool skip_strict_checks_for_first_function_;
     uint32_t token_start_ = 0;
     position_stack_node* expression_pos_ = nullptr;
     position_stack_node* statement_pos_ = nullptr;
@@ -658,7 +660,7 @@ private:
         const auto body_end = block->extend().end;
 
         assert(block->type() == statement_type::block);
-        if (static_cast<const block_statement&>(*block).strict_mode()) {
+        if (static_cast<const block_statement&>(*block).strict_mode() && !skip_strict_checks_for_first_function_) {
             for (size_t i = 0; i < params.size(); ++i) {
                 auto n = params[i];
                 if (is_strict_mode_unassignable_identifier(n)) {
@@ -669,6 +671,7 @@ private:
                 }
             }
         }
+        skip_strict_checks_for_first_function_ = false;
 
         return std::make_tuple(source_extend{source_, body_start, body_end}, std::move(params), std::move(block));
     }
@@ -1103,8 +1106,8 @@ property_name_and_value parser::parse_property_name_and_value() {
     return property_name_and_value{property_assignment_type::normal, std::move(p), parse_assignment_expression()};
 }
 
-std::unique_ptr<block_statement> parse(const std::shared_ptr<source_file>& source, bool strict_mode) {
-    return parser{source, strict_mode}.parse();
+std::unique_ptr<block_statement> parse(const std::shared_ptr<source_file>& source, parse_mode mode) {
+    return parser{source, mode}.parse();
 }
 
 } // namespace mjs

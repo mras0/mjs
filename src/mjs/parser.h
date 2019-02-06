@@ -987,7 +987,12 @@ auto accept(const statement& s, Visitor& v) {
 // Parser
 //
 
-std::unique_ptr<block_statement> parse(const std::shared_ptr<source_file>& source, bool strict_mode = false);
+enum class parse_mode {
+    non_strict,
+    strict,
+    function_constructor_in_strict_context
+};
+std::unique_ptr<block_statement> parse(const std::shared_ptr<source_file>& source, parse_mode mode = parse_mode::non_strict);
 
 } // namespace mjs
 

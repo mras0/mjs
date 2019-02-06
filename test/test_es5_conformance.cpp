@@ -24,10 +24,6 @@ constexpr int expected_failures[] = {
      641, // 15.2.3.3-4-74        Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (String.prototype.substr)
      673, // 15.2.3.4-4-13        Object.getOwnPropertyNames returns array of property names (RegExp.prototype)
      701, // 15.2.3.4-4-7         Object.getOwnPropertyNames returns array of property names (String.prototype)
-     760, // 15.3.2.1-11-2-s      Duplicate seperate parameter name in Function constructor called from strict mode allowed if body not strict
-     763, // 15.3.2.1-11-4-s      Function constructor call from strict code with formal parameter named 'eval' does not throws SyntaxError if function body is not strict mode
-     766, // 15.3.2.1-11-6-s      Duplicate combined parameter name allowed in Function constructor called in strict mode if body not strict
-     767, // 15.3.2.1-11-7-s      Function constructor call from strict code with formal parameter named arguments does not throws SyntaxError if function body is not strict mode
      801, // 15.4.4.14-1-1        Array.prototype.indexOf applied to undefined throws a TypeError
      802, // 15.4.4.14-1-2        Array.prototype.indexOf applied to null throws a TypeError
      879, // 15.4.4.16-7-6        Array.prototype.every visits deleted element in array after the call when same index is also present in prototype

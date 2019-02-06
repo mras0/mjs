@@ -266,7 +266,7 @@ public:
             std::unique_ptr<block_statement> bs;
 
             try {
-                bs = parse(std::make_shared<source_file>(L"eval", args.front().string_value().view(), global_->language_version()), strict_mode_);
+                bs = parse(std::make_shared<source_file>(L"eval", args.front().string_value().view(), global_->language_version()), strict_mode_ ? parse_mode::strict : parse_mode::non_strict);
             } catch (const std::exception&) {
                 throw native_error_exception{native_error_type::syntax, stack_trace(), L"Invalid argument to eval"};
             }
@@ -309,7 +309,7 @@ public:
 
             std::unique_ptr<block_statement> bs;
             try {
-                bs = parse(std::make_shared<source_file>(L"Function definition", L"function anonymous(" + p + L") {\n" + body + L"\n}", global_->language_version()), strict_mode_);
+                bs = parse(std::make_shared<source_file>(L"Function definition", L"function anonymous(" + p + L") {\n" + body + L"\n}", global_->language_version()), strict_mode_ ? parse_mode::function_constructor_in_strict_context : parse_mode::non_strict);
             } catch (const std::exception&) {
                 throw native_error_exception{native_error_type::syntax, stack_trace(), L"Invalid argument to function constructor"};
             }

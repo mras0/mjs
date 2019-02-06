@@ -50,7 +50,7 @@ value load_file(interpreter& i, const std::wstring_view path) {
     auto& global = *i.global();
     std::unique_ptr<block_statement> bs;
     try {
-        bs = parse(read_utf8_file(global.language_version(), base_dir + std::wstring{path}), global.strict_mode());
+        bs = parse(read_utf8_file(global.language_version(), base_dir + std::wstring{path}), global.strict_mode() ? parse_mode::strict : parse_mode::non_strict);
     } catch (const std::exception& e) {
         throw native_error_exception{native_error_type::syntax, global.stack_trace(), e.what()};
     }

@@ -10418,6 +10418,7 @@ R"#(
 R"#( 
   "use strict"; 
   Function('a,a','return a;');
+  return true;
  )#"
     },
     {
