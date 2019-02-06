@@ -1116,7 +1116,7 @@ void test_boolean_object() {
 
     // ES3, 15.6.4.2, 15.6.4.3
     RUN_TEST_SPEC(R"(
-try { Boolean.prototype.toString.call(42); } catch (e) { e.toString(); } //$string 'TypeError: Number is not a Boolean'
+try { Boolean.prototype.toString.call({}); } catch (e) { e.toString(); } //$string 'TypeError: Object is not a Boolean'
 try { Boolean.prototype.valueOf.call({}); } catch (e) { e.toString(); } //$string 'TypeError: Object is not a Boolean'
 )");
 }
@@ -1167,16 +1167,16 @@ np.toLocaleString || np.toFixed || np.toExponential || np.toPrecision; //$undefi
     RUN_TEST_SPEC(R"(
 // ES3, 15.7.4.2
 try {
-    Number.prototype.toString.call('test');
+    Number.prototype.toString.call({});
 } catch (e) {
-    e.toString(); //$string 'TypeError: String is not a Number'
+    e.toString(); //$string 'TypeError: Object is not a Number'
 }
 
 // ES3, 15.7.4.4
 try {
-    Number.prototype.valueOf.call('test');
+    Number.prototype.valueOf.call({});
 } catch (e) {
-    e.toString(); //$string 'TypeError: String is not a Number'
+    e.toString(); //$string 'TypeError: Object is not a Number'
 }
 
 (42).toLocaleString(); //$string '42'

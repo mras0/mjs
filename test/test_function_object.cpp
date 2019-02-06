@@ -73,7 +73,7 @@ String.prototype.charAt.apply('test',[2]); //$string 's'
 
 String.prototype.apply = Function.prototype.apply;
 try { ('h').apply(); } catch (e) {
-    e.toString(); //$ string 'TypeError: String is not a function'
+    e.toString().toLowerCase(); //$ string 'typeerror: string is not a function'
 }
 )");
 
@@ -91,7 +91,7 @@ String.prototype.charAt.call('test',2); //$string 's'
 
 String.prototype.call = Function.prototype.call;
 try { ('h').call(); } catch (e) {
-    e.toString(); //$ string 'TypeError: String is not a function'
+    e.toString().toLowerCase(); //$ string 'typeerror: string is not a function'
 }
 )");
 
@@ -106,7 +106,7 @@ try {({})();} catch (e) { e.toString(); } //$string 'TypeError: Object is not a 
 try {42();} catch (e) { e.toString(); } //$string 'TypeError: 42 is not a function'
 
 // ES3, 15.3.4.2
-try { Function.prototype.toString.call(42); } catch (e) { e.toString(); } //$string 'TypeError: Number is not a function'
+try { Function.prototype.toString.call(42); } catch (e) { e.toString().toLowerCase(); } //$string 'typeerror: number is not a function'
 
 // ES3, 15.3.4.3
 o = {}

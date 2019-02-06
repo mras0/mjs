@@ -23,8 +23,6 @@ constexpr int expected_failures[] = {
      641, // 15.2.3.3-4-74        Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (String.prototype.substr)
      673, // 15.2.3.4-4-13        Object.getOwnPropertyNames returns array of property names (RegExp.prototype)
      701, // 15.2.3.4-4-7         Object.getOwnPropertyNames returns array of property names (String.prototype)
-     801, // 15.4.4.14-1-1        Array.prototype.indexOf applied to undefined throws a TypeError
-     802, // 15.4.4.14-1-2        Array.prototype.indexOf applied to null throws a TypeError
      879, // 15.4.4.16-7-6        Array.prototype.every visits deleted element in array after the call when same index is also present in prototype
      906, // 15.4.4.17-4-9        Array.prototype.some returns -1 if 'length' is 0 (subclassed Array, length overridden with [0]
      925, // 15.4.4.17-8-10       Array.prototype.some - subclassed array when length is reduced
@@ -35,8 +33,6 @@ constexpr int expected_failures[] = {
     1139, // 15.4.4.22-9-6        Array.prototype.reduceRight visits deleted element in array after the call when same index is also present in prototype
     1140, // 15.4.4.22-9-7        Array.prototype.reduceRight stops calling callbackfn once the array is deleted during the call
     1146, // 15.4.4.22-9-c-ii-4-s Array.prototype.reduceRight - null passed as thisValue to strict callbackfn
-    1156, // 15.5.4.20-1-1        String.prototype.trim throws TypeError when string is undefined
-    1157, // 15.5.4.20-1-2        String.prototype.trim throws TypeError when string is null
 };
 
 void test_main() {

@@ -204,7 +204,7 @@ s='xyyxyxx'.replace(/(.)(.)/g,function(){return Array.prototype.join.call(argume
 
     // ES3, 15.5.4.2, 15.5.4.3
     RUN_TEST_SPEC(R"(
-try { String.prototype.toString.call(42); } catch (e) { e.toString(); } //$string 'TypeError: Number is not a String'
+try { String.prototype.toString.call({}); } catch (e) { e.toString(); } //$string 'TypeError: Object is not a String'
 try { String.prototype.valueOf.call({}); } catch (e) { e.toString(); } //$string 'TypeError: Object is not a String'
 )");
 

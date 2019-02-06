@@ -244,6 +244,14 @@ constexpr bool is_reference_op(token_type t) {
     return t == token_type::dot || t == token_type::lbracket;
 }
 
+value get_this_arg(const gc_heap_ptr<global_object>& global, const value& this_arg) {
+    if (this_arg.type() == value_type::undefined || this_arg.type() == value_type::null) {
+        return value{global};
+    } else {
+        return value{global->to_object(this_arg)};
+    }
+}
+
 class interpreter::impl {
 public:
     explicit impl(gc_heap& h, version ver, const on_statement_executed_type& on_statement_executed)
@@ -1352,14 +1360,11 @@ private:
     object_ptr create_function(const string& id, const std::shared_ptr<block_statement>& block, const std::vector<std::wstring>& param_names, const std::wstring& body_text, const scope_ptr& prev_scope) {
         // §15.3.2.1
         auto callee = make_raw_function(global_);
-        if (block->strict_mode()) {
-            callee->set_strict();
-        }
         auto func = [this, block, param_names, prev_scope, callee, id, hv_result = hoisting_visitor::scan(*block)](const value& this_, const std::vector<value>& args) {
             strict_mode_scope sms{*this, block->strict_mode()};
             // Scope
             auto activation = activation_object::make(global_, param_names, args);
-            activation->put(global_->common_string("this"), this_, property_attribute::dont_delete | property_attribute::dont_enum | property_attribute::read_only);
+            activation->put(global_->common_string("this"), block->strict_mode() ? this_ : get_this_arg(global_, this_), property_attribute::dont_delete | property_attribute::dont_enum | property_attribute::read_only);
             if (!strict_mode_) {
                 activation->arguments()->put(global_->common_string("callee"), value{callee}, property_attribute::dont_enum);
             } else {

@@ -5,13 +5,6 @@
 namespace mjs {
 
 namespace {
-static value get_this_arg(const gc_heap_ptr<global_object>& global, const value& this_arg) {
-    if (this_arg.type() == value_type::undefined || this_arg.type() == value_type::null) {
-        return value{global};
-    } else {
-        return value{global->to_object(this_arg)};
-    }
-}
 
 gc_heap_ptr<function_object> get_function_object_ptr(const value& v) {
     if (v.type() == value_type::object) {
@@ -157,9 +150,7 @@ string function_object::to_string() const {
 
 value function_object::call(const value& this_, const std::vector<value>& args) const {
     if (!call_) throw not_callable_exception{value{heap().unsafe_track(*this)}};
-    auto global = global_.track(heap());
-    const bool strict = strict_ || global->strict_mode();
-    return call_.dereference(heap()).call(strict ? this_  : get_this_arg(global, this_), args);
+    return call_.dereference(heap()).call(this_, args);
 }
 
 value function_object::construct(const value& this_, const std::vector<value>& args) const {

@@ -64,6 +64,9 @@ global_object_create_result make_number_object(const gc_heap_ptr<global_object>&
 
     auto make_number_function = [&](const char* name, int num_args, auto f) {
         put_native_function(global, prototype, string{h, name}, [prototype, global, f](const value& this_, const std::vector<value>& args){
+            if (this_.type() == value_type::number) {
+                return value{f(this_.number_value(), args)};
+            }
             global->validate_type(this_, prototype, "Number");
             return value{f(static_cast<const number_object&>(*this_.object_value()).number_value(), args)};
         }, num_args);
