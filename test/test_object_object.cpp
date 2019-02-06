@@ -379,6 +379,11 @@ try { Object.defineProperty({},'x',{get:function(){},value:0}); } catch (e) { e.
 try { Object.defineProperty({},'x',{set:function(a){},writable:false}); } catch (e) { e.toString(); }   //$string 'TypeError: Accessor property descriptor may not have value or writable attributes'
 try { Object.defineProperty({},'x',{set:function(a){},value:0}); } catch (e) { e.toString(); }          //$string 'TypeError: Accessor property descriptor may not have value or writable attributes'
 
+
+var o = Object.defineProperty({},'x',{get:function(){},configurable:false});
+try { Object.defineProperty(o,'x',{get:function(){}}); } catch (e) { e.toString(); } //$string 'TypeError: cannot redefine property: x'
+try { Object.defineProperty(o,'x',{set:function(){}}); } catch (e) { e.toString(); } //$string 'TypeError: cannot redefine property: x'
+
 function gopd(o,p) {
     var d = Object.getOwnPropertyDescriptor(o,p);
     if (d === undefined) return d;

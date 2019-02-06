@@ -192,13 +192,23 @@ define_own_property_result define_own_property(const gc_heap_ptr<global_object>&
         auto s = desc->get(L"set");
         if (has_attributes(current_attributes, property_attribute::accessor)) {
             auto temp = o->get_accessor_property_object(p.view());
-            if (g.type() == value_type::undefined && temp->has_property(L"get")) {
-                g = temp->get(L"get");
+            if (!desc->has_property(L"get")) {
+                if (temp->has_property(L"get")) {
+                    g = temp->get(L"get");
+                }
+            } else if (has_attributes(current_attributes, property_attribute::read_only) && g != temp->get(L"get")) {
+                return define_own_property_result::cannot_redefine;
             }
-            if (s.type() == value_type::undefined && temp->has_property(L"set")) {
-                s = temp->get(L"set");
+
+            if (s.type() == value_type::undefined) {
+                if (temp->has_property(L"set")) {
+                    s = temp->get(L"set");
+                }
+            } else if (has_attributes(current_attributes, property_attribute::read_only) && s != temp->get(L"set")) {
+                return define_own_property_result::cannot_redefine;
             }
         }
+
         define_accessor_property(global, o, p, g, s, a);
         return define_own_property_result::ok;
     } else {
