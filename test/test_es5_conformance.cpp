@@ -18,10 +18,7 @@ constexpr int expected_failures[] = {
      116, // 11.4.1-5-1-s         delete operator throws ReferenceError when deleting a direct reference to a var in strict mode
      118, // 11.4.1-5-2-s         delete operator throws ReferenceError when deleting a direct reference to a function argument in strict mode
      120, // 11.4.1-5-3-s         delete operator throws ReferenceError when deleting a direct reference to a function name in strict mode
-     129, // 12.10-0-8            with introduces scope - var initializer sets like named property
-     145, // 12.14-1              catch doesn't change declaration scope - var initializer in catch with same name as catch parameter changes parameter
      149, // 12.14-13             catch introduces scope - updates are based on scope
-     150, // 12.14-2              catch doesn't change declaration scope - var initializer in catch with same name as catch parameter changes parameter
      520, // 15.2.3.3-4-164       Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (RegExp.prototype.compile)
      540, // 15.2.3.3-4-183       Object.getOwnPropertyDescriptor returns undefined for non-existent properties on built-ins (Function.arguments)
      641, // 15.2.3.3-4-74        Object.getOwnPropertyDescriptor returns data desc for functions on built-ins (String.prototype.substr)

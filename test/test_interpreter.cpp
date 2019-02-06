@@ -932,6 +932,22 @@ try {
     s += 'f2';
 }
 s; //$string 'e:1fe2:43f2'
+
+var x = 'blah';
+try {
+    throw new Error();
+} catch (x) {
+    x = 60;
+}
+x;//$string 'blah'
+
+var y = 'blah';
+try {
+    throw new Error();
+} catch (y) {
+    var y = 42;
+}
+y;//$string 'blah'
 )");
 
     // ES5.1 12.4 (See Annex D) - `this` should be undefined in the function?

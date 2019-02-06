@@ -1151,8 +1151,9 @@ private:
 
         void put_local(const string& key, const value& val) {
             auto act = activation_.track(heap_);
-            // Hack-ish, but variable/function definitions end up in e.g. in the "with" object
-            if (act.has_type<activation_object>() || is_global_object(act)) {
+            // Hack-ish, but variable/function definitions end up in e.g. in the "with" object otherwise
+            // The final check if is in the case of a variabl declaration 'shadowing' the catch identifier
+            if (act.has_type<activation_object>() || is_global_object(act) || is_valid(act->own_property_attributes(key.view()))) {
                 act->redefine_own_property(key, val, property_attribute::dont_delete);
             } else {
                 assert(prev_);
