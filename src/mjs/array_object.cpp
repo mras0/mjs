@@ -34,15 +34,6 @@ public:
         return global.heap().make<array_object>(global, ap->class_name(), ap, length);
     }
 
-    value get(const std::wstring_view& name) const override {
-        const uint32_t index = index_value_from_string(name);
-        if (index < max_normal_size) {
-            return get_at(index);
-        } else {
-            return native_object::get(name);
-        }
-    }
-
     void put(const string& name, const value& val, property_attribute attr) override {
         if (!can_put(name.view()) || do_native_put(name, val)) {
             return;
@@ -50,38 +41,20 @@ public:
 
         const uint32_t index = index_value_from_string(name.view());
         if (index != invalid_index_value) {
-            if (!is_extensible() && !index_present(index)) {
+            if (!is_extensible() && is_valid(own_property_attributes(name.view()))) {
                 return;
             }
             if (index >= length_) {
-                resize(index + 1);
+                length_ = index + 1;
             }
-            if (index < max_normal_size) {
-                put_at(index, val);
-                return;
-            }
-            // Handle as normal put (sparse/large array)
         }
 
         object::put(name, val, attr);
     }
 
-    bool delete_property(const std::wstring_view& name) override {
-        if (const uint32_t index = index_value_from_string(name); index < max_normal_size) {
-            if (index_present(index)) {
-                present_mask_.dereference(heap())[index/64] &= ~(1ULL<<(index%64));
-            }
-            return true;
-        }
-        return native_object::delete_property(name);
-    }
-
 private:
     gc_heap_ptr_untracked<global_object> global_;
     uint32_t length_;
-    gc_heap_ptr_untracked<gc_vector<value_representation>> values_;
-    gc_heap_ptr_untracked<gc_vector<property_attribute>> attributes_;
-    gc_heap_ptr_untracked<gc_vector<uint64_t>> present_mask_;
 
     value get_length() const {
         return value{static_cast<double>(length_)};
@@ -89,118 +62,21 @@ private:
 
     void put_length(const value& v) {
         // ES3, 15.4.5.1
-        resize(check_array_length(global_.dereference(heap()), to_number(v)));
-    }
-
-    bool index_present(uint32_t index) const {
-        assert(index < max_normal_size);
-        return index < length_ && (present_mask_.dereference(heap())[index/64]&(1ULL<<(index%64)));
-    }
-
-    value get_at(uint32_t index) const {
-        assert(index < max_normal_size);
-        auto& h = heap();
-        return index_present(index) ? values_.dereference(h)[index].get_value(h) : value::undefined;
-    }
-
-    property_attribute attributes_at(uint32_t index) const {
-        assert(index < max_normal_size);
-        return index_present(index) ? attributes_.dereference(heap())[index] : property_attribute::invalid;
-    }
-
-    void put_at(uint32_t index, const value& val, property_attribute attr = property_attribute::none) {
-        assert(index < max_normal_size);
-        auto& h = heap();
-        values_.dereference(h)[index] = value_representation{val};
-        attributes_.dereference(h)[index] = attr;
-        present_mask_.dereference(heap())[index/64] |= 1ULL<<(index%64);
-    }
-
-    void resize(uint32_t len) {
-        length_ = len;
-        if (len == 0) {
-            values_ = nullptr;
-            attributes_ = nullptr;
-            present_mask_ = nullptr;
-        } else  {
-            if (len > max_normal_size) {
-                len = max_normal_size;
-            }
-            auto& h = heap();
-            if (!values_) {
-                values_ = gc_vector<value_representation>::make(h, len);
-                attributes_ = gc_vector<property_attribute>::make(h, len);
-                present_mask_ = gc_vector<uint64_t>::make(h, (len+63) / 64);
-            }
-            values_.dereference(h).resize(len);
-            attributes_.dereference(h).resize(len);
-            present_mask_.dereference(h).resize((len + 63) / 64);
+        const auto old_length = length_;
+        length_ = check_array_length(global_.dereference(heap()), to_number(v));
+        for (auto l = length_; l < old_length; ++l) {
+            delete_property(index_string(l));
         }
     }
 
     void fixup() {
         auto& h = heap();
         global_.fixup(h);
-        values_.fixup(h);
-        attributes_.fixup(h);
-        present_mask_.fixup(h);
         native_object::fixup();
     }
 
-    bool do_redefine_own_property(const string& name, const value& val, property_attribute attr) override {
-        if (const uint32_t index = index_value_from_string(name.view()); index < max_normal_size) {
-            if (index_present(index)) {
-                put_at(index, val, attr);
-            } else {
-                if (!is_extensible()) {
-                    return false;
-                }
-                put(name, val, attr);
-            }
-            return true;
-        }
-        return native_object::do_redefine_own_property(name, val, attr);
-    }
-
-    property_attribute do_own_property_attributes(const std::wstring_view& name) const override {
-        if (const uint32_t index = index_value_from_string(name); index < max_normal_size) {
-            return attributes_at(index);
-        }
-        return native_object::do_own_property_attributes(name);
-    }
-
-    void add_own_property_names(std::vector<string>& names, bool check_enumerable) const override {
-        if (length_) {
-            auto& h = heap();
-            const auto pm = present_mask_.dereference(h).data();
-            const auto attrs = attributes_.dereference(h).data();
-            for (uint32_t i = 0; i < std::min(max_normal_size, length_); ++i) {
-                if (pm[i/64] & (1ULL << (i%64))) {
-                    if (!check_enumerable || !has_attributes(attrs[i], property_attribute::dont_enum)) {
-                        names.push_back(string{h, index_string(i)});
-                    }
-                }
-            }
-        }
-        native_object::add_own_property_names(names, check_enumerable);
-    }
-
-    void do_debug_print_extra(std::wostream& os, int indent_incr, int max_nest, int indent) const override {
-        native_object::do_debug_print_extra(os, indent_incr, max_nest, indent);
-
-        const auto indent_string = std::wstring(indent, ' ');
-        for (uint32_t i = 0; i < std::min(max_normal_size, length_); ++i) {
-            if (index_present(i)) {
-                os << indent_string << i << ": ";
-                mjs::debug_print(os, get_at(i), indent_incr, 1, indent + indent_incr);
-                os << "\n";
-            }
-        }
-    }
-
-    explicit array_object(const gc_heap_ptr<global_object>& global, const string& class_name, const object_ptr& prototype, uint32_t length) : native_object{class_name, prototype}, global_(global), length_(0) {
+    explicit array_object(const gc_heap_ptr<global_object>& global, const string& class_name, const object_ptr& prototype, uint32_t length) : native_object{class_name, prototype}, global_(global), length_(length) {
         DEFINE_NATIVE_PROPERTY(array_object, length);
-        resize(length);
     }
 };
 

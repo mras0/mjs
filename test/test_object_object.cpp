@@ -124,7 +124,7 @@ try { opn(null); } catch (e) { e.toString(); } //$string 'TypeError: null is not
 try { opn(42); } catch (e) { e.toString(); } //$string 'TypeError: 42 is not an object'
 try { opn('x'); } catch (e) { e.toString(); } //$string 'TypeError: \'x\' is not an object'
 opn(new Number(42)); //$string ''
-opn([1,2]); //$string '0,1,length'
+opn([1,2]); //$string 'length,0,1'
 opn(new String('abc')); //$string '0,1,2,length'
 opn({}); //$string ''
 opn({a:0,b:0,c:0}); //$string 'a,b,c'

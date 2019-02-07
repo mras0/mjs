@@ -45,9 +45,9 @@ a[2] = 42;
 a.length; //$number 3
 a[7] = 100;
 a.length; //$number 8
-var s = ''; for (var k in a) s += k + ','; s //$string '2,7,false,'
+var s = ''; for (var k in a) s += k + ','; s //$string 'false,2,7,'
 a.length=4;
-s = ''; for (var k in a) s += k + ','; s //$string '2,false,'
+s = ''; for (var k in a) s += k + ','; s //$string 'false,2,'
 delete a[2];
 a.length; //$number 4
 s = ''; for (var k in a) s += k + ','; s //$string 'false,'
@@ -504,4 +504,18 @@ try {
 }
 
 )");
+
+    if (tested_version() >= version::es5) {
+        RUN_TEST_SPEC(R"(
+x=12;
+a=[1,2,3]
+Object.defineProperty(a, '1', {get: function() { return 42; }, set: function(a) { x+=a; }});
+a[0]; //$number 1
+a[1]; //$number 42
+a[2]; //$number 3
+x;//$number 12
+a[1]=10;
+x;//$number 22
+)");
+    }
 }

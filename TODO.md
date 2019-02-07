@@ -24,7 +24,8 @@
         - ES3 regular expression literals shouldn't be unique
     - Create function objects on demand (?)
     - Consider implementing some things in ECMAScript (i.e. polyfill it)!
-    - Rework `array_object` with better support for sparse/large arrays (also look at the helper functions - could probably use a helper to iterate over all valid indicies forwards and backwards)
+    - Clean-up handling of object properties / accessor objects
+    - Rework `array_object`
 * Better GC
     - Ensure exception safety
     - Support growing the heap (and support growing it as needed)
