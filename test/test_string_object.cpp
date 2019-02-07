@@ -213,13 +213,9 @@ try { String.prototype.valueOf.call({}); } catch (e) { e.toString(); } //$string
         RUN_TEST(L"String.prototype.trim", value::undefined);
     } else {
 
-        // TODO: FIXME: Needs ES5.1, 15.3.4.3 changes to work
-#if 0
-        //try { String.prototype.trim.call(undefined); } catch (e) { e.toString(); } //$string 'TypeError: Cannot convert undefined to object'
-        //try { String.prototype.trim.call(null); } catch (e) { e.toString(); } //$string 'TypeError: Cannot convert null to object'
-
-#endif
         RUN_TEST_SPEC(R"(
+try { String.prototype.trim.call(undefined); } catch (e) { e.toString(); } //$string 'TypeError: String.prototype.trim cannot be called on undefined'
+try { String.prototype.trim.call(null); } catch (e) { e.toString(); }      //$string 'TypeError: String.prototype.trim cannot be called on null'
 String.prototype.trim.call(''); //$string ''
 String.prototype.trim.call('\n\r\t\f     '); //$string ''
 String.prototype.trim.call(42); //$string '42'
@@ -229,6 +225,14 @@ function f(s) { this.s = s; }
 f.prototype.toString = function() { return this.s; }
 f.prototype.t = String.prototype.trim;
 new f(' \t 123 \ta\r ').t(); //$string '123 \ta'
+
+String.prototype.substr.length;//$number 2
+'abcd'.substr(1); //$string 'bcd'
+'abcd'.substr(2,1231231); //$string 'cd'
+'abcd'.substr(1,2); //$string 'bc'
+'abcd'.substr(-1,3); //$string 'd'
+'abcd'.substr(null,null); //$string ''
+String.prototype.substr.call(1234, 1, 2); //$string '23'
 
 )");
     }

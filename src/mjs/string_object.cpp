@@ -293,6 +293,27 @@ global_object_create_result make_string_object(const gc_heap_ptr<global_object>&
             auto s = to_string(h, this_);
             return value{string{h, trim(s.view(), ver)}};
         }, 0);
+
+        put_native_function(global, prototype, string{h, "substr"}, [global, ver = global->language_version()](const value& this_, const std::vector<value>& args) {
+            // ES5.1, B.2.3
+            auto& h = global.heap();
+            // 1
+            const auto str = to_string(h, this_);
+            // 2
+            auto start  = to_integer(args.size() >= 1 ? args[0] : value::undefined);
+            // 3
+            auto length = args.size() < 2 || args[1].type() == value_type::undefined ? +INFINITY : to_integer(args[1]);
+            // 4
+            const auto str_len = str.view().length();
+            // 5
+            if (start < 0) start = std::max(str_len + start, 0.);
+            // 6
+            length = std::min(std::max(length, 0.), str_len - start);
+            // 7
+            if (length <= 0) return value{string{h, ""}};
+            // 8
+            return value{string{h, str.view().substr(static_cast<size_t>(start), static_cast<size_t>(length))}};
+        }, 2);
     }
 
     return {c, prototype};
