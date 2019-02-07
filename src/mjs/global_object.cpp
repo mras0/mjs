@@ -742,6 +742,9 @@ private:
         put(common_string("global"), value{self}, property_attribute::dont_delete | property_attribute::read_only);
 
         put(common_string("this"), value{self}, prototype_attributes);
+
+        // Make ES5 Conformance Suite happy
+        put(common_string("length"), value{0.}, prototype_attributes);
     }
 
     string common_string(const char* str) override {
