@@ -132,9 +132,13 @@ int main(int argc, char* argv[]) {
             if (!getline(std::wcin, line)) {
                 break;
             }
-            const value res = i.eval(*parse(make_source(line, ver)));
-            debug_print(std::wcout, res, 2);
-            std::wcout << "\n";
+            try {
+                const value res = i.eval(*parse(make_source(line, ver)));
+                debug_print(std::wcout, res, 2);
+                std::wcout << "\n";
+            } catch (const std::exception& e) {
+                std::wcout << unicode::utf8_to_utf16(e.what()) << "\n";
+            }
         }
 
     } catch (const std::exception& e) {
