@@ -1,4 +1,4 @@
-# Supporting ECMAScript 3rd Edition
+# (Old Notes on) Supporting ECMAScript 3rd Edition
 
 https://www.ecma-international.org/publications/standards/Ecma-262-arch.htm
 

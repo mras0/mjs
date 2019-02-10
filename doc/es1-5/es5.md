@@ -1,4 +1,4 @@
-# Supporting ECMAScript 5th Edition
+# (Old Notes on) Supporting ECMAScript 5th Edition
 
 ## Done:
 - 11.1.5: Object Initialiser: Allow trailing comma and reserved words as keys

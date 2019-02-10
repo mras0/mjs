@@ -55,10 +55,7 @@ what's available so far:
 * [Implementing a Garbage Collector in
   C++](https://mras0.github.io/mjs/doc/gc/initial.html) about how the
   garbage collector was implemented
-* [Supporting ECMAScript 3rd Edition](doc/es3/es3.md) on the work done
-  to support ES3 (very incomplete)
-* [Supporting ECMAScript 5th Edition](doc/es5/es5.md) on the work done
-  to support ES5 (very incomplete)
+* [Implementer's Notes on Supporting ECMAScript 3rd and 5th Editions](doc/es1-5/es1-5.md)
 
 ## Support
 
